@@ -1,0 +1,4 @@
+# Build tools pinned for CI
+meson==1.11.2
+ninja==1.13.0
+fonttools==4.60.1

@@ -1,0 +1,156 @@
+# Verifies the full Native & WebAssembly ThorVG path on a clean runner
+# and deploys the verified dist artifact to GitHub Pages.
+# Pull requests run verify only; main pushes deploy and smoke test.
+name: Deploy to GitHub Pages
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config ninja-build libasound2-dev libpulse-dev libx11-dev libxext-dev libwayland-dev libxkbcommon-dev
+
+      - name: Install Meson, Ninja and Python tools
+        run: python3 -m pip install --requirement .github/ci-requirements.txt
+
+      - name: Read pinned Emscripten version
+        id: emsdk-version
+        run: echo "version=$(cat .emscripten-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore emsdk cache
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ runner.os }}-${{ steps.emsdk-version.outputs.version }}
+
+      - name: Install emsdk
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "${{ steps.emsdk-version.outputs.version }}"
+
+      - name: Activate emsdk
+        run: |
+          "$HOME/emsdk/emsdk" activate "${{ steps.emsdk-version.outputs.version }}"
+
+      - name: Python unit tests
+        run: python3 -m unittest discover -s tests -p "test_*.py"
+
+      - name: Native build and tests
+        run: python3 tools/build.py native
+
+      - name: WebAssembly build
+        run: |
+          export EMSDK="$HOME/emsdk"
+          source "$HOME/emsdk/emsdk_env.sh"
+          python3 tools/build.py web
+
+      - name: Verify Pages artifact contract
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/thorium.js
+          test -f dist/thorium.wasm
+          test -f dist/thorium.data
+          test -s dist/thorium.wasm
+          test -s dist/thorium.data
+          if find dist -type l | grep -q .; then
+            echo 'symbolic links found inside artifact' >&2
+            exit 1
+          fi
+
+      - name: Install Playwright and browser dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser end-to-end tests
+        run: |
+          python3 -m http.server 8317 --bind 127.0.0.1 --directory dist &
+          SERVER_PID=$!
+          sleep 2
+          node tests/browser/run.mjs
+          kill $SERVER_PID
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to Pages
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: true
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke:
+    name: Smoke verify deployed site
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for deployment to respond
+        run: |
+          url='${{ needs.deploy.outputs.page_url }}'
+          for attempt in $(seq 1 12); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$url") || status=000
+            if [ "$status" = '200' ]; then
+              echo "Deployment is reachable at $url (HTTP 200)"
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $status (waiting 15s)..."
+            sleep 15
+          done
+          echo 'deployment did not become reachable in time' >&2
+          exit 1
