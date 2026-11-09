@@ -2,3 +2,4 @@
 meson==1.11.2
 ninja==1.13.0
 fonttools==4.60.1
+cmake==3.31.6

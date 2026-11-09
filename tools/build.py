@@ -17,13 +17,28 @@ DEPS: Path = ROOT / '.deps'
 TOOLS: Path = ROOT / '.tools'
 SDL_VERSION: str = '3.4.18'
 THORVG_COMMIT: str = '12132e8ebe329bf549a3f3248b8e8cef295e5c94'
-CMAKE_VERSION: str = '4.1.2'
+CMAKE_VERSION: str = '3.31.6'
 
 
 def run(arguments: list[str], *, environment: dict[str, str] | None = None) -> None:
     """Execute an argument vector without shell interpolation or global installs."""
     print('>', ' '.join(arguments), flush=True)
-    subprocess.run(arguments, cwd=ROOT, env=environment, check=True)
+    try:
+        subprocess.run(arguments, cwd=ROOT, env=environment, check=True)
+    except subprocess.CalledProcessError as error:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        for log_path in [
+            DEPS / 'sdl-build-native/CMakeFiles/CMakeConfigureLog.yaml',
+            DEPS / 'sdl-build-native/CMakeFiles/CMakeError.log',
+            DEPS / 'sdl-build-web/CMakeFiles/CMakeConfigureLog.yaml',
+            DEPS / 'sdl-build-web/CMakeFiles/CMakeError.log',
+        ]:
+            if log_path.exists():
+                print(f'\n--- Diagnostics: {log_path.name} (last 80 lines) ---', file=sys.stderr, flush=True)
+                lines = log_path.read_text(encoding='utf-8', errors='replace').splitlines()
+                print('\n'.join(lines[-80:]), file=sys.stderr, flush=True)
+        raise error
 
 
 def download(url: str, destination: Path) -> None:
@@ -69,12 +84,18 @@ def unpack(archive: Path, destination: Path) -> None:
 def prepare() -> Path:
     """Prepare versioned sources and a project-local CMake installation."""
     DEPS.mkdir(exist_ok=True)
+    system_cmake = shutil.which('cmake')
     cmake: Path = TOOLS / 'venv' / ('Scripts/cmake.exe' if os.name == 'nt' else 'bin/cmake')
     if not cmake.exists():
-        run([sys.executable, '-m', 'venv', str(TOOLS / 'venv')])
-        python: Path = cmake.parent / ('python.exe' if os.name == 'nt' else 'python')
-        run([str(python), '-m', 'pip', 'install', '--disable-pip-version-check', '--cache-dir', str(TOOLS / 'pip-cache'), f'cmake=={CMAKE_VERSION}'])
+        if system_cmake and Path(system_cmake).exists():
+            cmake = Path(system_cmake)
+        else:
+            run([sys.executable, '-m', 'venv', str(TOOLS / 'venv')])
+            python: Path = cmake.parent / ('python.exe' if os.name == 'nt' else 'python')
+            run([str(python), '-m', 'pip', 'install', '--disable-pip-version-check', '--cache-dir', str(TOOLS / 'pip-cache'), f'cmake=={CMAKE_VERSION}'])
     python: Path = cmake.parent / ('python.exe' if os.name == 'nt' else 'python')
+    if not python.exists():
+        python = Path(sys.executable)
     if subprocess.run([str(python), '-c', 'import fontTools'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
         run([str(python), '-m', 'pip', 'install', '--disable-pip-version-check', '--cache-dir', str(TOOLS / 'pip-cache'), 'fonttools==4.60.1'])
     sdl_archive: Path = DEPS / f'SDL-{SDL_VERSION}.tar.gz'
@@ -130,7 +151,14 @@ def build(target: str) -> None:
             '-DCMAKE_BUILD_TYPE=Release', f'-DCMAKE_INSTALL_PREFIX={prefix}', '-DSDL_SHARED=OFF', '-DSDL_STATIC=ON',
             '-DSDL_TESTS=OFF', '-DSDL_TEST_LIBRARY=OFF', '-DSDL_EXAMPLES=OFF', '-DSDL_AUDIO=ON',
             '-DSDL_JOYSTICK=OFF', '-DSDL_HAPTIC=OFF', '-DSDL_SENSOR=OFF', '-DSDL_CAMERA=OFF',
-            '-DSDL_DIALOG=OFF', '-DSDL_TRAY=OFF', '-DSDL_GPU=OFF']
+            '-DSDL_DIALOG=OFF', '-DSDL_TRAY=OFF', '-DSDL_GPU=OFF',
+            '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
+            '-DLIBC_HAS_INTTYPES_H=1', '-DLIBC_HAS_STDINT_H=1', '-DLIBC_HAS_FLOAT_H=1',
+            '-DLIBC_HAS_ICONV_H=1', '-DLIBC_HAS_LIMITS_H=1', '-DLIBC_HAS_MATH_H=1',
+            '-DLIBC_HAS_STDARG_H=1', '-DLIBC_HAS_STDBOOL_H=1', '-DLIBC_HAS_STDDEF_H=1',
+            '-DLIBC_HAS_STDIO_H=1', '-DLIBC_HAS_STDLIB_H=1', '-DLIBC_HAS_STRING_H=1',
+            '-DLIBC_HAS_STRINGS_H=1', '-DLIBC_HAS_SYS_TYPES_H=1', '-DLIBC_HAS_TIME_H=1',
+            '-DLIBC_HAS_WCHAR_H=1']
         if target == 'web':
             configure.insert(0, str(Path(environment['EMSDK']) / 'upstream/emscripten/emcmake'))
         run(configure, environment=environment)
