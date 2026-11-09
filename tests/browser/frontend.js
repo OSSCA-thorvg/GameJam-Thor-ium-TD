@@ -13,7 +13,10 @@ async (page) => {
     /** Read current state without writing game data or clocks. @returns {Promise<State>} */
     async function state(){return page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())));}
     /** Await one condition after the packaged runtime has initialized. @param {string} condition @returns {Promise<void>} */
-    async function wait(condition){await page.waitForFunction(`typeof Module!=='undefined'&&Module.calledRun&&typeof Module._thorium_debug_state==='function'&&(()=>{const s=JSON.parse(Module.UTF8ToString(Module._thorium_debug_state()));return ${condition};})()`);}
+    async function wait(condition){
+        try{await page.waitForFunction(`typeof Module!=='undefined'&&Module.calledRun&&typeof Module._thorium_debug_state==='function'&&(()=>{const s=JSON.parse(Module.UTF8ToString(Module._thorium_debug_state()));return ${condition};})()`);}
+        catch(error){throw new Error(`Front-end condition failed: ${condition}; state=${JSON.stringify(await state())}`,{cause:error});}
+    }
     /** Read current registered hit regions. @returns {Promise<Widget[]>} */
     async function widgets(){return page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_ui())));}
     /** Click one real enabled native UI control. @param {number} id @returns {Promise<void>} */

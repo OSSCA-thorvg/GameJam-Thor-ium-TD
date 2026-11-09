@@ -1,5 +1,6 @@
 #include "ApplicationScenario.h"
 #include "app/Application.h"
+#include "app/Persistence.h"
 #include "game/presentation/Theme.h"
 #include <cmath>
 #include <cstdlib>
@@ -29,6 +30,12 @@ static_assert(presentation::AudioMute == 34 && presentation::HomeNew == 36 &&
               presentation::OpenSettings == 38 && presentation::ToggleAnimationBackend == 53);
 static_assert(presentation::ToggleDrawer == 54 && presentation::CloseDrawer == 55 &&
               presentation::AcknowledgeDrawer == 56);
+/** Keep fresh and partial saved settings aligned with the live settings reset contract. */
+static_assert(SaveData{}.volume == engine::AudioSettings{}.volume &&
+              SaveData{}.muted == engine::AudioSettings{}.muted &&
+              SaveData{}.reducedMotion == presentation::Preferences{}.reducedMotion &&
+              SaveData{}.damageNumbers == presentation::Preferences{}.damageNumbers &&
+              SaveData{}.cachedAnimations == presentation::Preferences{}.cachedAnimations);
 /** Fail a real-render integration contract independently of assertion compiler flags. */
 void require(bool condition, const char *message) {
     ++checks;

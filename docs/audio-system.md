@@ -64,6 +64,12 @@ MP3는 모노/스테레오, 8~192kHz를 받아 48kHz 스테레오 출력으로 �
 
 ## 검증
 
+2026-11-10 저장 설정의 초기값을 [AudioSettings](../src/engine/audio/Audio.h)와 통일했습니다. [SaveData](../src/app/Persistence.h)는 볼륨·음소거와 화면 설정의 기본값을 해당 설정 타입에서 가져옵니다. 저장 데이터가 없거나 볼륨 항목이 빠졌을 때는 45%로 시작하며, 기본값 복원과 같은 동작입니다. 기존에 저장된 70%·100% 등의 명시적 볼륨은 계속 복원합니다.
+
+[persistence.js](../tests/browser/persistence.js)는 저장 없음·빈 문자열·빈 객체·손상된 문자열·볼륨 누락·사용자 설정·100% 저장값·저장소 접근 실패를 각각 독립 브라우저 컨텍스트에서 검증합니다. [애플리케이션 네이티브 테스트](../tests/native/application_test.cpp)는 저장 기본값과 실제 설정 기본값이 일치하는지 컴파일 시 확인합니다.
+
+브라우저 시나리오가 실패하면 [실행기](../tests/browser/run.mjs)가 시나리오 이름과 마지막 공개 상태를 로그에 남기고 `.playwright-mcp/failure-<scenario>.json` 및 `.png`를 저장합니다. [CI 워크플로우](../.github/workflows/deploy-pages.yml)는 실패한 브라우저 작업의 파일만 `browser-failure-diagnostics` 아티팩트로 7일간 보관합니다. `frontend.js`의 대기 실패에는 실제로 기다린 조건도 포함합니다.
+
 [audio_test.cpp](../tests/native/audio_test.cpp)는 합성음의 양끝·유한성, 실제 MP3 디코딩과 44.1→48kHz 변환, 누락/손상 파일 대체, 음소거, 동시 재생 상한·우선순위, 한 번만 발생하는 카드/공세 이벤트와 지연음 취소를 검사합니다. 원본 테스트 음원은 FFmpeg로 만든 짧은 880Hz 사인파입니다.
 
 [audio.js](../tests/browser/audio.js)는 실제 클릭·터치로 SDL을 거쳐 Web Audio 분석기에 도달하는 0이 아닌 PCM, 실제 출력의 음소거·복구, 볼륨 변경, 새 판의 설정 보존과 모바일 일시정지 창을 검사합니다. 기존 전투·채굴·철수·카드 애니메이션 시나리오도 함께 실행합니다.

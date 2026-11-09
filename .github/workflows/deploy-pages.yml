@@ -100,12 +100,23 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Browser end-to-end tests
+        id: browser-tests
         run: |
           python3 -m http.server 8317 --bind 127.0.0.1 --directory dist &
           SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           sleep 2
           node tests/browser/run.mjs
-          kill $SERVER_PID
+
+      - name: Upload browser failure diagnostics
+        if: failure() && steps.browser-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-diagnostics
+          path: .playwright-mcp/failure-*
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
