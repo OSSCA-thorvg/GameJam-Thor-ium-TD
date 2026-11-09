@@ -1,0 +1,12 @@
+.deps/
+.tools/
+build/
+dist/
+subprojects/thorvg/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+.playwright-mcp/
+*.bmp
+

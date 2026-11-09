@@ -1,0 +1,38 @@
+{
+  "sdl": "3.4.18",
+  "thorvg_commit": "12132e8ebe329bf549a3f3248b8e8cef295e5c94",
+  "cmake": "4.1.2",
+  "fonttools": "4.60.1",
+  "tested_emscripten": "6.0.0",
+  "font_instance": {
+    "family": "Thorium UI",
+    "weight": 500
+  },
+  "downloads": {
+    "SDL-3.4.18.tar.gz": {
+      "url": "https://codeload.github.com/libsdl-org/SDL/tar.gz/refs/tags/release-3.4.18",
+      "sha256": "c4b08b950bd29d83caae0ab8d884298d27046a9d30700fb42841c50992665c90"
+    },
+    "thorvg.tar.gz": {
+      "url": "https://codeload.github.com/thorvg/thorvg/tar.gz/12132e8ebe329bf549a3f3248b8e8cef295e5c94",
+      "sha256": "e8ec4afb7710240710eb46a09dd8c4905cf88978f844254e728d1cfad3a6170a"
+    },
+    "NotoSansKR-variable.ttf": {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+      "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252"
+    },
+    "OFL.txt": {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/OFL.txt",
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9"
+    },
+    "dr_mp3.h": {
+      "url": "https://raw.githubusercontent.com/mackron/dr_libs/aec2dd20667f54acfdb66031217df6d240f56c52/dr_mp3.h",
+      "sha256": "f5c8020eeebb79877184432efdd2651f24869f5bb8f379d45450fd0aed1ee915"
+    },
+    "dr_libs.txt": {
+      "url": "https://raw.githubusercontent.com/mackron/dr_libs/aec2dd20667f54acfdb66031217df6d240f56c52/LICENSE",
+      "sha256": "dd1c647e6f767f8ff4b2dfae0fed314726600a01e0cf1ef556afddd5fa96ff15"
+    }
+  },
+  "dr_mp3_commit": "aec2dd20667f54acfdb66031217df6d240f56c52"
+}
