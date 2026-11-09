@@ -37,7 +37,12 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake pkg-config ninja-build libasound2-dev libpulse-dev libx11-dev libxext-dev libwayland-dev libxkbcommon-dev
+          sudo apt-get install -y \
+            cmake pkg-config ninja-build \
+            libasound2-dev libpulse-dev \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev \
+            libxrandr-dev libxrender-dev libxss-dev libxtst-dev \
+            libwayland-dev libxkbcommon-dev
 
       - name: Install Meson, Ninja and Python tools
         run: python3 -m pip install --requirement .github/ci-requirements.txt
