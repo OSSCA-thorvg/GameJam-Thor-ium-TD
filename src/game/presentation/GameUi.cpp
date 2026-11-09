@@ -400,13 +400,14 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
         const game::Unit *unit = run.unit(state.play.selectedUnit);
         const game::Card *card = run.card(state.play.selectedCard);
         const bool guideVisible = state.play.guideOpen && !selected && !card && !placingCard_;
+        const auto &meta = game::stageMetadata(state.play.currentStage);
         std::string title = tower  ? run.catalog().card(tower->kind).name
                             : unit ? run.catalog().card(unit->kind).name
                             : card ? run.catalog().card(card->kind).name
                             : run.state().phase == game::Phase::Ready
-                                ? "방어 기지 · 대기 중"
-                                : "방어 기지 · 웨이브 " + std::to_string(run.waveSpawned()) + "/" +
-                                      std::to_string(run.waveSpawnCount());
+                                ? meta.name + " · 대기 중"
+                                : meta.name + " · " + std::to_string(run.state().wave) + "/" +
+                                      std::to_string(meta.wavesCount) + "W";
         if (card) {
             const game::PlayAvailability availability = run.playAvailability(card->id);
             title += placement_ && placement_->card == card->id
@@ -570,9 +571,10 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
     // Tactical commander plaque
     g.rect({x, side.y + 13, w, 32.0F}, {18, 34, 42}, 6);
     g.rect({x, side.y + 13, 4.0F, 32.0F}, theme::gold, 2);
+    const auto &desktopMeta = game::stageMetadata(state.play.currentStage);
     g.text(prep                                      ? "탐사 · 정비 지휘소"
-           : run.state().phase == game::Phase::Ready ? "표층 방어 작전"
-                                                     : "방어 지휘소",
+           : run.state().phase == game::Phase::Ready ? desktopMeta.name + " 작전"
+                                                     : desktopMeta.name + " 지휘소",
            {x + 12, side.y + 18}, layout.compact ? 16 : 18, theme::text);
 
     // Desktop Side Wing Tab Button (사이드바 좌측으로 살짝 튀어나온 날개 탭)
@@ -1080,17 +1082,26 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
     const float x = box.x + 22, y = box.y + 25, w = box.w - 44;
     g.rect({x, y, w, 3}, theme::gold, 1);
     if (terminal) {
-        g.text(run.state().phase == game::Phase::Won ? "표층 거점 방어 성공" : "원정대 철수",
-               {box.x + width / 2, y + 23}, layout.compact ? 23 : 29, theme::gold, .5F);
-        gem(g, {box.x + width / 2, y + 109}, 35,
-            run.state().phase == game::Phase::Won ? theme::gold : theme::red);
-        g.text("도달 웨이브 " + std::to_string(run.state().wave) + "   ·   격파 " +
-                   std::to_string(run.state().defeated),
+        const bool won = run.state().phase == game::Phase::Won;
+        const auto &meta = game::stageMetadata(state.play.currentStage);
+        g.text(won ? (meta.name + " 방어 성공!") : "원정대 철수",
+               {box.x + width / 2, y + 23}, layout.compact ? 22 : 28, won ? theme::gold : theme::red, .5F);
+        gem(g, {box.x + width / 2, y + 109}, 35, won ? theme::gold : theme::red);
+        g.text("도달 웨이브 " + std::to_string(run.state().wave) + " / " + std::to_string(meta.wavesCount) +
+                   "   ·   누적 격파 " + std::to_string(run.state().defeated),
                {box.x + width / 2, y + 170}, 14, theme::text, .5F);
-        const float half = (w - 10) / 2;
-        button(g, ui, ConfirmReset, {x, box.y + height - 72, half, 45}, "새 원정 시작",
-               canConfirmNewRun(run.state().phase, state), true);
-        button(g, ui, GoHome, {x + half + 10, box.y + height - 72, half, 45}, "메인 화면");
+        const bool hasNextStage = won && state.play.currentStage < game::TotalStages;
+        if (hasNextStage) {
+            const float third = (w - 16) / 3;
+            button(g, ui, NextStageRun, {x, box.y + height - 72, third * 1.35F, 45}, "다음 구역 출격", true, true);
+            button(g, ui, ConfirmReset, {x + third * 1.35F + 8, box.y + height - 72, third * 0.8F, 45}, "재도전");
+            button(g, ui, GoHome, {x + third * 2.15F + 16, box.y + height - 72, third * 0.85F, 45}, "메인");
+        } else {
+            const float half = (w - 10) / 2;
+            button(g, ui, ConfirmReset, {x, box.y + height - 72, half, 45}, won ? "다시 도전" : "새 원정 시작",
+                   canConfirmNewRun(run.state().phase, state), true);
+            button(g, ui, GoHome, {x + half + 10, box.y + height - 72, half, 45}, "메인 화면");
+        }
         return;
     }
     if (run.state().expansionPending) {

@@ -19,6 +19,7 @@ namespace thorium::presentation {
 class View {
   public:
     Layout layout;
+    engine::ScreenPoint shakeOffset{};
     /** Build and paint one responsive screen, registering its matching controls. */
     void draw(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state,
               const engine::AudioSettings &audio);
@@ -32,7 +33,10 @@ class View {
     }
     /** Transform one logical surface point for effects and entity drawing. */
     engine::ScreenPoint screenPoint(game::Point point) const {
-        return layout.screenPoint(point);
+        engine::ScreenPoint p = layout.screenPoint(point);
+        p.x += shakeOffset.x;
+        p.y += shakeOffset.y;
+        return p;
     }
 
     /** Read the last rendered hint for diagnostics without exposing a mutable command plan. */

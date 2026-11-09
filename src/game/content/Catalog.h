@@ -89,4 +89,23 @@ struct Catalog {
 };
 /** Shipped content is immutable; copies may be edited before constructing a new run. */
 const Catalog &defaultCatalog();
+
+/** Authored presentation metadata for an expedition stage. */
+struct StageMetadata {
+    int id = 1;
+    std::string name;
+    std::string subtitle;
+    std::string description;
+    int wavesCount = 3;
+    int difficulty = 1;
+};
+
+/** Total number of playable campaign stages. */
+inline constexpr int TotalStages = 3;
+
+/** Resolve authored content for a specific 1-based stage index. */
+const Catalog &stageCatalog(int stageIndex);
+
+/** Resolve display metadata for a specific 1-based stage index. */
+const StageMetadata &stageMetadata(int stageIndex);
 } // namespace thorium::game

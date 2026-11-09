@@ -6,11 +6,21 @@ namespace thorium {
 AppFlow::AppFlow(game::Run &run, presentation::State &state, engine::Ui &ui, engine::AudioMixer &audio,
                  presentation::Soundscape &sound, FeedbackChannel &feedback)
     : run(run), state(state), ui(ui), audio(audio), sound(sound), feedback(feedback) {}
-void AppFlow::restart() {
+void AppFlow::restart(int stageIndex) {
     ui.cancel();
     ui.focused = 0;
-    run.reset();
+    if (stageIndex >= 1 && stageIndex <= game::TotalStages) {
+        auto created = game::Run::create(game::stageCatalog(stageIndex));
+        if (created.run)
+            run = std::move(*created.run);
+        state.play.currentStage = stageIndex;
+        state.app.selectedStage = stageIndex;
+    } else {
+        run.reset();
+    }
+    const int stage = state.app.selectedStage;
     state.play = presentation::PlayState{};
+    state.play.currentStage = (stage >= 1 && stage <= game::TotalStages) ? stage : 1;
     state.app.navigation.enterGame();
     feedback.reset();
 }
@@ -133,6 +143,35 @@ FlowResult AppFlow::act(presentation::Action action) {
                                     : std::min(1.0F, (std::floor(audio.settings.volume * 4) + 1) / 4);
         audio.settings.muted = false;
         sound.play(Sound::Select);
+        break;
+    case SelectStagePrev:
+        if (state.app.selectedStage > 1) {
+            --state.app.selectedStage;
+            auto created = game::Run::create(game::stageCatalog(state.app.selectedStage));
+            if (created.run)
+                run = std::move(*created.run);
+            sound.play(Sound::Select);
+        }
+        ui.cancel();
+        break;
+    case SelectStageNext:
+        if (state.app.selectedStage < std::min(game::TotalStages, state.app.highestUnlockedStage + 1)) {
+            ++state.app.selectedStage;
+            auto created = game::Run::create(game::stageCatalog(state.app.selectedStage));
+            if (created.run)
+                run = std::move(*created.run);
+            sound.play(Sound::Select);
+        }
+        ui.cancel();
+        break;
+    case NextStageRun:
+        if (state.play.currentStage < game::TotalStages) {
+            const int nextStage = state.play.currentStage + 1;
+            state.app.highestUnlockedStage = std::max(state.app.highestUnlockedStage, nextStage);
+            restart(nextStage);
+            sound.play(Sound::Confirm);
+            return FlowResult::Restarted;
+        }
         break;
     case Close:
         state.play.modal = presentation::Modal::None;

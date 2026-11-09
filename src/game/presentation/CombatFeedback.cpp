@@ -73,8 +73,50 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                 const float radius = tile * event.radius * (.16F + .84F * (1 - std::pow(1 - t, 2.0F)));
                 g.circle(to, radius, fade(color, (1 - t) * .12F));
                 ring(g, to, radius, std::max(1.5F, 3 * (1 - t)), fade(color, 1 - t));
+
+                // Cannon & Blast: Ground dust puffs and explosion debris sparks
+                if (event.card == game::CardKind::Cannon || event.card == game::CardKind::Blast) {
+                    if (cue.age < .30F) {
+                        const float dt = cue.age / .30F;
+                        for (int d = 0; d < 4; ++d) {
+                            const float da = d * 1.570796F + 0.35F;
+                            const float dist = tile * (.18F + dt * .42F);
+                            const engine::ScreenPoint dp{to.x + std::cos(da) * dist, to.y + std::sin(da) * dist};
+                            g.circle(dp, tile * (.16F + dt * .14F), fade({155, 128, 98}, (1 - dt) * .32F));
+                        }
+                        for (int s = 0; s < 6; ++s) {
+                            const float sa = s * 1.047197F + event.subject * .4F;
+                            const float sr = tile * (.12F + dt * .7F);
+                            const engine::ScreenPoint sp{to.x + std::cos(sa) * sr, to.y + std::sin(sa) * sr};
+                            g.line({to, sp}, std::max(1.2F, tile * .035F), fade(theme::gold, 1 - dt));
+                        }
+                    }
+                }
             } else if (cue.age < .16F)
                 ring(g, to, tile * (.08F + t * .45F), 1.5F, fade(color, 1 - t));
+
+            // Lightning discharge arcs
+            if (event.card == game::CardKind::Lightning && cue.age < .22F) {
+                const float lt = cue.age / .22F;
+                for (int e = 0; e < 4; ++e) {
+                    const float ea = e * 1.570796F + event.subject * .6F;
+                    const float er = tile * (.09F + lt * .48F);
+                    const engine::ScreenPoint ep{to.x + std::cos(ea) * er + (e % 2 ? 3.0F : -3.0F),
+                                                 to.y + std::sin(ea) * er - (e % 2 ? -2.0F : 2.0F)};
+                    g.line({to, ep}, std::max(1.5F, tile * .04F), fade({215, 185, 255}, 1 - lt));
+                }
+            }
+            // Frost ice crystal shards
+            if (event.card == game::CardKind::Frost && cue.age < .32F) {
+                const float ft = cue.age / .32F;
+                for (int c = 0; c < 6; ++c) {
+                    const float ca = c * 1.047197F;
+                    const float cr = tile * (.1F + ft * .75F);
+                    const engine::ScreenPoint cp{to.x + std::cos(ca) * cr, to.y + std::sin(ca) * cr};
+                    g.circle(cp, tile * .055F * (1 - ft), fade({190, 238, 255}, 1 - ft));
+                    g.line({to, cp}, 1.2F, fade({140, 215, 245}, (1 - ft) * .55F));
+                }
+            }
         } else if (event.type == game::CombatEventKind::Damage) {
             if (cue.age < .18F) {
                 for (int ray = 0; ray < 5; ++ray) {

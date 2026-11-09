@@ -113,36 +113,53 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
             std::to_string(run.catalog().balance.baseHp);
         const float time = state.app.preferences.reducedMotion ? 0 : state.app.uiTime;
         if (compact) {
-            const float artY = g.height > 700 ? 130.0F : 100.0F;
-            const float artHeight = std::clamp(g.height - (continuing ? 448.0F : 392.0F), 120.0F, 360.0F);
+            const float artY = g.height > 700 ? 120.0F : 90.0F;
+            const float artHeight = std::clamp(g.height - (continuing ? 480.0F : 430.0F), 100.0F, 300.0F);
             g.text("THOR-IUM TD", {g.width / 2.0F, artY - 77}, g.height > 700 ? 33 : 29, theme::text, .5F);
             g.text("깊이 캐고, 끝까지 지켜라.", {g.width / 2.0F, artY - 31}, 13, theme::gold, .5F);
             titleScene(g, run.catalog(), {16, artY, g.width - 32.0F, artHeight}, time, ambient);
-            float y = artY + artHeight + 24;
+            float y = artY + artHeight + 14;
+
+            // Stage Selector Card
+            const auto &meta = game::stageMetadata(state.app.selectedStage);
+            const float cardW = g.width - 32.0F;
+            const float cardH = 48.0F;
+            g.rect({16, y, cardW, cardH}, {18, 34, 42}, 6);
+            g.rect({16, y, 4.0F, cardH}, theme::gold, 2);
+            const bool canPrev = state.app.selectedStage > 1;
+            const bool canNext = state.app.selectedStage < std::min(game::TotalStages, state.app.highestUnlockedStage + 1);
+            button(g, ui, SelectStagePrev, {22, y + 8, 30, 32}, "<", canPrev);
+            button(g, ui, SelectStageNext, {16 + cardW - 52, y + 8, 30, 32}, ">", canNext);
+            const std::string stageTitle = "제 " + std::to_string(meta.id) + "구역 · " + meta.name;
+            const std::string stageSub = meta.subtitle + " (" + std::to_string(meta.wavesCount) + "웨이브)";
+            g.text(stageTitle, {g.width / 2.0F, y + 9}, 13, theme::gold, .5F);
+            g.text(stageSub, {g.width / 2.0F, y + 27}, 10.5F, theme::muted, .5F);
+            y += cardH + 10;
+
             if (continuing) {
                 g.text(status, {g.width / 2.0F, y - 2}, 12, theme::muted, .5F);
-                y += 24;
+                y += 20;
             }
-            const float h = g.height > 700 ? 52.0F : 48.0F;
+            const float h = g.height > 700 ? 50.0F : 44.0F;
             button(g, ui, continuing ? HomeContinue : HomeNew, {16, y, g.width - 32.0F, h},
-                   continuing ? "원정 계속하기" : "새 원정 시작", true, true);
-            y += h + 12;
-            button(g, ui, BeginTutorial, {16, y, g.width - 32.0F, 36},
+                   continuing ? "원정 계속하기" : "작전 개시", true, true);
+            y += h + 10;
+            button(g, ui, BeginTutorial, {16, y, g.width - 32.0F, 34},
                    state.app.tutorialCompleted ? "연습 원정 다시하기" : "연습 원정 · 처음이라면 추천", true,
                    !state.app.tutorialCompleted);
-            y += 46;
+            y += 42;
             if (continuing) {
-                button(g, ui, HomeNew, {16, y, g.width - 32.0F, 36}, "새 원정으로 다시 출발");
-                y += 48;
+                button(g, ui, HomeNew, {16, y, g.width - 32.0F, 34}, "선택 구역으로 새 원정 시작");
+                y += 44;
             }
             const float half = (g.width - 42.0F) / 2;
-            button(g, ui, OpenSettings, {16, y, half, 40}, "설정");
-            button(g, ui, OpenGuide, {26 + half, y, half, 40}, "플레이 방법");
-            y += 52;
-            button(g, ui, OpenCredits, {16, y, g.width - 32.0F, 34}, "크레딧");
+            button(g, ui, OpenSettings, {16, y, half, 38}, "설정");
+            button(g, ui, OpenGuide, {26 + half, y, half, 38}, "플레이 방법");
+            y += 48;
+            button(g, ui, OpenCredits, {16, y, g.width - 32.0F, 32}, "크레딧");
         } else {
             const float x = std::max(48.0F, g.width * .05F), w = std::min(390.0F, g.width * .36F);
-            const float top = std::max(98.0F, (g.height - 650.0F) / 2);
+            const float top = std::max(80.0F, (g.height - 670.0F) / 2);
             core(g, {x + 17, top - 28}, 17);
             g.text("THORIUM EXPEDITION", {x + 45, top - 37}, 11, theme::muted);
             g.text("THOR-IUM", {x, top + 20}, 54, theme::text, 0, w + 65);
@@ -150,32 +167,48 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
             g.text("깊이 캐고, 끝까지 지켜라.", {x, top + 167}, 20, theme::text);
             g.text("카드로 방어하고, 광물로 다음 공세를 준비하세요.", {x, top + 207}, 12, theme::muted, 0,
                    w + 35);
-            float y = top + 270;
-            button(g, ui, continuing ? HomeContinue : HomeNew, {x, y, w, 56},
-                   continuing ? "원정 계속하기" : "새 원정 시작", true, true);
-            y += 70;
-            button(g, ui, BeginTutorial, {x, y, w, 38},
+            float y = top + 248;
+
+            // Stage Selector Card
+            const auto &meta = game::stageMetadata(state.app.selectedStage);
+            const float cardH = 54.0F;
+            g.rect({x, y, w, cardH}, {18, 34, 42}, 6);
+            g.rect({x, y, 4.0F, cardH}, theme::gold, 2);
+            const bool canPrev = state.app.selectedStage > 1;
+            const bool canNext = state.app.selectedStage < std::min(game::TotalStages, state.app.highestUnlockedStage + 1);
+            button(g, ui, SelectStagePrev, {x + 8, y + 10, 32, 34}, "<", canPrev);
+            button(g, ui, SelectStageNext, {x + w - 40, y + 10, 32, 34}, ">", canNext);
+            const std::string stageTitle = "제 " + std::to_string(meta.id) + "구역 · " + meta.name;
+            const std::string stageSub = meta.subtitle + " (" + std::to_string(meta.wavesCount) + "웨이브)";
+            g.text(stageTitle, {x + w / 2.0F, y + 11}, 14, theme::gold, .5F);
+            g.text(stageSub, {x + w / 2.0F, y + 31}, 11, theme::muted, .5F);
+            y += cardH + 14;
+
+            button(g, ui, continuing ? HomeContinue : HomeNew, {x, y, w, 52},
+                   continuing ? "원정 계속하기" : "작전 개시", true, true);
+            y += 62;
+            button(g, ui, BeginTutorial, {x, y, w, 36},
                    state.app.tutorialCompleted ? "연습 원정 다시하기" : "연습 원정 · 처음이라면 추천", true,
                    !state.app.tutorialCompleted);
-            y += 50;
+            y += 46;
             if (continuing) {
                 g.text(status, {x, y}, 12, theme::muted);
-                y += 30;
-                button(g, ui, HomeNew, {x, y, w, 40}, "새 원정으로 다시 출발");
-                y += 54;
+                y += 24;
+                button(g, ui, HomeNew, {x, y, w, 38}, "선택 구역으로 새 원정 시작");
+                y += 48;
             }
             const float half = (w - 12) / 2;
-            button(g, ui, OpenSettings, {x, y, half, 44}, "설정");
-            button(g, ui, OpenGuide, {x + half + 12, y, half, 44}, "플레이 방법");
-            y += 58;
-            button(g, ui, OpenCredits, {x, y, w, 36}, "크레딧");
+            button(g, ui, OpenSettings, {x, y, half, 40}, "설정");
+            button(g, ui, OpenGuide, {x + half + 12, y, half, 40}, "플레이 방법");
+            y += 50;
+            button(g, ui, OpenCredits, {x, y, w, 34}, "크레딧");
             const float artX = x + w + 70;
             titleScene(g, run.catalog(),
                        {artX, std::max(80.0F, (g.height - 570) / 2.0F), g.width - artX - x,
                         std::min(570.0F, g.height - 150.0F)},
                        time, ambient);
         }
-        g.text("3 WAVE PROTOTYPE  ·  OSSCA THORVG GAMEJAM", {g.width / 2.0F, g.height - 26.0F},
+        g.text("3 STAGE CAMPAIGN  ·  OSSCA THORVG GAMEJAM", {g.width / 2.0F, g.height - 26.0F},
                compact ? 8 : 10, theme::muted, .5F);
         if (!ui.focused)
             ui.focused = continuing ? HomeContinue : HomeNew;

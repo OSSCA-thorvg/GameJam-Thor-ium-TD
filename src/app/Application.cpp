@@ -48,6 +48,15 @@ Application::Application(game::Run initialRun)
     if (graphics.error.empty() && !state.app.animationSets.error.empty())
         graphics.error = state.app.animationSets.error;
     feedback.reset();
+
+    SaveData saved = Persistence::load();
+    state.app.tutorialCompleted = saved.tutorialCompleted;
+    state.app.highestUnlockedStage = std::max(state.app.highestUnlockedStage, saved.highestUnlockedStage);
+    state.app.preferences.reducedMotion = saved.reducedMotion;
+    state.app.preferences.damageNumbers = saved.damageNumbers;
+    state.app.preferences.cachedAnimations = saved.cachedAnimations;
+    audio.settings.volume = saved.volume;
+    audio.settings.muted = saved.muted;
 }
 bool Application::frame(int width, int height, float density, float elapsed) {
     using engine::FrameClock;
@@ -226,11 +235,23 @@ void Application::key(int key, bool shift) {
     if (result == FlowResult::Unhandled)
         gameplay.key(key);
 }
+void Application::savePersistence() {
+    SaveData data;
+    data.tutorialCompleted = state.app.tutorialCompleted;
+    data.highestUnlockedStage = state.app.highestUnlockedStage;
+    data.reducedMotion = state.app.preferences.reducedMotion;
+    data.damageNumbers = state.app.preferences.damageNumbers;
+    data.cachedAnimations = state.app.preferences.cachedAnimations;
+    data.volume = audio.settings.volume;
+    data.muted = audio.settings.muted;
+    Persistence::save(data);
+}
 void Application::suspend() {
     ui.cancel();
     audio.stop();
     sound.cancelPending();
     accumulator_ = 0;
+    savePersistence();
     if (run.state().phase == game::Phase::Battle || run.state().job.active)
         state.play.paused = true;
 }

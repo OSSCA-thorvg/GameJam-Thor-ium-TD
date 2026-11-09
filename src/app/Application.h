@@ -1,6 +1,7 @@
 #pragma once
 #include "AppFlow.h"
 #include "GameplayController.h"
+#include "Persistence.h"
 #include "TutorialDirector.h"
 #include "engine/diagnostics/FrameProfiler.h"
 #include "engine/render/Renderer.h"
@@ -64,6 +65,8 @@ class Application {
         return ui.widgets;
     }
 
+    /** Save persistent player settings and progression. */
+    void savePersistence();
   private:
     friend struct ApplicationTestAccess;
     game::Run run;

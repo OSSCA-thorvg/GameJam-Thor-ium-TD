@@ -34,6 +34,12 @@ void Feedback::revealHand(const game::Run &run) {
 }
 void Feedback::consume(const std::vector<game::CombatEvent> &events) {
     for (const game::CombatEvent &event : events) {
+        if (event.type == game::CombatEventKind::Leak) {
+            screenShake = 0.35F;
+        } else if (event.type == game::CombatEventKind::Attack &&
+                   (event.card == game::CardKind::Cannon || event.card == game::CardKind::Blast)) {
+            screenShake = std::max(screenShake, 0.16F);
+        }
         if (event.type == game::CombatEventKind::Damage) {
             ++hits;
             const std::vector<CombatCue>::iterator simultaneous =
@@ -66,6 +72,7 @@ void Feedback::advance(float seconds, bool combatActive) {
         slot.age = std::min(CardDuration, slot.age + delta);
     rejectionAge = std::min(1.0F, rejectionAge + delta);
     energyAge = std::min(1.0F, energyAge + delta);
+    screenShake = std::max(0.0F, screenShake - delta);
     if (!combatActive)
         return;
     for (CombatCue &cue : cues)

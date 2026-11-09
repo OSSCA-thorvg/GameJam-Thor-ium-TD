@@ -31,6 +31,7 @@ class Feedback {
     float rejectionAge = 1.0F;
     float energyAge = 1.0F;
     int energySpent = 0;
+    float screenShake = 0.0F;
     /** Compare stable card identities, keeping a copy of the outgoing face for its exit. */
     void observeHand(const game::Run &run);
     /** Deal the visible hand after preparation, including recently acquired cards. */

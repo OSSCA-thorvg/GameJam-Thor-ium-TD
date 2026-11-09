@@ -75,6 +75,18 @@ void rejectionContracts() {
 void acceptanceContracts() {
     require(validateCatalog(defaultCatalog()).ok(),
             "all shipped definitions pass numeric and geometry validation");
+    auto v1 = validateCatalog(stageCatalog(1));
+    if (!v1.ok()) std::cerr << "Stage 1 error: " << v1.summary() << '\n';
+    require(v1.ok(), "stage 1 catalog passes validation");
+    auto v2 = validateCatalog(stageCatalog(2));
+    if (!v2.ok()) std::cerr << "Stage 2 error: " << v2.summary() << '\n';
+    require(v2.ok(), "stage 2 catalog passes validation");
+    auto v3 = validateCatalog(stageCatalog(3));
+    if (!v3.ok()) std::cerr << "Stage 3 error: " << v3.summary() << '\n';
+    require(v3.ok(), "stage 3 catalog passes validation");
+    require(stageMetadata(1).wavesCount == 3, "stage 1 has 3 waves");
+    require(stageMetadata(2).wavesCount == 4, "stage 2 has 4 waves");
+    require(stageMetadata(3).wavesCount == 5, "stage 3 has 5 waves");
     Catalog authored = defaultCatalog();
     authored.enemies[0].speed = 0;
     authored.cards[0].cost = 0;

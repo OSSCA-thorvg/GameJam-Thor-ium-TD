@@ -11,6 +11,8 @@ enum class Modal { None, Recruit, Replacement, Withdrawal, NewRun };
 /** App-session preferences and navigation survive replacing the current run. */
 struct AppState {
     bool tutorialCompleted = false;
+    int selectedStage = 1;
+    int highestUnlockedStage = 1;
     AnimationSets animationSets;
     std::uint32_t animationSeed = 0x54484f52U;
     Navigation navigation;
@@ -19,11 +21,21 @@ struct AppState {
     int guidePage = 0;
     float uiTime = 0;
 };
+/** Contextual one-time in-game tips for regular expedition situations. */
+struct InGameHints {
+    bool towerUpgrade = false;
+    bool nestExcavated = false;
+    bool scanMinesweeper = false;
+    bool woundedUnit = false;
+    bool firstGold = false;
+};
 /** Disposable run interaction and animation state; contains no gameplay authority. */
 struct PlayState {
     TutorialGuide tutorial;
     Feedback feedback;
     ActorAnimations actors;
+    InGameHints hints;
+    int currentStage = 1;
     bool mine = false;
     bool scan = false;
     bool paused = false;

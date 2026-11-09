@@ -173,6 +173,13 @@ void View::icon(engine::Renderer &graphics, const game::Catalog &catalog, game::
     }
 }
 void View::surface(engine::Renderer &graphics, const game::Run &run, const State &state) {
+    if (state.play.feedback.screenShake > 0.0F && !state.app.preferences.reducedMotion) {
+        const float intensity = state.play.feedback.screenShake / 0.35F;
+        shakeOffset.x = std::sin(state.play.visualTime * 52.0F) * layout.tile * 0.14F * intensity;
+        shakeOffset.y = std::cos(state.play.visualTime * 67.0F) * layout.tile * 0.10F * intensity;
+    } else {
+        shakeOffset = {};
+    }
     const float tile = layout.tile;
     graphics.gradientRect(layout.world, {163, 190, 147}, {198, 211, 165}, 12);
     for (int y = 0; y < 10; ++y)
@@ -306,7 +313,8 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
     combatFeedback(graphics, state);
     graphics.rect({layout.world.x + 10, layout.world.y + 9, layout.compact ? 116.0F : 184.0F, 25},
                   {34, 67, 56, 220}, 5);
-    graphics.text(run.state().phase == game::Phase::Prep ? "정비 구역 · 지상" : "표층 방어선",
+    const auto &stageMeta = game::stageMetadata(state.play.currentStage);
+    graphics.text(run.state().phase == game::Phase::Prep ? "정비 구역 · 지상" : stageMeta.name,
                   {layout.world.x + 21, layout.world.y + 15}, layout.compact ? 11 : 12, {235, 231, 198});
 }
 

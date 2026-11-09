@@ -27,6 +27,6 @@ class AppFlow {
     presentation::Soundscape &sound;
     FeedbackChannel &feedback;
     /** Replace run and disposable interaction state while preserving session preferences. */
-    void restart();
+    void restart(int stageIndex = 0);
 };
 } // namespace thorium

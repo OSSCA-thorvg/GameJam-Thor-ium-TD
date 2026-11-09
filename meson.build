@@ -26,7 +26,7 @@ audio = static_library('thorium-audio', 'src/engine/audio/Audio.cpp', 'src/engin
 
 controllers = static_library('thorium-controllers', 'src/app/AppFlow.cpp', 'src/app/GameplayController.cpp', 'src/app/FeedbackChannel.cpp', 'src/app/TutorialDirector.cpp', 'src/game/presentation/Layout.cpp', include_directories: inc)
 
-client = static_library('thorium-client', 'src/app/Application.cpp', 'src/game/presentation/View.cpp', 'src/game/presentation/Placement.cpp', 'src/game/presentation/CardDetails.cpp', 'src/game/presentation/CardUi.cpp', 'src/game/presentation/GameUi.cpp', 'src/game/presentation/CombatFeedback.cpp', 'src/game/presentation/FrontEnd.cpp', 'src/game/presentation/TutorialUi.cpp', include_directories: inc)
+client = static_library('thorium-client', 'src/app/Application.cpp', 'src/app/Persistence.cpp', 'src/game/presentation/View.cpp', 'src/game/presentation/Placement.cpp', 'src/game/presentation/CardDetails.cpp', 'src/game/presentation/CardUi.cpp', 'src/game/presentation/GameUi.cpp', 'src/game/presentation/CombatFeedback.cpp', 'src/game/presentation/FrontEnd.cpp', 'src/game/presentation/TutorialUi.cpp', include_directories: inc)
 sdl_output = static_library('thorium-sdl-output', 'src/platform/sdl/AudioDevice.cpp', 'src/platform/sdl/VideoOutput.cpp', include_directories: inc, dependencies: sdl_dep)
 client_sources = files('src/platform/sdl/main.cpp')
 client_libraries = [client, sdl_output, controllers, rules, ui, graphics, feedback, animation, audio, soundscape, profiling]
