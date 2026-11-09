@@ -14,15 +14,15 @@
 
 | 실제 근거 | 관찰 | 적용 판단 |
 | --- | --- | --- |
-| [cube/meson.build](../../../해커톤/thorvg-rubiks/engine/src/cube/meson.build), [graphics/meson.build](../../../해커톤/thorvg-rubiks/engine/src/graphics/meson.build) | 규칙과 표현 계산이 ThorVG 없이 빌드되는 경계 | 규칙·좌표·미리보기의 독립 테스트 원리 채택 |
-| [build_wasm.sh](../../../해커톤/thorvg-rubiks/build_wasm.sh) 12–45행, 루트 meson.build | C++17·Meson·Emscripten, 산출물 확인 뒤 웹에 동기화 | 경로·도구 버전·필요 export를 새 게임에 맞춰 선정 |
-| [engine/meson.build](../../../해커톤/thorvg-rubiks/engine/meson.build) 1–16행 | CPU 엔진, 로더·세이버 비활성화, WASM 스레드 비활성화 | Lottie 로더를 별도 활성화. file=false를 메모리 로딩 불가로 해석하지 않음 |
-| [capi.cpp](../../../해커톤/thorvg-rubiks/engine/src/bindings/capi.cpp) 5–30행, [AbiContract.test.ts](../../../해커톤/thorvg-rubiks/web/tests/unit/AbiContract.test.ts) | 원시 타입의 ABI와 성공·실패 계약, C++·export·TS·호출 이름 검사 | 필요한 게임 명령만 설계하고 타입·필드 배치·단위 검증 보완 |
-| [Application.cpp](../../../해커톤/thorvg-rubiks/engine/src/app/Application.cpp) 383–408·836–843행 | 초기화 실패 정리, 렌더러 해제 후 ThorVG 종료 | 수명 정리 원리 채택, Lottie 원본·인스턴스 관계 추가 설계 |
-| [PointerController.ts](../../../해커톤/thorvg-rubiks/web/src/input/PointerController.ts) 67–84·134–200행 | CSS→drawing-buffer 변환, pointer capture·cancel | 변환·취소 원리 채택, 3D picking·orbit은 적용 대상에서 제외 |
-| [AppLifecycle.ts](../../../해커톤/thorvg-rubiks/web/src/AppLifecycle.ts) 486–493·574–630행 | 숨김 중 정지·복귀 시간 초기화, listener·입력을 WASM보다 먼저 정리 | 시간 초기화·실패·종료 경계 채택 |
-| [CubeEngine.ts](../../../해커톤/thorvg-rubiks/web/src/wasm/CubeEngine.ts) 1325–1403행 | 버퍼 주소·영역 검사와 heap 성장 후 ImageData view 재생성 | CPU 표시 경로에서 채택, GPU 공통 계약으로 강제하지 않음 |
-| [RenderBench.cpp](../../../해커톤/thorvg-rubiks/tests/app/RenderBench.cpp) 75–102행 | warm-up·median/p95·실제 그려진 프레임 측정 | 측정 방법 참고. native 큐브 결과를 WASM·Lottie 지원 수량으로 전용하지 않음 |
+| `cube/meson.build`, `graphics/meson.build` | 규칙과 표현 계산이 ThorVG 없이 빌드되는 경계 | 규칙·좌표·미리보기의 독립 테스트 원리 채택 |
+| `build_wasm.sh` 12–45행, 루트 meson.build | C++17·Meson·Emscripten, 산출물 확인 뒤 웹에 동기화 | 경로·도구 버전·필요 export를 새 게임에 맞춰 선정 |
+| `engine/meson.build` 1–16행 | CPU 엔진, 로더·세이버 비활성화, WASM 스레드 비활성화 | Lottie 로더를 별도 활성화. file=false를 메모리 로딩 불가로 해석하지 않음 |
+| `capi.cpp` 5–30행, `AbiContract.test.ts` | 원시 타입의 ABI와 성공·실패 계약, C++·export·TS·호출 이름 검사 | 필요한 게임 명령만 설계하고 타입·필드 배치·단위 검증 보완 |
+| `Application.cpp` 383–408·836–843행 | 초기화 실패 정리, 렌더러 해제 후 ThorVG 종료 | 수명 정리 원리 채택, Lottie 원본·인스턴스 관계 추가 설계 |
+| `PointerController.ts` 67–84·134–200행 | CSS→drawing-buffer 변환, pointer capture·cancel | 변환·취소 원리 채택, 3D picking·orbit은 적용 대상에서 제외 |
+| `AppLifecycle.ts` 486–493·574–630행 | 숨김 중 정지·복귀 시간 초기화, listener·입력을 WASM보다 먼저 정리 | 시간 초기화·실패·종료 경계 채택 |
+| `CubeEngine.ts` 1325–1403행 | 버퍼 주소·영역 검사와 heap 성장 후 ImageData view 재생성 | CPU 표시 경로에서 채택, GPU 공통 계약으로 강제하지 않음 |
+| `RenderBench.cpp` 75–102행 | warm-up·median/p95·실제 그려진 프레임 측정 | 측정 방법 참고. native 큐브 결과를 WASM·Lottie 지원 수량으로 전용하지 않음 |
 
 ### 렌더링 요약의 정정
 
