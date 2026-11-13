@@ -60,9 +60,32 @@ enum Action : engine::WidgetId {
     SelectStagePrev,
     SelectStageNext,
     NextStageRun,
+    ZoomOut,
+    ZoomFit,
+    ZoomIn,
+    DescendMine,
+    ConfirmDescend,
+    /** Preparation row that selects an awakening candidate on the battlefield. */
+    AwakenPick,
+    /** Inspector command that awakens the selected building. */
+    Awaken,
+    Hire,
+    Supply,
+    /** Excavation tool toggles: the pick is the default and the blast stays selected until changed. */
+    ToolPick,
+    ToolBlast,
+    /** Settings tab for expedition rules, and its switch between excavation and tile-by-tile mining. */
+    SettingsGame,
+    ToggleMining,
+    /** Inspector command that clears the selected boulder. */
+    ClearBoulder,
+    /** Last control of the contiguous range decoded as a plain command. */
+    LastControl = ClearBoulder,
     GuideBackdrop = 901,
     CardBase = 1000,
     DeckBase = 2000,
-    CandidateBase = 3000
+    CandidateBase = 3000,
+    LaneFocusBase = 4000,
+    MinimapFocus = 4100
 };
 } // namespace thorium::presentation

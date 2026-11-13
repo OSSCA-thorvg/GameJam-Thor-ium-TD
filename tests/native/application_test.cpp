@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <type_traits>
+#include <unistd.h>
 #include <utility>
 
 using namespace thorium;
@@ -603,10 +604,64 @@ void cardChargeContracts() {
                     presentation::CardChargeMode::Blocked,
             "full unit slots remain a placement block even when energy is also insufficient");
 }
+/** Exercise descent confirmation and scaled placement through the actual responsive application view. */
+void campaignUiContracts() {
+    Application app(game::makeRun(game::stageCatalog(3)));
+    app.act({engine::Interaction::Kind::Click, presentation::HomeNew, {}});
+    game::Run &run = ApplicationTestAccess::run(app);
+    game::enterPreparation(run, 3);
+    game::scenario(run).tool = 2;
+    game::scenario(run).digs = 2;
+    game::scenario(run).scans = 0;
+    app.act({engine::Interaction::Kind::Click, presentation::Mine, {}});
+    require(app.frame(320, 568, 1, 0), "deep mine renders at the minimum touch viewport");
+    require(ApplicationTestAccess::view(app).layout.mineTile >= 24,
+            "small mobile cutaways retain tappable tiles instead of compressing below ten pixels");
+    for (const engine::Widget &a : app.widgets()) {
+        if (!a.enabled || !a.focusable)
+            continue;
+        for (const engine::Widget &b : app.widgets()) {
+            if (a.id >= b.id || !b.enabled || !b.focusable)
+                continue;
+            require(a.bounds.x + a.bounds.w <= b.bounds.x + .5F ||
+                        b.bounds.x + b.bounds.w <= a.bounds.x + .5F ||
+                        a.bounds.y + a.bounds.h <= b.bounds.y + .5F ||
+                        b.bounds.y + b.bounds.h <= a.bounds.y + .5F,
+                    "compressed mine controls stay separate from each other");
+        }
+    }
+    const engine::Rect entry = bounds(app, presentation::DescendMine);
+    require(entry.w > 0 && entry.x >= 0 && entry.x + entry.w <= 320,
+            "descent entry stays within the mine header");
+    app.act({engine::Interaction::Kind::Click, presentation::DescendMine, {}});
+    require(app.frame(320, 568, 1, 0) && bounds(app, presentation::ConfirmDescend).w > 0,
+            "descent requires a reviewable one-way confirmation");
+    app.act({engine::Interaction::Kind::Click, presentation::Close, {}});
+    require(run.state().mineLayer == 0 && run.state().digs == 2,
+            "canceling descent leaves the current layer and budget intact");
+    app.act({engine::Interaction::Kind::Click, presentation::DescendMine, {}});
+    require(app.frame(320, 568, 1, 0), "confirmed descent controls render before input");
+    const engine::ScreenPoint confirm = bounds(app, presentation::ConfirmDescend).center();
+    app.pointer({engine::PointerPhase::Down, 17, confirm, engine::PointerDevice::Touch});
+    app.pointer({engine::PointerPhase::Up, 17, confirm, engine::PointerDevice::Touch});
+    require(run.state().mineLayer == 1 && run.state().digs == 2 && run.state().scans == 0,
+            "actual touch confirmation switches layers without refilling actions");
+    app.act({engine::Interaction::Kind::Click, presentation::Surface, {}});
+    require(app.frame(1200, 900, 1, 0), "large authored battlefield renders after returning to the surface");
+    app.act({engine::Interaction::Kind::Click, presentation::ZoomIn, {}});
+    require(app.frame(1200, 900, 1, 0), "zoom updates the shared projection before placement");
+    const presentation::Layout &layout = ApplicationTestAccess::view(app).layout;
+    require(layout.camera.pose().zoom > 1 && layout.tile > 1 &&
+                layout.surfacePoint(layout.screenPoint({20, 14}), true).x == 20,
+            "enlarged field input and rendering use the same tile centers");
+}
 } // namespace
 /** Exercise composition, actual ThorVG UI pixels and timing boundaries without SDL. */
 int main() {
+    char home[] = "/tmp/thorium-app-test-XXXXXX";
+    require(mkdtemp(home) != nullptr && setenv("HOME", home, 1) == 0, "isolated save directory per run");
     applicationContracts();
+    campaignUiContracts();
     offerUiContracts();
     terminalRestartContracts();
     placementUiContracts();

@@ -99,7 +99,7 @@ void Soundscape::observe(const game::Run &run) {
 }
 void Soundscape::consume(const std::vector<game::CombatEvent> &events) {
     for (const game::CombatEvent &event : events) {
-        const float pan = std::clamp((event.to.x - 8.5F) / 17.0F, -.5F, .5F);
+        const float pan = std::clamp((event.to.x - fieldSpan_ / 2) / fieldSpan_, -.5F, .5F);
         if (event.type == game::CombatEventKind::Placement)
             play(Sound::Placement, pan);
         else if (event.type == game::CombatEventKind::Damage)
@@ -108,14 +108,24 @@ void Soundscape::consume(const std::vector<game::CombatEvent> &events) {
             play(Sound::DefeatEnemy, pan);
         else if (event.type == game::CombatEventKind::Leak)
             play(Sound::BaseHit, pan);
-        else if (event.type == game::CombatEventKind::Attack) {
+        else if (event.type == game::CombatEventKind::Stomp || event.type == game::CombatEventKind::Disable)
+            play(Sound::Blast, pan);
+        else if (event.type == game::CombatEventKind::ShieldBreak)
+            play(Sound::Cannon, pan);
+        else if (event.type == game::CombatEventKind::Eruption) {
+            // An eruption is heard only when it hits something.
+            if (event.amount > 0)
+                play(Sound::Blast, pan);
+        } else if (event.type == game::CombatEventKind::Attack) {
             const Sound sound =
                 event.card == game::CardKind::Cannon || event.card == game::CardKind::Demolition
                     ? Sound::Cannon
                 : event.card == game::CardKind::Lightning ? Sound::Lightning
-                : event.card == game::CardKind::Frost     ? Sound::Frost
-                : event.card == game::CardKind::Blast     ? Sound::Blast
-                                                          : Sound::Shot;
+                : event.card == game::CardKind::Frost || event.card == game::CardKind::Tar ||
+                        event.card == game::CardKind::Flame
+                    ? Sound::Frost
+                : event.card == game::CardKind::Blast ? Sound::Blast
+                                                      : Sound::Shot;
             play(sound, pan);
         }
     }
@@ -127,6 +137,7 @@ void Soundscape::reset(const game::Run &run) {
         hand_[index] = run.state().deck[run.state().hand[index]].id;
     phase_ = run.state().phase;
     mining_ = run.state().job.active;
+    fieldSpan_ = static_cast<float>(std::max(1, run.catalog().width - 1));
     initialized_ = true;
 }
 void Soundscape::cancelPending() {

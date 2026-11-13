@@ -7,6 +7,7 @@
 #include "PlacementPreview.h"
 #include "Shell.h"
 #include "State.h"
+#include "TerrainArt.h"
 #include "engine/audio/Audio.h"
 #include "engine/render/Renderer.h"
 #include "engine/ui/Ui.h"
@@ -14,7 +15,23 @@
 #include <string>
 
 namespace thorium::presentation {
+/** Renderer cache slot of the battlefield ground drawn over the backdrop and moved by the screen shake. */
+inline constexpr std::uint32_t TerrainLayer = 0;
 
+/** One entrance marker: a badge beside a visible gate, or an edge arrow toward an off-screen one. */
+struct LaneMarker {
+    std::uint32_t lane = 0;
+    bool visible = false;
+    bool active = false;
+    bool closed = false;
+    /** Label bounds in screen space. */
+    engine::Rect box;
+    /** Gate center when visible; arrow base on the inner frame otherwise. */
+    engine::ScreenPoint anchor;
+    /** Unit direction from the battlefield center toward an off-screen gate. */
+    engine::ScreenPoint direction;
+    std::string label;
+};
 /** Compose game-specific screens using generic UI and ThorVG drawing tools. */
 class View {
   public:
@@ -37,6 +54,12 @@ class View {
         p.x += shakeOffset.x;
         p.y += shakeOffset.y;
         return p;
+    }
+    /** Check whether anything drawn within `reach` of a screen point can show inside the battlefield frame.
+     */
+    bool inWorld(engine::ScreenPoint point, float reach) const {
+        return point.x + reach >= layout.world.x && point.x - reach <= layout.world.x + layout.world.w &&
+               point.y + reach >= layout.world.y && point.y - reach <= layout.world.y + layout.world.h;
     }
 
     /** Read the last rendered hint for diagnostics without exposing a mutable command plan. */
@@ -78,15 +101,62 @@ class View {
     /** Draw the title, settings, guide or credits with the same native UI primitives. */
     void frontEnd(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state,
                   const engine::AudioSettings &audio);
-    /** Paint an original surface/mine diorama for the title screen. */
+    /** Paint the title diorama: two lanes, three enemy roles and a boss silhouette over a tunnelled mine. */
     void titleScene(engine::Renderer &graphics, const game::Catalog &catalog, engine::Rect bounds, float time,
-                    const engine::AnimationClip &clip);
+                    const AnimationSets &sets);
     /** Compute geometry once for the active viewport and gameplay phase. */
-    void measure(int width, int height, bool prep, bool mine, bool tutorial = false);
+    void measure(int width, int height, bool prep, bool mine, bool tutorial, const game::Catalog &catalog,
+                 engine::CameraPose camera, int mineColumns, int mineRows, float mineScroll);
+    /** Choose the first-frame zoom of later campaign stages so tiles stay legible, centred on the base. */
+    void frameOpening(const game::Run &run, const State &state);
+    /** Paint the unshaken biome fill under the battlefield; it belongs to the retained backdrop. */
+    void fieldGround(engine::Renderer &graphics, const State &state) const;
+    /** Identify the biome fill so the backdrop is rasterized again when it changes. */
+    int fieldKey(const State &state) const;
+    /** Paint the biome ground features, roads and decorations kept clear of placements over the field fill.
+     */
+    void terrain(engine::Renderer &graphics, const game::Run &run, const State &state,
+                 const std::vector<game::LaneForecast> &forecast);
+    /** Paint the fixed terrain gimmicks into the retained ground: vent craters with their scorched radius,
+     *  trait pad surrounds and remaining boulders. */
+    void terrainFixtures(engine::Renderer &graphics, const game::Run &run);
+    /** Paint every vent's blast radius as a thin ring over the roads. */
+    void ventReaches(engine::Renderer &graphics, const game::Run &run);
+    /** Paint the mouths and the covered section of every tunnel over the roads. */
+    void tunnelCovers(engine::Renderer &graphics, const game::Run &run, const TunnelColors &colors);
+    /** Paint lane road edges and fills; idle lanes are dimmed. */
+    void roads(engine::Renderer &graphics, const game::Run &run,
+               const std::vector<game::LaneForecast> &forecast, engine::Color edge, engine::Color fill,
+               engine::Color idleEdge, engine::Color idleFill);
+    /** Paint travel chevrons and entrance gates over the roads; idle lanes are dimmed. */
+    void roadMarks(engine::Renderer &graphics, const game::Run &run, const State &state,
+                   const std::vector<game::LaneForecast> &forecast, engine::Color mark);
+    /** Paint the defended base plaza for the current biome. */
+    void basePlaza(engine::Renderer &graphics, const game::Run &run, const State &state);
+    /** Paint lasting spell areas, vent eruption warnings and support-building links beneath field entities.
+     */
+    void fieldEffects(engine::Renderer &graphics, const game::Run &run, const State &state);
+    /** Resolve one entrance marker per lane against the current camera, without drawing. */
+    std::vector<LaneMarker> laneMarkers(const game::Run &run) const;
+    /** Return the wave-opening highlight strength: 1 when a wave starts, fading to 0 after about 4 s. */
+    float opening(const game::Run &run) const;
+    /** Paint gate badges and off-screen entrance arrows, and place the minimap for this frame. */
+    void mapOverlays(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state);
+    /** Paint the overview inset placed by mapOverlays, with entrance pulses while a wave opens. */
+    void minimap(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state);
     /** Draw the topdown world, placement affordances and independent animated enemies. */
     void surface(engine::Renderer &graphics, const game::Run &run, const State &state);
-    /** Draw only revealed mine information and the miner's current job position. */
-    void underground(engine::Renderer &graphics, const game::Run &run, const State &state);
+    /** Draw only revealed mine information, hover targets, the miner and excavation cues. */
+    void underground(engine::Renderer &graphics, const engine::Ui &ui, const game::Run &run,
+                     const State &state);
+    /** Draw the excavation wall: rock thickness, contents seen through thin or scanned rock, exposed
+     * deposits, the strike preview under the pointer, tool toggles and strike cues. */
+    void excavation(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state);
+    /** Paint the relic gain banner near the bottom of the cutaway; it never blocks input. */
+    void relicBanner(engine::Renderer &graphics, const game::Run &run, const State &state);
+    /** Draw dig/scan status and grouped crafting, squad and recruitment rows inside `area`. */
+    void prepActions(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state,
+                     engine::Rect area);
     /** Draw a game card silhouette without requiring a texture atlas. */
     void icon(engine::Renderer &graphics, const game::Catalog &catalog, game::CardKind kind,
               engine::ScreenPoint center, float size);
@@ -107,11 +177,16 @@ class View {
                             const State &state);
     /** Paint terminal practice actions after ordinary gameplay and modal layers. */
     void tutorialOverlay(engine::Renderer &graphics, engine::Ui &ui, const State &state);
+    /** Draw a selected boulder's explanation and its priced clear button inside a measured area. */
+    void boulderInspector(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run,
+                          const State &state, engine::Rect area);
     /** Draw selection details and withdrawal/move/heal actions inside a measured area. */
     void inspector(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state,
                    engine::Rect area);
     /** Paint a tactile card deck with category frames and stable card hit regions. */
     void hand(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state);
+    /** Paint the latest battle message as a fading pill on the card dock's tab row. */
+    void toast(engine::Renderer &graphics, const State &state);
     /** Paint current energy, regeneration and spent-energy feedback directly below the four cards. */
     void handEnergy(engine::Renderer &graphics, const game::Run &run, const State &state);
     /** Share clipped attack/effect circles between field selection and pre-placement previews. */
@@ -121,6 +196,12 @@ class View {
     void cardFace(engine::Renderer &graphics, const game::Catalog &catalog, const game::Card &card,
                   engine::Rect bounds, bool affordable, int displayedCost = -1, bool variableCost = false,
                   const CardCharge *charge = nullptr);
+    /** Paint live and dying enemies by role, with shields, auras, burrow mounds and damaged health bars. */
+    void enemies(engine::Renderer &graphics, const game::Run &run, const State &state);
+    /** Paint sapper fuses and countdowns and elite crowns and name tags above bodies and floating numbers. */
+    void enemyMarkers(engine::Renderer &graphics, const game::Run &run, const State &state);
+    /** Paint the zone boss banner, wave composition chips and new-role introduction over the battlefield. */
+    void enemyHud(engine::Renderer &graphics, const game::Run &run, const State &state);
     /** Paint combat bursts, tracers and floating damage after world entities. */
     void combatFeedback(engine::Renderer &graphics, const State &state);
     /** Draw/register expansion, recruitment, replacement and confirmation dialogs. */

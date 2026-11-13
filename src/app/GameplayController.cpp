@@ -1,4 +1,5 @@
 #include "GameplayController.h"
+#include "game/presentation/TerrainPresentation.h"
 #include <algorithm>
 #include <cmath>
 namespace thorium {
@@ -18,6 +19,10 @@ void GameplayController::act(const GameInput &input) {
         (input.kind != InputKind::Control || (action != Pause && action != Resume)))
         return;
     if (modal == Modal::Withdrawal && (input.kind != InputKind::Control || action != ConfirmDismiss))
+        return;
+    if (modal == Modal::MineDescent && (input.kind != InputKind::Control || action != ConfirmDescend))
+        return;
+    if (action == ConfirmDescend && modal != Modal::MineDescent)
         return;
     if (modal == Modal::Recruit && input.kind != InputKind::Candidate)
         return;
@@ -50,6 +55,7 @@ void GameplayController::act(const GameInput &input) {
             input.interaction == engine::Interaction::Kind::Click && state.play.selectedCard == id;
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
+        state.play.selectedBoulder.reset();
         state.play.movingUnit = false;
         state.play.selectedCard = deselect ? 0 : id;
         if (deselect)
@@ -65,8 +71,8 @@ void GameplayController::act(const GameInput &input) {
                 run.play(id, layout.surfacePoint(input.position, run.catalog().isBuilding(card->kind) ||
                                                                      run.catalog().isUnit(card->kind)));
             feedback.notify(result, Sound::None);
-            if (result.ok)
-                state.play.selectedCard = 0;
+            // A drop is a complete attempt: a rejection keeps its message but releases the card.
+            state.play.selectedCard = 0;
         }
         return;
     }
@@ -79,8 +85,8 @@ void GameplayController::act(const GameInput &input) {
             return;
         const game::Result result =
             run.acceptOffer(active->id,
-                            active->source == game::OfferSource::Expansion ? active->candidates.front()
-                                                                           : state.play.candidate,
+                            active->source != game::OfferSource::Recruitment ? active->candidates.front()
+                                                                             : state.play.candidate,
                             input.payload);
         feedback.notify(result, Sound::Reward);
         if (result.ok) {
@@ -104,7 +110,19 @@ void GameplayController::act(const GameInput &input) {
     switch (action) {
     case World: {
         if (run.state().phase == game::Phase::Prep && state.play.mine) {
+            if (input.interaction == engine::Interaction::Kind::Drop)
+                return;
             const int cell = layout.mineCell(input.position);
+            if (!state.play.scan && run.catalog().mining == game::MiningMode::Excavate) {
+                const int buried = run.buriedDeposits();
+                const game::Result result =
+                    run.strike(cell, state.play.blast ? game::StrikeTool::Blast : game::StrikeTool::Pick);
+                feedback.notify(result,
+                                run.buriedDeposits() < buried ? Sound::MineComplete : Sound::MineStart);
+                if (result.ok && state.play.blast)
+                    state.play.feedback.screenShake = .2F;
+                return;
+            }
             feedback.notify(state.play.scan ? run.scan(cell) : run.dig(cell),
                             state.play.scan ? Sound::Scan : Sound::None);
             if (state.play.scan && run.state().scans == 0)
@@ -129,6 +147,7 @@ void GameplayController::act(const GameInput &input) {
                 state.play.movingUnit = false;
             return;
         }
+        state.play.selectedBoulder.reset();
         for (const game::Unit &unit : run.state().units)
             if (game::distance(unit.position, target) < 0.5F) {
                 state.play.selectedUnit = unit.id;
@@ -148,6 +167,33 @@ void GameplayController::act(const GameInput &input) {
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
         state.play.movingUnit = false;
+        // A boulder opens its inspector in preparation; in battle it only explains itself.
+        for (game::Point boulder : run.state().boulders)
+            if (game::distance(boulder, target) < 0.5F) {
+                if (run.state().phase == game::Phase::Prep) {
+                    state.play.selectedBoulder = boulder;
+                    state.play.toastTime = 0;
+                } else
+                    feedback.notify({true, "낙석 바위 · 정비 중에 치우면 건물 패드가 돼요 · " +
+                                               game::costLabel(run.catalog().balance.boulder)},
+                                    Sound::None);
+                return;
+            }
+        // An empty trait pad names its bonus.
+        const game::PadTrait trait = run.padTrait(target);
+        if (trait != game::PadTrait::None)
+            feedback.notify({true, std::string(padTraitName(trait)) + " 패드 · 이 위의 건물 " +
+                                       padTraitEffect(trait, run.catalog().balance)},
+                            Sound::None);
+        break;
+    }
+    case ClearBoulder: {
+        if (!state.play.selectedBoulder)
+            break;
+        const game::Result result = run.clearBoulder(*state.play.selectedBoulder);
+        feedback.notify(result, Sound::Upgrade);
+        if (result.ok)
+            state.play.selectedBoulder.reset();
         break;
     }
     case Start: {
@@ -162,6 +208,7 @@ void GameplayController::act(const GameInput &input) {
             state.play.selectedCard = 0;
             state.play.selectedUnit = 0;
             state.play.selectedTower = 0;
+            state.play.selectedBoulder.reset();
             state.play.movingUnit = false;
             state.play.paused = false;
             state.play.guideOpen = false;
@@ -193,14 +240,46 @@ void GameplayController::act(const GameInput &input) {
         state.play.mine = true;
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
+        state.play.selectedBoulder.reset();
         state.play.movingUnit = false;
         state.play.selectedCard = 0;
         ui.cancel();
         break;
+    case DescendMine:
+        if (run.descentAvailability().ok) {
+            state.play.modal = Modal::MineDescent;
+            ui.cancel();
+        } else {
+            feedback.notify(run.descentAvailability());
+        }
+        break;
+    case ConfirmDescend: {
+        const game::Result result = run.descend();
+        feedback.notify(result, Sound::Confirm);
+        if (result.ok) {
+            state.play.modal = Modal::None;
+            state.play.scan = false;
+            ui.cancel();
+        }
+        break;
+    }
     case Scan:
         state.play.scan = !state.play.scan;
         state.play.mine = true;
-        feedback.notify({true, state.play.scan ? "스캔할 경계 1칸을 눌러 주세요" : "스캔 선택을 취소했어요"});
+        feedback.notify({true, !state.play.scan ? "스캔 선택을 취소했어요"
+                               : run.catalog().mining == game::MiningMode::Excavate
+                                   ? "속을 비춰 볼 암벽을 눌러 주세요"
+                                   : "스캔할 경계 1칸을 눌러 주세요"});
+        break;
+    case ToolPick:
+    case ToolBlast:
+        state.play.blast = action == ToolBlast;
+        state.play.scan = false;
+        state.play.mine = true;
+        sound.play(Sound::Select);
+        feedback.notify({true, state.play.blast ? "발파: 3×3을 깎고 닿은 둥지를 깨워요"
+                                                : "곡괭이: 한 칸을 깊게, 옆 네 칸을 얕게 깎아요"},
+                        Sound::None);
         break;
     case Exchange: {
         const game::Result result = run.exchange(state.play.selectedCard);
@@ -210,7 +289,41 @@ void GameplayController::act(const GameInput &input) {
         break;
     }
     case Tool:
-        feedback.notify(run.upgrade(thorium::game::UpgradeKind::Tool), Sound::Upgrade);
+        feedback.notify(run.upgrade(run.state().tool < 2 ? thorium::game::UpgradeKind::Tool
+                                                         : thorium::game::UpgradeKind::Drill),
+                        Sound::Upgrade);
+        break;
+    case Hire:
+        feedback.notify(run.upgrade(thorium::game::UpgradeKind::Hire), Sound::Upgrade);
+        break;
+    case Supply:
+        feedback.notify(run.upgrade(thorium::game::UpgradeKind::Supply), Sound::Upgrade);
+        break;
+    case AwakenPick: {
+        // Prefer an affordable candidate, then any open one, so the inspector shows a usable price.
+        const game::Tower *chosen = nullptr;
+        for (const game::Tower &tower : run.state().towers) {
+            const game::PurchaseQuote price = run.awakenQuote(tower.id);
+            if (price.open() && (!chosen || (price.allowed() && !run.awakenQuote(chosen->id).allowed())))
+                chosen = &tower;
+        }
+        if (!chosen) {
+            feedback.notify({false, "Lv3 건물이 없어요 · 같은 카드로 Lv3까지 강화해 주세요"});
+            break;
+        }
+        state.play.mine = false;
+        state.play.scan = false;
+        state.play.selectedTower = chosen->id;
+        state.play.selectedUnit = 0;
+        state.play.selectedBoulder.reset();
+        state.play.movingUnit = false;
+        state.play.selectedCard = 0;
+        feedback.notify({true, "각성할 건물을 고르고 각성 버튼을 눌러 주세요"});
+        ui.cancel();
+        break;
+    }
+    case Awaken:
+        feedback.notify(run.awaken(state.play.selectedTower), Sound::Upgrade);
         break;
     case Armor:
         feedback.notify(run.upgrade(thorium::game::UpgradeKind::Armor), Sound::Upgrade);
@@ -250,6 +363,7 @@ void GameplayController::act(const GameInput &input) {
     case ClearSelection:
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
+        state.play.selectedBoulder.reset();
         state.play.selectedCard = 0;
         state.play.movingUnit = false;
         break;
@@ -292,10 +406,11 @@ void GameplayController::key(int key) {
         if (state.play.modal != presentation::Modal::None)
             state.play.modal = presentation::Modal::None;
         else if (state.play.selectedCard || state.play.selectedUnit || state.play.selectedTower ||
-                 state.play.scan) {
+                 state.play.selectedBoulder || state.play.scan) {
             state.play.selectedCard = 0;
             state.play.selectedUnit = 0;
             state.play.selectedTower = 0;
+            state.play.selectedBoulder.reset();
             state.play.movingUnit = false;
             state.play.scan = false;
         } else if (run.state().phase == game::Phase::Battle)
@@ -329,6 +444,7 @@ void GameplayController::key(int key) {
         state.play.mine = !state.play.mine;
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
+        state.play.selectedBoulder.reset();
         state.play.movingUnit = false;
         ui.cancel();
     }
@@ -339,6 +455,7 @@ void GameplayController::synchronize(game::Phase before) {
         state.play.selectedCard = 0;
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
+        state.play.selectedBoulder.reset();
         state.play.movingUnit = false;
         state.play.modal = presentation::Modal::None;
         state.play.selectedOffer = 0;
@@ -355,5 +472,7 @@ void GameplayController::synchronize(game::Phase before) {
     }
     if (state.play.selectedTower && !run.tower(state.play.selectedTower))
         state.play.selectedTower = 0;
+    if (state.play.selectedBoulder && !run.boulderQuote(*state.play.selectedBoulder).open())
+        state.play.selectedBoulder.reset();
 }
 } // namespace thorium

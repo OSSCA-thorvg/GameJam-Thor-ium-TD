@@ -1,6 +1,8 @@
+#include "engine/render/RenderScale.h"
 #include "engine/render/Renderer.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -41,6 +43,90 @@ void frameContracts(const std::string &source) {
     require(renderer.finish() && std::all_of(renderer.pixels.begin(), renderer.pixels.end(),
                                              [](std::uint32_t pixel) { return pixel == 0; }),
             "the last death frame finishes fully transparent without wrapping to idle");
+}
+/** Draw a translucent ground with antialiased shapes, either directly or through one cached layer. */
+void ground(thorium::engine::Renderer &renderer, bool cached, std::uint64_t key, float shift = 0) {
+    using namespace thorium::engine;
+    const auto shapes = [&renderer, shift]() {
+        renderer.gradientRect({10, 10, 100, 60}, {40, 90, 60}, {20, 50, 70, 200}, 8);
+        renderer.circle({40 + shift, 40}, 17.3F, {230, 200, 120, 140});
+        renderer.line({{12 + shift, 65}, {70 + shift, 22}, {105 + shift, 60}}, 4.5F, {200, 220, 255, 180});
+    };
+    renderer.rect({0, 0, 120, 80}, {18, 34, 43});
+    if (cached)
+        renderer.cachedLayer(3, key, {10, 10, 100, 60}, shapes);
+    else {
+        renderer.beginClip({10, 10, 100, 60});
+        shapes();
+        renderer.endClip();
+    }
+}
+/** Compare a cached layer with direct drawing at unit and fractional density, and check its reuse rules. */
+void layerContracts() {
+    using namespace thorium::engine;
+    for (float density : {1.0F, 1.5F}) {
+        Renderer direct({"", {}}), cached({"", {}});
+        require(direct.begin(120, 80, density) && cached.begin(120, 80, density), "begin layer comparison");
+        ground(direct, false, 0);
+        ground(cached, true, 7);
+        require(direct.finish() && cached.finish(), "render direct and cached ground");
+        int largest = 0;
+        for (std::size_t index = 0; index < direct.pixels.size(); ++index)
+            for (int shift = 0; shift < 32; shift += 8)
+                largest = std::max(largest, std::abs(static_cast<int>(direct.pixels[index] >> shift & 255) -
+                                                     static_cast<int>(cached.pixels[index] >> shift & 255)));
+        require(largest <= 2, "a cached layer matches direct drawing within premultiplied rounding");
+        const std::vector<std::uint32_t> first = cached.pixels;
+        require(cached.begin(120, 80, density), "begin reused layer frame");
+        ground(cached, true, 7, 30);
+        require(cached.finish() && cached.pixels == first && cached.layerRasterizations() == 1 &&
+                    cached.layerReuses() == 1,
+                "an unchanged key reuses retained pixels without recording its drawing again");
+        require(cached.begin(120, 80, density), "begin changed layer frame");
+        ground(cached, true, 8, 30);
+        require(cached.finish() && cached.pixels != first && cached.layerRasterizations() == 2,
+                "a changed key rasterizes the layer again");
+    }
+    Renderer moved({"", {}});
+    require(moved.begin(120, 80, 1), "begin offset layer frame");
+    moved.cachedLayer(0, 1, {0, 0, 20, 20}, [&moved]() { moved.rect({0, 0, 20, 20}, {255, 255, 255}); });
+    require(moved.finish() && moved.pixels[0] != 0, "layer paints at its own bounds");
+    require(moved.begin(120, 80, 1), "begin shifted layer frame");
+    moved.cachedLayer(0, 1, {0, 0, 20, 20}, [&moved]() { moved.rect({0, 0, 20, 20}, {0, 0, 0}); },
+                      {30.4F, 0});
+    require(moved.finish() && moved.pixels[0] == 0 && moved.pixels[35] != 0 && moved.pixels[29] == 0 &&
+                moved.layerRasterizations() == 1,
+            "an offset moves retained pixels by whole pixels without rasterizing again");
+}
+/** The render scale ignores short spikes, steps down under sustained load and climbs back with headroom. */
+void scaleContracts() {
+    using thorium::engine::RenderScale;
+    RenderScale scale;
+    const float frame = 1.0F / 60.0F;
+    for (int index = 0; index < 5; ++index)
+        scale.update(30, frame);
+    require(scale.value() == 1.0F, "a short spike keeps full resolution");
+    for (int index = 0; index < 40; ++index)
+        scale.update(20, frame);
+    require(scale.value() == RenderScale::Levels[1],
+            "sustained work over the budget steps the scale down once");
+    for (int index = 0; index < 30; ++index)
+        scale.update(20, frame);
+    require(scale.value() == RenderScale::Levels[1], "the scale holds before stepping again");
+    for (int index = 0; index < 120; ++index)
+        scale.update(20, frame);
+    require(scale.value() == RenderScale::Levels[2],
+            "continued overload reaches the coarsest step and stops");
+    scale.update(std::nan(""), frame);
+    scale.update(-1, frame);
+    require(scale.value() == RenderScale::Levels[2] && scale.smoothedMs() > 19,
+            "invalid samples are ignored");
+    for (int index = 0; index < 200; ++index)
+        scale.update(6, frame);
+    require(scale.value() == RenderScale::Levels[1], "headroom raises the scale one step after the hold");
+    for (int index = 0; index < 300; ++index)
+        scale.update(6, frame);
+    require(scale.value() == 1.0F, "lasting headroom restores full resolution");
 }
 /** Render authored marker poses and optionally save portable RGBA pixels for visual review. */
 void markerContracts(const std::string &source, const std::string &output) {
@@ -110,6 +196,8 @@ int main(int argc, char **argv) {
                 "missing required assets fail before drawing");
     }
     frameContracts(path);
+    layerContracts();
+    scaleContracts();
     markerContracts(path, argc > 1 ? argv[1] : "");
     std::cout << checks << " render asset checks passed\n";
 }

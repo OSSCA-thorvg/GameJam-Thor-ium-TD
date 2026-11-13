@@ -1,9 +1,13 @@
 #pragma once
 #include "AppFlow.h"
+#include "BenchScene.h"
 #include "GameplayController.h"
+#include "MapCamera.h"
+#include "MineScroll.h"
 #include "Persistence.h"
 #include "TutorialDirector.h"
 #include "engine/diagnostics/FrameProfiler.h"
+#include "engine/render/RenderScale.h"
 #include "engine/render/Renderer.h"
 #include "engine/ui/Ui.h"
 #include "game/presentation/Soundscape.h"
@@ -15,12 +19,17 @@ namespace thorium {
 /** Compose one run, UI, presentation and renderer without exposing SDL to rules. */
 class Application {
   public:
-    /** Seed the first hand snapshot without playing a false replacement animation. */
-    explicit Application(game::Run initialRun = game::Run{});
+    /** Compose the shipped campaign and seed its first hand without playing a replacement animation. */
+    Application();
+    /** Compose an isolated authored run, retaining custom content on reset rather than selecting a campaign.
+     */
+    explicit Application(game::Run initialRun);
     /** Advance a fixed simulation and draw a frame at the current viewport. */
     bool frame(int width, int height, float density, float elapsed);
     /** Receive a platform-neutral mouse or touch input. */
     void pointer(engine::Pointer event);
+    /** Receive normalized wheel zoom without exposing SDL to application rules. */
+    void wheel(engine::ScreenPoint point, float steps);
     /** Apply a generic UI interaction to the game-specific command boundary. */
     void act(engine::Interaction interaction);
     /** Interpret keyboard shortcuts without injecting synthetic pointer events. */
@@ -51,6 +60,8 @@ class Application {
     /** Cancel captured input after a platform viewport change. */
     void viewportChanged() {
         ui.cancel();
+        camera.cancel();
+        mineScroll.cancel();
     }
     /** Read the composition/render failure without exposing engine ownership. */
     const std::string &error() const {
@@ -65,8 +76,15 @@ class Application {
         return ui.widgets;
     }
 
-    /** Save persistent player settings and progression. */
+    /** Save persistent player settings and progression; a bench session never writes. */
     void savePersistence();
+    /** Open a measurement-only late battle in place of the title and disable saving for this session. */
+    bool startBenchmark(const BenchRequest &request);
+    /** Read the active bench request, if this session opened one. */
+    const std::optional<BenchRequest> &benchmark() const {
+        return benchmark_;
+    }
+
   private:
     friend struct ApplicationTestAccess;
     game::Run run;
@@ -80,10 +98,17 @@ class Application {
     float accumulator_ = 0.0F;
     bool audioPaused_ = false;
     bool animationCachePrepared_ = false;
+    /** Lowers the render density while the measured CPU work of recent frames exceeds the frame budget. */
+    engine::RenderScale renderScale_;
+    std::optional<BenchRequest> benchmark_;
+    /** Fixed steps since the bench battle opened; the autoplayer decides a card every 30 steps. */
+    std::uint64_t benchmarkSteps_ = 0;
     FeedbackChannel feedback;
     AppFlow flow;
     GameplayController gameplay;
     TutorialDirector tutorial;
+    MapCamera camera;
+    MineScroll mineScroll;
     /** Invalidate timing only after an app transition replaced the run. */
     void applyFlow(FlowResult result);
 };

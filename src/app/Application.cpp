@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "game/autoplay/Autoplayer.h"
 #include "game/presentation/Assets.h"
 #include <algorithm>
 #include <cmath>
@@ -39,10 +40,21 @@ std::string jsonCardDetails(const presentation::CardDetails &card) {
     return output.str() + "]}";
 }
 } // namespace
+Application::Application() : Application(game::Run{}) {
+    game::RunCreation initial = game::Run::create(expeditionContent(1, state.app));
+    if (!initial.run) {
+        graphics.error = initial.validation.summary();
+        return;
+    }
+    run = std::move(*initial.run);
+    state.app.campaign = true;
+    feedback.reset();
+}
 Application::Application(game::Run initialRun)
     : run(std::move(initialRun)), graphics(presentation::assets::renderAssets()), sound(audio),
       feedback(run, state, sound), flow(run, state, ui, audio, sound, feedback),
-      gameplay(run, state, ui, view.layout, sound, feedback), tutorial(run, state, ui, feedback, sound) {
+      gameplay(run, state, ui, view.layout, sound, feedback), tutorial(run, state, ui, feedback, sound),
+      camera(state, ui, view.layout), mineScroll(run, state, ui, view.layout) {
     state.app.animationSets = presentation::animationSets(
         graphics.animationAssets(), presentation::assets::animationBindings(), run.catalog());
     if (graphics.error.empty() && !state.app.animationSets.error.empty())
@@ -55,6 +67,7 @@ Application::Application(game::Run initialRun)
     state.app.preferences.reducedMotion = saved.reducedMotion;
     state.app.preferences.damageNumbers = saved.damageNumbers;
     state.app.preferences.cachedAnimations = saved.cachedAnimations;
+    state.app.preferences.excavation = saved.excavation;
     audio.settings.volume = saved.volume;
     audio.settings.muted = saved.muted;
 }
@@ -85,6 +98,8 @@ bool Application::frame(int width, int height, float density, float elapsed) {
             state.play.actors.advance(1.0F / 60.0F);
             frameTimings_.add(FrameStage::Presentation, engine::frameMilliseconds(stage));
             stage = FrameClock::now();
+            if (benchmark_ && run.state().phase == game::Phase::Battle && benchmarkSteps_++ % 30 == 0)
+                game::autoplay::playCard(run);
             run.advance(1.0F / 60.0F);
             frameTimings_.add(FrameStage::Simulation, engine::frameMilliseconds(stage));
             ++frameTimings_.simulationSteps;
@@ -99,15 +114,18 @@ bool Application::frame(int width, int height, float density, float elapsed) {
     feedback.collect();
     gameplay.synchronize(before);
     tutorial.observe();
+    if (flow.synchronizeProgress())
+        savePersistence();
     frameTimings_.add(FrameStage::Presentation, engine::frameMilliseconds(stage));
     if (state.app.preferences.cachedAnimations && !animationCachePrepared_) {
         stage = FrameClock::now();
-        for (const std::pair<const std::string, presentation::ActorAnimationSet> &entry :
-             state.app.animationSets.profiles) {
-            graphics.prewarmAnimation(entry.second.idle);
-            graphics.prewarmAnimation(entry.second.move);
-            graphics.prewarmAnimation(entry.second.attack);
-            graphics.prewarmAnimation(entry.second.death);
+        // Only the common enemy's frames are prepared; rarer roles bake on first use within the budget.
+        if (const presentation::ActorAnimationSet *common =
+                state.app.animationSets.find(run.catalog().enemy(game::EnemyKind::Normal).animation)) {
+            graphics.prewarmAnimation(common->idle);
+            graphics.prewarmAnimation(common->move);
+            graphics.prewarmAnimation(common->attack);
+            graphics.prewarmAnimation(common->death);
         }
         animationCachePrepared_ = true;
         frameTimings_.add(FrameStage::CachePreparation, engine::frameMilliseconds(stage));
@@ -120,25 +138,43 @@ bool Application::frame(int width, int height, float density, float elapsed) {
                                      ? engine::AnimationBackend::SharedFrames
                                      : engine::AnimationBackend::Vector);
     stage = FrameClock::now();
-    if (!graphics.begin(width, height, density))
+    // The scale applies to the density the renderer would use, so it lowers pixels on dense displays too.
+    if (!graphics.begin(width, height,
+                        std::min(density, engine::Renderer::MaxDensity) * renderScale_.value()))
         return false;
     frameTimings_.add(FrameStage::Raster, engine::frameMilliseconds(stage));
     stage = FrameClock::now();
     ui.advance(elapsed);
+    if (!stopAudio)
+        mineScroll.follow(elapsed);
     view.draw(graphics, ui, run, state, audio.settings);
+    if (state.app.navigation.gameplay() && !state.play.cameraFramed && !state.play.mine) {
+        state.play.camera = view.layout.camera.pose();
+        state.play.cameraFramed = true;
+    }
     frameTimings_.add(FrameStage::Scene, engine::frameMilliseconds(stage));
     stage = FrameClock::now();
     const bool rendered = graphics.finish();
     frameTimings_.add(FrameStage::Raster, engine::frameMilliseconds(stage));
+    renderScale_.update(frameTimings_.measuredMs(), elapsed);
     return rendered;
 }
 void Application::pointer(engine::Pointer event) {
     const std::optional<engine::Interaction> interaction = ui.pointer(event);
-    if (interaction)
+    const bool cameraDrag = camera.pointer(event);
+    const bool mineDrag = mineScroll.pointer(event);
+    if (interaction && !cameraDrag && !mineDrag)
         act(*interaction);
+}
+void Application::wheel(engine::ScreenPoint point, float steps) {
+    if (!mineScroll.wheel(steps))
+        camera.wheel(point, steps);
 }
 void Application::applyFlow(FlowResult result) {
     if (result == FlowResult::Restarted) {
+        camera.cancel();
+        mineScroll.cancel();
+        state.play.mineScroll = 0;
         accumulator_ = 0;
         audioPaused_ = false;
     }
@@ -146,6 +182,8 @@ void Application::applyFlow(FlowResult result) {
 void Application::act(engine::Interaction interaction) {
     const std::optional<GameInput> input = decodeInput(interaction);
     if (!input)
+        return;
+    if (input->kind == InputKind::Control && camera.act(input->action, input->position))
         return;
     if (input->kind == InputKind::Control) {
         using namespace presentation;
@@ -190,11 +228,21 @@ void Application::act(engine::Interaction interaction) {
     const FlowResult result =
         input->kind == InputKind::Control ? flow.act(input->action) : FlowResult::Unhandled;
     applyFlow(result);
+    if (result != FlowResult::Unhandled)
+        camera.cancel();
     if (result == FlowResult::Unhandled)
         gameplay.act(*input);
     tutorial.observe();
 }
 void Application::key(int key, bool shift) {
+    if (key == '+' || key == '-' || key == '0') {
+        act({engine::Interaction::Kind::Click,
+             key == '+'   ? presentation::ZoomIn
+             : key == '-' ? presentation::ZoomOut
+                          : presentation::ZoomFit,
+             {}});
+        return;
+    }
     if (key == 9) {
         ui.nextFocus(shift);
         return;
@@ -236,17 +284,45 @@ void Application::key(int key, bool shift) {
         gameplay.key(key);
 }
 void Application::savePersistence() {
+    if (benchmark_)
+        return;
     SaveData data;
     data.tutorialCompleted = state.app.tutorialCompleted;
     data.highestUnlockedStage = state.app.highestUnlockedStage;
     data.reducedMotion = state.app.preferences.reducedMotion;
     data.damageNumbers = state.app.preferences.damageNumbers;
     data.cachedAnimations = state.app.preferences.cachedAnimations;
+    data.excavation = state.app.preferences.excavation;
     data.volume = audio.settings.volume;
     data.muted = audio.settings.muted;
     Persistence::save(data);
 }
+bool Application::startBenchmark(const BenchRequest &request) {
+    BenchScene scene = prepareBenchScene(request);
+    if (!scene.run) {
+        graphics.error = "Bench scene: " + scene.error;
+        return false;
+    }
+    benchmark_ = request;
+    benchmarkSteps_ = 0;
+    run = std::move(*scene.run);
+    state.app.campaign = true;
+    state.app.selectedStage = request.stage;
+    state.app.preferences = presentation::Preferences{};
+    if (request.cachedAnimations)
+        state.app.preferences.cachedAnimations = *request.cachedAnimations;
+    state.play = presentation::PlayState{};
+    state.play.currentStage = request.stage;
+    state.play.guideOpen = false;
+    state.play.hints = {true, true, true, true, true};
+    state.app.navigation.enterGame();
+    feedback.reset();
+    accumulator_ = 0;
+    return run.startWave().ok;
+}
 void Application::suspend() {
+    camera.cancel();
+    mineScroll.cancel();
     ui.cancel();
     audio.stop();
     sound.cancelPending();
@@ -278,6 +354,65 @@ std::string Application::debugState() const {
               ",\"width\":" + std::to_string(graphics.width) +
               ",\"height\":" + std::to_string(graphics.height);
     std::ostringstream feedback;
+    const engine::CameraPose pose = view.layout.camera.pose();
+    feedback << ",\"campaign\":" << (state.app.campaign ? "true" : "false")
+             << ",\"selectedStage\":" << state.app.selectedStage
+             << ",\"currentStage\":" << state.play.currentStage << ",\"benchmark\":";
+    if (benchmark_)
+        feedback << "{\"stage\":" << benchmark_->stage << ",\"wave\":" << benchmark_->wave
+                 << ",\"crowd\":" << benchmark_->crowd << '}';
+    else
+        feedback << "null";
+    feedback << ",\"highestUnlockedStage\":" << state.app.highestUnlockedStage
+             << ",\"totalWaves\":" << run.catalog().waves.size() << ",\"mineLayer\":" << run.state().mineLayer
+             << ",\"mineLayers\":" << run.catalog().deeperMines.size() + 1
+             << ",\"canDescend\":" << (run.descentAvailability().ok ? "true" : "false")
+             << ",\"mine\":{\"x\":" << view.layout.mineOrigin.x << ",\"y\":" << view.layout.mineOrigin.y
+             << ",\"tile\":" << view.layout.mineTile << ",\"columns\":" << run.state().mineWidth
+             << ",\"rows\":" << run.state().mineHeight << ",\"scroll\":" << view.layout.mineScroll
+             << ",\"scrollMax\":" << view.layout.mineScrollMax
+             << ",\"viewport\":{\"x\":" << view.layout.mineViewport.x
+             << ",\"y\":" << view.layout.mineViewport.y << ",\"w\":" << view.layout.mineViewport.w
+             << ",\"h\":" << view.layout.mineViewport.h << "}}"
+             << ",\"field\":{\"width\":" << run.catalog().width << ",\"height\":" << run.catalog().height
+             << ",\"originX\":" << view.layout.mapOrigin.x << ",\"originY\":" << view.layout.mapOrigin.y
+             << ",\"tile\":" << view.layout.tile << ",\"zoom\":" << pose.zoom << ",\"panX\":" << pose.panX
+             << ",\"panY\":" << pose.panY << "},\"lanes\":[";
+    bool firstLane = true;
+    for (const game::LaneForecast &lane : run.laneForecast()) {
+        if (!firstLane)
+            feedback << ',';
+        firstLane = false;
+        const game::Point entry = run.route(lane.route).front();
+        feedback << "{\"route\":" << lane.route << ",\"count\":" << lane.count
+                 << ",\"runners\":" << lane.runners << ",\"armored\":" << lane.armored << ",\"x\":" << entry.x
+                 << ",\"y\":" << entry.y << ",\"opensAtWave\":"
+                 << (lane.route ? run.catalog().additionalRoutes[lane.route - 1].opensAtWave : 1)
+                 << ",\"length\":" << run.routeLength(lane.route) << ",\"kinds\":[";
+        for (std::size_t kind = 0; kind < lane.kinds.size(); ++kind)
+            feedback << (kind ? "," : "") << lane.kinds[kind];
+        feedback << "]}";
+    }
+    feedback << ']';
+    feedback << ",\"pads\":[";
+    for (std::size_t index = 0; index < run.state().pads.size(); ++index) {
+        const game::Point pad = run.state().pads[index];
+        const bool occupied = std::any_of(
+            run.state().towers.begin(), run.state().towers.end(),
+            [pad](const game::Tower &tower) -> bool { return game::distance(tower.position, pad) < .1F; });
+        feedback << (index ? "," : "") << "{\"x\":" << pad.x << ",\"y\":" << pad.y
+                 << ",\"occupied\":" << (occupied ? "true" : "false") << '}';
+    }
+    feedback << ']';
+    feedback << ",\"boulders\":[";
+    for (std::size_t index = 0; index < run.state().boulders.size(); ++index) {
+        const game::Point boulder = run.state().boulders[index];
+        const bool selected =
+            state.play.selectedBoulder && game::distance(*state.play.selectedBoulder, boulder) < .1F;
+        feedback << (index ? "," : "") << "{\"x\":" << boulder.x << ",\"y\":" << boulder.y
+                 << ",\"selected\":" << (selected ? "true" : "false") << '}';
+    }
+    feedback << ']';
     feedback << ",\"placement\":";
     const std::optional<presentation::PlacementPreview> &placement = view.currentPlacement();
     if (placement) {
@@ -358,6 +493,7 @@ std::string Application::debugState() const {
     }
     const engine::AnimationRenderStats render = graphics.animationStats();
     feedback << "],\"rendering\":{\"error\":" << jsonText(graphics.error)
+             << ",\"scale\":" << renderScale_.value() << ",\"density\":" << graphics.density()
              << ",\"cached\":" << (state.app.preferences.cachedAnimations ? "true" : "false")
              << ",\"bytes\":" << render.cache.bytes << ",\"entries\":" << render.cache.entries
              << ",\"pinned\":" << render.cache.pinnedEntries << ",\"hits\":" << render.cache.hits
@@ -367,7 +503,9 @@ std::string Application::debugState() const {
              << ",\"sprites\":" << render.spriteInstances << ",\"vectors\":" << render.vectorInstances
              << ",\"cachedDraws\":" << render.cachedDraws << ",\"vectorDraws\":" << render.vectorDraws
              << ",\"poolHits\":" << render.poolHits << ",\"pooledVectors\":" << render.pooledVectors
-             << ",\"fallbacks\":" << render.fallbacks << "},\"actors\":" << state.play.actors.debugState()
+             << ",\"fallbacks\":" << render.fallbacks << ",\"layers\":" << graphics.layerRasterizations()
+             << ",\"layerReuses\":" << graphics.layerReuses()
+             << "},\"actors\":" << state.play.actors.debugState()
              << ",\"deathVisuals\":" << state.play.actors.deaths()
              << ",\"audio\":{\"muted\":" << (audio.settings.muted ? "true" : "false")
              << ",\"volume\":" << audio.settings.volume << ",\"voices\":" << audio.activeVoices()

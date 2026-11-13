@@ -58,6 +58,17 @@ Renderer::Renderer(const RenderAssets &assets, AnimationCacheConfig cache)
             animationSources_.emplace(asset.first, std::move(source));
         }
     }
+    for (const std::pair<const std::string, std::string> &asset : assets.pictures) {
+        tvg::Picture *picture = tvg::Picture::gen();
+        if (!picture || picture->load(asset.second.c_str()) != tvg::Result::Success) {
+            fail("Could not load picture: " + asset.second);
+            if (picture)
+                tvg::Paint::rel(picture);
+            continue;
+        }
+        picture->ref();
+        pictures_.emplace(asset.first, picture);
+    }
     if (!std::isfinite(cacheConfig_.framesPerSecond) || cacheConfig_.framesPerSecond < 1 ||
         cacheConfig_.framesPerSecond > 120 || !std::isfinite(cacheConfig_.padding) ||
         cacheConfig_.padding < 0 || cacheConfig_.padding > 1)
@@ -73,7 +84,12 @@ Renderer::~Renderer() {
     for (const std::pair<const std::string, tvg::Paint *> &entry : textCache_)
         entry.second->unref();
     textCache_.clear();
+    for (const std::pair<const std::string, tvg::Picture *> &entry : pictures_)
+        entry.second->unref();
+    pictures_.clear();
     clearSprites(true);
+    layers_.clear();
+    layerCanvas_.reset();
     animations_.clear();
     animationPool_.clear();
     baker_.reset();
@@ -94,11 +110,12 @@ bool Renderer::begin(int logicalWidth, int logicalHeight, float density) {
         textCache_.clear();
     }
     usedAnimations_.clear();
+    backdropUsed_ = false;
     for (std::pair<const AnimationRasterFrame *const, SpritePool> &entry : sprites_)
         entry.second.used = 0;
     width = std::max(1, logicalWidth);
     height = std::max(1, logicalHeight);
-    density_ = std::clamp(density, 1.0F, 1.5F);
+    density_ = std::clamp(density, 1.0F, MaxDensity);
     if (static_cast<float>(width) * height * density_ * density_ > 2200000.0F)
         density_ = std::sqrt(2200000.0F / (width * height));
     const int nextWidth = static_cast<int>(width * density_);
@@ -107,8 +124,10 @@ bool Renderer::begin(int logicalWidth, int logicalHeight, float density) {
         pixelWidth = nextWidth;
         pixelHeight = nextHeight;
         pixels.assign(static_cast<std::size_t>(pixelWidth) * pixelHeight, 0);
+        backdropValid_ = false;
     }
-    if (canvas_->target(pixels.data(), pixelWidth, pixelWidth, pixelHeight, tvg::ColorSpace::ABGR8888S) !=
+    if (canvas_->target(pixels.data(), pixelWidth, pixelWidth, pixelHeight,
+                        opaqueTarget_ ? tvg::ColorSpace::ABGR8888 : tvg::ColorSpace::ABGR8888S) !=
         tvg::Result::Success) {
         fail("Invalid ThorVG output surface");
         return false;
@@ -128,7 +147,20 @@ bool Renderer::finish() {
     }
     if (!error.empty() || !scene_)
         return false;
-    if (canvas_->draw(true) != tvg::Result::Success || canvas_->sync() != tvg::Result::Success) {
+    // Over an opaque backdrop every pixel stays opaque, where premultiplied and straight alpha are equal, so
+    // the final conversion to straight alpha is skipped.
+    if (backdropUsed_ != opaqueTarget_) {
+        opaqueTarget_ = backdropUsed_;
+        if (canvas_->target(pixels.data(), pixelWidth, pixelWidth, pixelHeight,
+                            opaqueTarget_ ? tvg::ColorSpace::ABGR8888 : tvg::ColorSpace::ABGR8888S) !=
+            tvg::Result::Success) {
+            fail("Invalid ThorVG output surface");
+            return false;
+        }
+    }
+    if (backdropUsed_)
+        std::copy(backdropPixels_.begin(), backdropPixels_.end(), pixels.begin());
+    if (canvas_->draw(!backdropUsed_) != tvg::Result::Success || canvas_->sync() != tvg::Result::Success) {
         fail("ThorVG frame draw failed");
         return false;
     }
@@ -147,11 +179,126 @@ bool Renderer::finish() {
     clearSprites(false);
     return true;
 }
+bool Renderer::rasterize(tvg::Scene *content, std::vector<std::uint32_t> &target, int width, int height) {
+    if (!layerCanvas_)
+        layerCanvas_.reset(tvg::SwCanvas::gen());
+    if (!layerCanvas_ ||
+        layerCanvas_->target(target.data(), width, width, height, tvg::ColorSpace::ABGR8888) !=
+            tvg::Result::Success ||
+        layerCanvas_->add(content) != tvg::Result::Success) {
+        tvg::Paint::rel(content);
+        fail("Could not prepare a cached layer");
+        return false;
+    }
+    const bool drawn =
+        layerCanvas_->draw(true) == tvg::Result::Success && layerCanvas_->sync() == tvg::Result::Success;
+    layerCanvas_->remove();
+    if (!drawn)
+        fail("Could not rasterize a cached layer");
+    return drawn;
+}
+void Renderer::backdrop(std::uint64_t key, const std::function<void()> &draw) {
+    if (!error.empty() || !scene_)
+        return;
+    key = LayerKey{}.add(key).add(density_).add(pixelWidth).add(pixelHeight).value;
+    if (!backdropValid_ || backdropKey_ != key) {
+        backdropValid_ = false;
+        backdropPixels_.assign(pixels.size(), 0);
+        tvg::Scene *content = tvg::Scene::gen();
+        content->scale(density_);
+        parents_.push_back(scene_);
+        scene_ = content;
+        draw();
+        scene_ = parents_.back();
+        parents_.pop_back();
+        if (!rasterize(content, backdropPixels_, pixelWidth, pixelHeight))
+            return;
+        backdropKey_ = key;
+        backdropValid_ = true;
+        ++layerRasterizations_;
+    } else
+        ++layerReuses_;
+    backdropUsed_ = true;
+}
+Renderer::Layer::~Layer() {
+    if (picture)
+        picture->unref();
+}
+void Renderer::cachedLayer(std::uint32_t slot, std::uint64_t key, Rect bounds,
+                           const std::function<void()> &draw, ScreenPoint offset) {
+    if (!error.empty() || !scene_ || !std::isfinite(bounds.x) || !std::isfinite(bounds.y) ||
+        !std::isfinite(bounds.w) || !std::isfinite(bounds.h) || bounds.w <= 0 || bounds.h <= 0)
+        return;
+    // Bounds on whole physical pixels let the retained image be copied without resampling.
+    const int x = static_cast<int>(std::floor(bounds.x * density_));
+    const int y = static_cast<int>(std::floor(bounds.y * density_));
+    const int right = static_cast<int>(std::ceil((bounds.x + bounds.w) * density_));
+    const int bottom = static_cast<int>(std::ceil((bounds.y + bounds.h) * density_));
+    const float shiftX = std::isfinite(offset.x) ? std::round(offset.x * density_) : 0.0F;
+    const float shiftY = std::isfinite(offset.y) ? std::round(offset.y * density_) : 0.0F;
+    std::unique_ptr<Layer> &layer = layers_[slot];
+    if (layer && layer->key == key && layer->density == density_ && layer->x == x && layer->y == y &&
+        layer->width == right - x && layer->height == bottom - y) {
+        layer->picture->translate((x + shiftX) / density_, (y + shiftY) / density_);
+        scene_->add(layer->picture);
+        ++layerReuses_;
+        return;
+    }
+    // A fresh paint and buffer per rasterization: an image paint stays bound to one immutable buffer.
+    layer = std::make_unique<Layer>();
+    layer->key = key;
+    layer->density = density_;
+    layer->x = x;
+    layer->y = y;
+    layer->width = right - x;
+    layer->height = bottom - y;
+    layer->pixels.assign(static_cast<std::size_t>(layer->width) * layer->height, 0);
+    tvg::Scene *content = tvg::Scene::gen();
+    content->scale(density_);
+    content->translate(static_cast<float>(-x), static_cast<float>(-y));
+    parents_.push_back(scene_);
+    scene_ = content;
+    draw();
+    scene_ = parents_.back();
+    parents_.pop_back();
+    if (!rasterize(content, layer->pixels, layer->width, layer->height)) {
+        layer.reset();
+        return;
+    }
+    layer->picture = tvg::Picture::gen();
+    layer->picture->ref();
+    if (layer->picture->load(layer->pixels.data(), layer->width, layer->height, tvg::ColorSpace::ABGR8888,
+                             false) != tvg::Result::Success) {
+        fail("Could not bind cached layer pixels");
+        layer.reset();
+        return;
+    }
+    layer->picture->size(layer->width / density_, layer->height / density_);
+    layer->picture->translate((x + shiftX) / density_, (y + shiftY) / density_);
+    scene_->add(layer->picture);
+    ++layerRasterizations_;
+}
 void Renderer::rect(Rect bounds, Color color, float radius) {
     tvg::Shape *shape = tvg::Shape::gen();
     shape->appendRect(bounds.x, bounds.y, bounds.w, bounds.h, radius, radius);
     shape->fill(color.r, color.g, color.b, color.a);
     scene_->add(shape);
+}
+void Renderer::picture(const std::string &key, Rect bounds, std::uint8_t opacity) {
+    const std::unordered_map<std::string, tvg::Picture *>::const_iterator found = pictures_.find(key);
+    if (found == pictures_.end() || !scene_ || !std::isfinite(bounds.x) || !std::isfinite(bounds.y) ||
+        !std::isfinite(bounds.w) || !std::isfinite(bounds.h) || bounds.w <= 0 || bounds.h <= 0)
+        return;
+    tvg::Picture *copy = static_cast<tvg::Picture *>(found->second->duplicate());
+    if (!copy)
+        return;
+    copy->size(bounds.w, bounds.h);
+    copy->translate(bounds.x, bounds.y);
+    copy->opacity(opacity);
+    scene_->add(copy);
+}
+bool Renderer::hasPicture(const std::string &key) const {
+    return pictures_.find(key) != pictures_.end();
 }
 void Renderer::circle(ScreenPoint center, float radius, Color color) {
     tvg::Shape *shape = tvg::Shape::gen();

@@ -25,9 +25,9 @@ async (page) => {
     async function click(id){/** @type {Widget} */ const item=await widget(id);await page.mouse.click(item.x+item.w/2,item.y+item.h/2);}
     /** Click a world cell using its registered viewport transform. @param {number} x @param {number} y @returns {Promise<void>} */
     async function cell(x,y){
-        /** @type {Widget} */ const world=await widget(1);
-        /** @type {number} */ const tile=Math.min((world.w-24)/18,(world.h-32)/10);
-        await page.mouse.click(world.x+(world.w-tile*18)/2+(x+.5)*tile,world.y+(world.h-tile*10)/2+(y+.5)*tile);
+        /** @type {{originX:number,originY:number,tile:number}} */
+        const field=await page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+        await page.mouse.click(field.originX+(x+.5)*field.tile,field.originY+(y+.5)*field.tile);
     }
     /** Ensure enabled controls fit and do not intercept each other. @returns {Promise<void>} */
     async function fit(){

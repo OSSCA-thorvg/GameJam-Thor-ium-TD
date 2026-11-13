@@ -23,9 +23,9 @@ async (page) => {
     }
     /** Transform a surface cell using the same viewport geometry. @param {number} x @param {number} y @returns {Promise<Point>} */
     async function cell(x,y){
-        /** @type {Widget} */ const area=await widget(1);
-        /** @type {number} */ const tile=Math.min((area.w-24)/18,(area.h-32)/10);
-        return {x:area.x+(area.w-tile*18)/2+(x+.5)*tile,y:area.y+(area.h-tile*10)/2+(y+.5)*tile};
+        /** @type {{originX:number,originY:number,tile:number}} */
+        const field=await page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+        return {x:field.originX+(x+.5)*field.tile,y:field.originY+(y+.5)*field.tile};
     }
     /** Begin an actual card drag and hold it over a target. @param {number} id @param {Point} target @returns {Promise<void>} */
     async function drag(id,target){

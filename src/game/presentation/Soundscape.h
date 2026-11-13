@@ -72,5 +72,6 @@ class Soundscape {
     bool mining_ = false;
     float drawDelay_ = -1;
     bool initialized_ = false;
+    float fieldSpan_ = 17;
 };
 } // namespace thorium::presentation

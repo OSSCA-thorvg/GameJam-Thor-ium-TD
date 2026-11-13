@@ -28,9 +28,9 @@ async (page) => {
     async function click(id){/** @type {Widget} */ const item=await widget(id);await page.mouse.click(item.x+item.w/2,item.y+item.h/2);}
     /** Place the selected card using the public world rectangle. @param {number} x @param {number} y @returns {Promise<void>} */
     async function cell(x,y){
-        /** @type {Widget} */ const area=await widget(1);
-        /** @type {number} */ const tile=Math.min((area.w-24)/18,(area.h-32)/10);
-        await page.mouse.click(area.x+(area.w-tile*18)/2+(x+.5)*tile,area.y+(area.h-tile*10)/2+(y+.5)*tile);
+        /** @type {{originX:number,originY:number,tile:number}} */
+        const field=await page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+        await page.mouse.click(field.originX+(x+.5)*field.tile,field.originY+(y+.5)*field.tile);
     }
     page.on('pageerror',onError);
     try{

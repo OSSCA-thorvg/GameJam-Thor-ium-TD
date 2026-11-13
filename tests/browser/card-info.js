@@ -28,13 +28,14 @@ async (page) => {
     async function hover(id){/** @type {Widget} */ const item=await widget(page,id);await page.mouse.move(item.x+item.w/2,item.y+item.h/2);await wait(page,`s.cardInfo?.widget===${id}`);}
     /** Dig one board cell through the visible world transform. @param {number} index @param {number} digs @returns {Promise<void>} */
     async function dig(index,digs){
-        /** @type {Widget} */ const area=await widget(page,1);
-        /** @type {number} */ const tile=Math.min((area.w-40)/5,(area.h-42)/6);
-        await page.mouse.click(area.x+(area.w-5*tile)/2+(index%5+.5)*tile,area.y+(area.h-6*tile)/2+8+(Math.floor(index/5)+.5)*tile);
+        /** @type {{x:number,y:number,tile:number,columns:number}} */ const mine=(await state(page)).mine;
+        await page.mouse.click(mine.x+(index%mine.columns+.5)*mine.tile,mine.y+(Math.floor(index/mine.columns)+.5)*mine.tile);
         await wait(page,`!s.busy&&s.digs===${digs}`);
     }
     page.on('pageerror',onError);
     try{
+        // This scenario checks the tile-by-tile cutaway; a fresh profile would open an excavation wall.
+        await page.addInitScript(()=>{if(location.origin==='http://127.0.0.1:8317'&&!localStorage.getItem('thorium_td_save'))localStorage.setItem('thorium_td_save','{"excavation":false}');});
         await page.setViewportSize({width:1200,height:900});await page.goto('http://127.0.0.1:8317/');
         await wait(page,'s.width===1200');await click(36);
         await hover(1001);
@@ -50,26 +51,27 @@ async (page) => {
         checks.push('mouse hover and held click show real base stats without selecting or spending');
 
         await click(10);await click(12);await wait(page,'s.phase===2');
-        await dig(6,4);await dig(7,3);await dig(11,2);await dig(12,1);await click(17);await dig(13,0);
+        await dig(9,4);await dig(10,3);await dig(8,2);await dig(11,1);await click(17);await dig(12,0);
         await click(20);await wait(page,'s.modal===1');await hover(3006);
         await page.screenshot({path:'.playwright-mcp/thorium-card-candidates.png',scale:'css'});
         await click(3006);await wait(page,'s.modal===2&&s.offeredCard?.kind===6');
         check((await state(page)).offeredCard.stats.some(stat=>stat.label==='체력'&&stat.value==='70'),'Incoming card includes its unit performance before replacement');
         await page.mouse.move(2,2);await wait(page,'s.cardInfo===null');
         await page.screenshot({path:'.playwright-mcp/thorium-card-replacement.png',scale:'css'});
-        await hover(2001);check((await state(page)).gold===4,'Inspecting a replacement target never pays');
+        await hover(2001);check((await state(page)).gold===8,'Inspecting a replacement target never pays');
         await page.screenshot({path:'.playwright-mcp/thorium-card-compare.png',scale:'css'});
         await page.setViewportSize({width:320,height:568});await wait(page,'s.width===320&&s.height===568');
         await hover(2001);
         /** @type {State} */ const comparison=await state(page);
         check(comparison.cardInfo.y>=0&&comparison.cardInfo.y+comparison.cardInfo.h<=568&&comparison.offeredCard.kind===6,'Compact comparison keeps incoming card and inspected target in the same screen');
         await page.screenshot({path:'.playwright-mcp/thorium-card-compare-320.png',scale:'css'});
-        await click(25);await wait(page,'s.modal===0&&s.offeredCard===null&&s.cardInfo===null&&s.gold===4');
+        await click(25);await wait(page,'s.modal===0&&s.offeredCard===null&&s.cardInfo===null&&s.gold===8');
         checks.push('recruitment and incoming-card comparison show portraits, stats and free inspection before payment');
 
         /** @type {import('playwright').Browser} */ const browser=page.context().browser();
         /** @type {import('playwright').BrowserContext} */ const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:2});
         /** @type {import('playwright').Page} */ const mobile=await context.newPage();mobile.on('pageerror',onError);
+        await mobile.addInitScript(()=>{if(location.origin==='http://127.0.0.1:8317'&&!localStorage.getItem('thorium_td_save'))localStorage.setItem('thorium_td_save','{"excavation":false}');});
         try{
             await mobile.goto('http://127.0.0.1:8317/');await wait(mobile,'s.width===390');
             /** @type {Widget} */ const start=await widget(mobile,36);await mobile.touchscreen.tap(start.x+start.w/2,start.y+start.h/2);

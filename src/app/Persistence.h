@@ -11,6 +11,7 @@ struct SaveData {
     bool reducedMotion = presentation::Preferences{}.reducedMotion;
     bool damageNumbers = presentation::Preferences{}.damageNumbers;
     bool cachedAnimations = presentation::Preferences{}.cachedAnimations;
+    bool excavation = presentation::Preferences{}.excavation;
     float volume = engine::AudioSettings{}.volume;
     bool muted = engine::AudioSettings{}.muted;
 };

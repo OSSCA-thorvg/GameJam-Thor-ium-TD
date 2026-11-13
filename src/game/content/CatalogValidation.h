@@ -10,6 +10,10 @@ struct CatalogLimits {
     static constexpr int MaxDamage = 10000;
     static constexpr int MaxSlots = 180;
     static constexpr int MaxNestEnemies = 100;
+    static constexpr int MaxMineWidth = 12;
+    static constexpr int MaxMineHeight = 24;
+    static constexpr std::size_t MaxTunnels = 8;
+    static constexpr std::size_t MaxVents = 16;
 };
 /** Point to an authored field rather than losing its location in a generic load failure. */
 struct CatalogIssue {

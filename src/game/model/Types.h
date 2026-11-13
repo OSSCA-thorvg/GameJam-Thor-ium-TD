@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -18,13 +19,48 @@ struct Point {
 /** Game phase; changing the visible view never changes this state. */
 enum class Phase { Ready, Battle, Prep, Won, Lost };
 /** Supported card definitions, shared by initial and acquired instances. */
-enum class CardKind { Gun, Cannon, Guard, Frost, Blast, Lightning, Shooter, Demolition };
-/** Supported preparation upgrades, independent of UI control IDs. */
-enum class UpgradeKind { Tool, Armor, Slots, Coil };
-/** Initial three enemy roles. */
-enum class EnemyKind { Normal, Runner, Armored };
+enum class CardKind {
+    Gun,
+    Cannon,
+    Guard,
+    Frost,
+    Blast,
+    Lightning,
+    Shooter,
+    Demolition,
+    Flame,
+    Sniper,
+    Generator,
+    Tar
+};
+/** Number of supported card definitions; every catalog defines each kind exactly once. */
+inline constexpr int CardKindCount = 12;
+/** Supported preparation purchases, independent of UI control IDs. */
+enum class UpgradeKind { Tool, Armor, Slots, Coil, Drill, Hire, Supply };
+/** Enemy roles; the zone boss is the last entry. */
+enum class EnemyKind { Normal, Runner, Armored, Swarm, Shielded, Healer, Splitter, Burrower, Sapper, Boss };
+/** Number of supported enemy roles, sized for per-kind tables. */
+inline constexpr std::size_t EnemyKindCount = 10;
+/** Periodic behaviour of an enemy role; timing and strength are catalog data. */
+enum class EnemyAbility { None, Heal, Burrow, Stomp, Sabotage };
+/** Elite modifier of one spawned enemy; None is an ordinary enemy and Leader is the mid-stage pack leader. */
+enum class EliteAffix { None, Steel, Swift, Regen, Enrage, Leader };
+/** Number of elite modifiers including None, sized for per-affix tables. */
+inline constexpr std::size_t EliteAffixCount = 6;
 /** Mining contents; gold is a wallet, not a crafting inventory entry. */
 enum class Ore { Rock, Iron, Copper, Crystal, Gold };
+/** Non-mineral content of a mine tile, resolved once when the tile is excavated. */
+enum class MineSpecial { None, Relic, Fossil, Unstable, Energy };
+/** How a preparation's digs are spent underground: Sweep opens single tiles beside the gallery with nest
+ * clues, Excavate strips a layered rock wall to uncover shaped deposits. */
+enum class MiningMode { Sweep, Excavate };
+/** Excavation strike patterns: the pick strips one tile deeply and its four neighbours lightly, the blast
+ * strips a three-by-three block and wakes any nest it touches. */
+enum class StrikeTool { Pick, Blast };
+/** One-run passive bonuses granted by relic chests; each relic is owned at most once per run. */
+enum class Relic { Battery, Charm, Ward, Lens };
+/** Number of supported relics, sized for per-relic tables. */
+inline constexpr int RelicCount = 4;
 
 /** An operation result suitable for a UI message without partial mutation. */
 struct Result {
@@ -47,6 +83,10 @@ struct CardDefinition {
     int chains = 1;
     float chainRange = 0.0F;
     float slowDuration = 0.0F;
+    /** Half-angle in degrees of a cone attack toward the selected target; zero disables the cone. */
+    float arc = 0.0F;
+    /** Damage bonus fraction granted to other buildings within range; such buildings never attack. */
+    float aura = 0.0F;
 };
 /** One atomic recipe or card-offer price, shared by validation, UI and payment. */
 struct ResourceCost {
@@ -55,8 +95,9 @@ struct ResourceCost {
     int crystal = 0;
     int gold = 0;
 };
-/** Offer identity and lifetime belong to the current run, independently of open dialogs. */
-enum class OfferSource { Recruitment, Expansion };
+/** Offer identity and lifetime belong to the current run; Expansion and Fossil offers are free single cards.
+ */
+enum class OfferSource { Recruitment, Expansion, Fossil };
 /** Immutable while active; consuming or skipping removes this offer from the run. */
 struct CardOffer {
     OfferId id = 0;
@@ -76,6 +117,8 @@ struct Tower {
     Point position;
     int level = 1;
     float cooldown = 0.0F;
+    /** Seconds this building stays sabotaged: it neither attacks nor supports. Cleared when a wave ends. */
+    float disabled = 0.0F;
 };
 /** A summoned ally; hit points and identity persist between waves. */
 struct Unit {
@@ -96,9 +139,46 @@ struct Enemy {
     float cooldown = 0.0F;
     float slowUntil = 0.0F;
     EntityId blocker = 0;
+    std::uint32_t route = 0;
+    int shield = 0;
+    float ability = 0.0F;
+    float burrowUntil = 0.0F;
+    EliteAffix affix = EliteAffix::None;
+    /** Maximum health and shield including the wave and elite multipliers; zero means the role's authored
+     * values. */
+    int maxHp = 0;
+    int maxShield = 0;
+    /** Tower a sapper is planting a charge on; the ability timer then counts down the plant. */
+    EntityId sabotage = 0;
+    /** Remaining sabotage charges of a sapper. */
+    int charges = 0;
+    /** Seconds until the next regeneration pulse of a regenerating elite. */
+    float pulse = 0.0F;
+    /** Set once an enraging elite falls under its health threshold. */
+    bool enraged = false;
 };
 /** Committed combat facts; animation timing belongs to the presentation consumer. */
-enum class CombatEventKind { Attack, Damage, Defeated, Leak, Placement };
+enum class CombatEventKind {
+    Attack,
+    Damage,
+    Defeated,
+    Leak,
+    Placement,
+    Heal,
+    Split,
+    Burrow,
+    Stomp,
+    ShieldBreak,
+    /** A sapper starts planting on a tower: from the sapper to the tower, radius is the plant time. */
+    Sabotage,
+    /** A planted charge disables a tower: subject is the tower, radius is the disabled time. */
+    Disable,
+    /** An enraging elite fell under its threshold and speeds up. */
+    Enrage,
+    /** A lava vent erupts: subject is the vent's catalog index, from and to are its position, radius is the
+     *  blast radius and amount is the number of enemies and allied units it hit. */
+    Eruption
+};
 /** One immutable combat result, retained even when its subject was removed this tick. */
 struct CombatEvent {
     CombatEventKind type;
@@ -110,6 +190,7 @@ struct CombatEvent {
     bool enemy = true;
     float radius = 0.0F;
     EnemyKind enemyKind = EnemyKind::Normal;
+    EliteAffix affix = EliteAffix::None;
 };
 /** Public and hidden mining fields remain distinct even in the native process. */
 struct MineCell {
@@ -122,6 +203,39 @@ struct MineCell {
     bool info = false;
     bool clueKnown = false;
     bool flagged = false;
+    MineSpecial special = MineSpecial::None;
+    /** Granted relic when `special` is Relic. */
+    Relic relic = Relic::Battery;
+    /** Offered card when `special` is Fossil. */
+    CardKind card = CardKind::Gun;
+    /** Opened by a neighbouring cave-in instead of a dig; its contents were lost. */
+    bool rubble = false;
+    /** Excavate: rock layers still covering the cell; zero means exposed. */
+    int cover = 0;
+    /** Excavate: one-based index of the buried deposit occupying the cell, or zero for plain rock. */
+    int deposit = 0;
+};
+/** One buried object of an excavation wall; its contents are granted once every cell is exposed. */
+struct Deposit {
+    Ore ore = Ore::Rock;
+    /** Mineral amount, or the next battle's bonus energy for an Energy special. */
+    int amount = 0;
+    MineSpecial special = MineSpecial::None;
+    Relic relic = Relic::Battery;
+    CardKind card = CardKind::Gun;
+    bool nest = false;
+    /** Pickaxe tier needed to strip the rock over the object. */
+    int grade = 1;
+    /** Row-major wall cells the object occupies. */
+    std::vector<int> cells;
+    bool collected = false;
+    /** Set once a nest has added its reinforcements, by a blast or by being collected. */
+    bool woken = false;
+};
+/** One cell reached by an excavation strike and the rock layers the strike removes from it. */
+struct StrikeHit {
+    int cell = -1;
+    int power = 0;
 };
 /** A single miner job; resources are granted only on its completion. */
 struct MineJob {
@@ -131,10 +245,22 @@ struct MineJob {
     float elapsed = 0.0F;
     float duration = 0.0F;
 };
+/** A temporary battlefield area created by a spell; cleared when its wave ends. */
+struct GroundField {
+    EntityId id = 0;
+    CardKind kind = CardKind::Tar;
+    Point position;
+    float radius = 0.0F;
+    float until = 0.0F;
+};
+/** Terrain property of a building pad; None is an ordinary pad. */
+enum class PadTrait { None, HighGround, Crystal };
 /** A scheduled spawn, including delayed nest threats. */
 struct Spawn {
     float time;
     EnemyKind kind;
+    std::uint32_t route = 0;
+    EliteAffix affix = EliteAffix::None;
 };
 
 /** Calculate a Euclidean logical distance. */

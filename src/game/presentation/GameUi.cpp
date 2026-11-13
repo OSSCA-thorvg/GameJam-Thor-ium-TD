@@ -19,6 +19,16 @@ std::string decimal(float value) {
     result << std::fixed << std::setprecision(1) << value;
     return result.str();
 }
+/** Summarize exact authored pressure for every entrance before the player starts a wave. */
+std::string laneSummary(const game::Run &run) {
+    std::string result = run.state().phase == game::Phase::Battle ? "진입 " : "다음 ";
+    for (const game::LaneForecast &lane : run.laneForecast()) {
+        if (lane.route)
+            result += "  ";
+        result += std::string(1, static_cast<char>('A' + lane.route)) + ":" + std::to_string(lane.count);
+    }
+    return result;
+}
 /** Paint a clean, modern faceted ore/gem token. */
 void gem(engine::Renderer &g, ScreenPoint center, float size, Color color) {
     const float hw = size * 0.85F;
@@ -28,13 +38,9 @@ void gem(engine::Renderer &g, ScreenPoint center, float size, Color color) {
                {center.x, center.y + hh},
                {center.x - hw, center.y}},
               color);
-    g.polygon({{center.x, center.y - hh},
-               {center.x + hw, center.y},
-               {center.x, center.y - hh * 0.15F}},
+    g.polygon({{center.x, center.y - hh}, {center.x + hw, center.y}, {center.x, center.y - hh * 0.15F}},
               {255, 255, 255, 110});
-    g.polygon({{center.x - hw, center.y},
-               {center.x, center.y + hh},
-               {center.x, center.y - hh * 0.15F}},
+    g.polygon({{center.x - hw, center.y}, {center.x, center.y + hh}, {center.x, center.y - hh * 0.15F}},
               {0, 0, 0, 45});
 }
 /** Draw a segmented instrument bar with explicit minimum/maximum clamping. */
@@ -103,7 +109,8 @@ void drawShield(engine::Renderer &g, ScreenPoint center, float size, Color color
               {255, 255, 255, 90});
 }
 /** Draw a classic swallowtail war ribbon banner. */
-void drawRibbon(engine::Renderer &g, Rect bounds, const std::string &title, Color ribbonColor, Color textColor) {
+void drawRibbon(engine::Renderer &g, Rect bounds, const std::string &title, Color ribbonColor,
+                Color textColor) {
     const float tailW = 22.0F;
     const float tailH = bounds.h;
     const float depth = 8.0F;
@@ -145,30 +152,29 @@ void View::button(engine::Renderer &g, engine::Ui &ui, engine::WidgetId id, Rect
         g.rect({bounds.x - 3, bounds.y - 3, bounds.w + 6, bounds.h + 6}, theme::blue, 11);
     const bool pressed = ui.captured == id;
     const float depth = pressed ? 1.5F : 4.5F;
-    const Color baseShadow = !enabled ? Color{25, 34, 38}
+    const Color baseShadow = !enabled  ? Color{25, 34, 38}
                              : danger  ? Color{98, 32, 28}
                              : primary ? Color{155, 96, 28}
                                        : Color{22, 42, 50};
     g.rect({bounds.x, bounds.y + depth, bounds.w, bounds.h}, baseShadow, 9);
-    const Color inkBorder = !enabled ? Color{42, 54, 60}
+    const Color inkBorder = !enabled  ? Color{42, 54, 60}
                             : danger  ? Color{165, 52, 44}
                             : primary ? Color{215, 142, 42}
                                       : Color{45, 75, 86};
     const float topY = bounds.y + (pressed ? 3.0F : 0.0F);
     g.rect({bounds.x, topY, bounds.w, bounds.h}, inkBorder, 9);
-    const Color face = !enabled ? Color{52, 66, 72}
+    const Color face = !enabled  ? Color{52, 66, 72}
                        : danger  ? Color{205, 78, 65}
                        : primary ? Color{248, 186, 68}
                                  : (pressed ? Color{42, 78, 88} : Color{56, 96, 108});
     g.rect({bounds.x + 1.5F, topY + 1.5F, bounds.w - 3.0F, bounds.h - 3.0F}, face, 8);
     if (enabled) {
-        const Color highlight = primary ? Color{255, 235, 165, 140}
+        const Color highlight = primary  ? Color{255, 235, 165, 140}
                                 : danger ? Color{255, 185, 175, 90}
                                          : Color{145, 205, 218, 90};
         g.rect({bounds.x + 4.0F, topY + 2.0F, bounds.w - 8.0F, (bounds.h - 4.0F) * 0.35F}, highlight, 6);
     }
-    g.text(title, {bounds.x + bounds.w / 2, topY + (bounds.h - 17) / 2},
-           layout.compact ? 13 : 14,
+    g.text(title, {bounds.x + bounds.w / 2, topY + (bounds.h - 17) / 2}, layout.compact ? 13 : 14,
            !enabled  ? Color{130, 150, 153}
            : primary ? Color{58, 36, 12}
                      : theme::text,
@@ -216,20 +222,24 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         g.rect({wave.x, wave.y, 3, wave.h}, theme::gold, 1);
         g.text(state.play.tutorial.active() ? "연습" : "WAVE", {wave.x + 10, wave.y + 9}, 9, theme::muted);
         g.text(state.play.tutorial.active() ? "1 / 1"
-                                            : std::to_string(std::max(1, run.state().wave)) + " / 3",
+                                            : std::to_string(std::max(1, run.state().wave)) + " / " +
+                                                  std::to_string(run.catalog().waves.size()),
                {wave.x + wave.w - 12, wave.y + 5}, 17, theme::gold, 1);
 
         const float step = (g.width - 48.0F) / 2.0F;
         const float width = step - 14.0F;
         const std::array<std::string, 2> labels{
-            {"거점 " + std::to_string(run.state().baseHp) + " / " + std::to_string(run.catalog().balance.baseHp),
+            {"거점 " + std::to_string(run.state().baseHp) + " / " +
+                 std::to_string(run.catalog().balance.baseHp),
              "부대 " + std::to_string(run.state().units.size()) + " / " + std::to_string(run.state().slots)}};
         const std::array<Color, 2> colors{{theme::green, theme::gold}};
-        const std::array<float, 2> values{{static_cast<float>(run.state().baseHp) / run.catalog().balance.baseHp,
-                                           static_cast<float>(run.state().units.size()) / run.state().slots}};
-        for (int index = 0; index < 2; ++index) {
+        const std::array<float, 2> values{
+            {static_cast<float>(run.state().baseHp) / run.catalog().balance.baseHp,
+             static_cast<float>(run.state().units.size()) / run.state().slots}};
+        for (int index = 0; index < (layout.denseMine ? 0 : 2); ++index) {
             g.text(labels[index], {24.0F + index * step, 57.0F}, 11, colors[index]);
-            meter(g, {24.0F + index * step, 74.0F, width, 5.0F}, values[index], colors[index], index == 0 ? 10 : run.state().slots);
+            meter(g, {24.0F + index * step, 74.0F, width, 5.0F}, values[index], colors[index],
+                  index == 0 ? 10 : run.state().slots);
         }
 
         const float oreWidth = (g.width - 44.0F - 18) / 4;
@@ -238,11 +248,12 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         const std::array<const char *, 4> names{{"철", "구리", "수정", "금"}};
         const std::array<Color, 4> oreColors{
             {Color{181, 203, 206}, Color{226, 151, 103}, theme::purple, theme::gold}};
+        const float oreY = layout.denseMine ? 57.0F : 92.0F;
         for (int index = 0; index < 4; ++index) {
             const float left = 22.0F + index * (oreWidth + 6);
-            g.rect({left, 92.0F, oreWidth, 23.0F}, {17, 33, 42}, 5);
-            gem(g, {left + 12, 103.0F}, 5.5F, oreColors[index]);
-            g.text(std::string(names[index]) + " " + std::to_string(amounts[index]), {left + 22, 96.0F},
+            g.rect({left, oreY, oreWidth, 23.0F}, {17, 33, 42}, 5);
+            gem(g, {left + 12, oreY + 11}, 5.5F, oreColors[index]);
+            g.text(std::string(names[index]) + " " + std::to_string(amounts[index]), {left + 22, oreY + 4},
                    10, theme::text);
         }
     } else {
@@ -263,7 +274,8 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         g.text(std::to_string(run.state().units.size()) + " / " + std::to_string(run.state().slots) + " 슬롯",
                {unitSectionX + 38, 36}, 18, theme::text);
         meter(g, {unitSectionX, 60, 150.0F, 7.0F},
-              static_cast<float>(run.state().units.size()) / run.state().slots, theme::gold, run.state().slots);
+              static_cast<float>(run.state().units.size()) / run.state().slots, theme::gold,
+              run.state().slots);
 
         // Chunky arcade system buttons
         button(g, ui, AudioMute, {baseSectionX, 79, 78, 26}, audio.muted ? "소리 OFF" : "소리 ON");
@@ -274,10 +286,10 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         // [CENTER] Classic War Ribbon Banner
         const float ribbonW = 180.0F;
         const float ribbonX = (g.width - ribbonW) / 2.0F;
-        const std::string waveTitle =
-            state.play.tutorial.active()
-                ? "연습 원정 · 공세 1/1"
-                : "★ WAVE " + std::to_string(std::max(1, run.state().wave)) + " / 3 ★";
+        const std::string waveTitle = state.play.tutorial.active()
+                                          ? "연습 원정 · 공세 1/1"
+                                          : "★ WAVE " + std::to_string(std::max(1, run.state().wave)) +
+                                                " / " + std::to_string(run.catalog().waves.size()) + " ★";
         drawRibbon(g, {ribbonX, 22.0F, ribbonW, 34.0F}, waveTitle, theme::gold, Color{48, 30, 10});
 
         const std::string statusText =
@@ -293,7 +305,7 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         g.text(statusText, {ribbonX + ribbonW / 2, 65.0F}, 12, theme::text, .5F);
         g.text(run.state().phase == game::Phase::Battle ? "출현 " + std::to_string(run.waveSpawned()) +
                                                               " / " + std::to_string(run.waveSpawnCount())
-                                                        : "표층 01 구역",
+                                                        : laneSummary(run),
                {ribbonX + ribbonW / 2, 84.0F}, 11, theme::muted, .5F);
 
         // [RIGHT] Embossed Coin Badges (No web stat boxes!)
@@ -320,6 +332,14 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
             g.text(std::to_string(amounts[index]), {left + 42.0F, 50.0F}, 18, theme::text);
         }
     }
+    if (!state.play.mine && !state.play.tutorial.active()) {
+        const float x = layout.compact ? 16.0F : g.width - 160.0F;
+        const float y = layout.compact ? 17.0F : 88.0F;
+        const bool enabled = !state.play.paused && state.play.modal == Modal::None;
+        button(g, ui, ZoomOut, {x, y, 28, 28}, "-", enabled);
+        button(g, ui, ZoomFit, {x + 34, y, 36, 28}, "1x", enabled);
+        button(g, ui, ZoomIn, {x + 76, y, 28, 28}, "+", enabled);
+    }
     static_cast<void>(state);
 }
 
@@ -340,13 +360,25 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
          compact ? 32 : 76);
     g.text(run.catalog().card(kind).name, {compact ? x + 49 : x, titleY}, compact ? 17 : 20, theme::text);
     if (tower) {
-        g.text("Lv. " + std::to_string(tower->level) + " / 3", {area.x + area.w - 12, titleY + 3}, 12,
-               theme::gold, 1);
+        const bool awakened = tower->level > game::CardMaxLevel;
+        g.text(awakened
+                   ? "각성 Lv. " + std::to_string(tower->level) + " / " + std::to_string(run.awakenedLevel())
+                   : "Lv. " + std::to_string(tower->level) + " / " + std::to_string(game::CardMaxLevel),
+               {area.x + area.w - 12, titleY + 3}, 12, awakened ? theme::purple : theme::gold, 1);
         if (!dense) {
-            g.text("공격 범위 " + decimal(run.catalog().card(kind).range), {x, area.y + (compact ? 54 : 130)},
-                   12, theme::muted);
+            // The range is the one the rules use on this pad, followed by the pad's trait when it has one.
+            const game::PadTrait trait = run.padTrait(tower->position);
+            g.text("공격 범위 " + decimal(run.buildingRange(kind, tower->position)) +
+                       (trait == game::PadTrait::None ? std::string()
+                                                      : " · " + std::string(padTraitName(trait)) + " " +
+                                                            padTraitEffect(trait, run.catalog().balance)),
+                   {x, area.y + (compact ? 54 : 130)}, 12,
+                   trait == game::PadTrait::None ? theme::muted : padTraitColor(trait), 0, w);
             g.text(kind == game::CardKind::Cannon      ? "범위 포격"
                    : kind == game::CardKind::Lightning ? "전격 연쇄"
+                   : kind == game::CardKind::Flame     ? "부채꼴 화염"
+                   : kind == game::CardKind::Sniper    ? "최대 체력 표적 저격"
+                   : kind == game::CardKind::Generator ? "주변 건물 공격력 증폭"
                                                        : "단일 표적 사격",
                    {x, area.y + (compact ? 75 : 154)}, 12, theme::gold);
         }
@@ -368,6 +400,16 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
                state.play.movingUnit ? "이동 칸 선택 중" : "위치 이동", true, state.play.movingUnit);
         button(g, ui, Heal, {x + half + 8, y, half, buttonHeight}, "치료 · 철1 구리1");
         y += buttonHeight + 8;
+    } else if (prep && tower) {
+        // Awakening shares the rule quote, so the label always shows the price the command will charge.
+        const game::PurchaseQuote price = run.awakenQuote(tower->id);
+        const std::string label = price.open() ? "각성 → Lv" + std::to_string(tower->level + 1) + " · " +
+                                                     game::costLabel(price.cost)
+                                  : price.failure == game::PurchaseFailure::Owned
+                                      ? "최고 각성 단계"
+                                      : "Lv" + std::to_string(game::CardMaxLevel) + "부터 각성 가능";
+        button(g, ui, Awaken, {x, y, w, buttonHeight}, label, price.open(), price.allowed());
+        y += buttonHeight + 8;
     }
     const float half = (w - 8) / 2;
     button(g, ui, Dismiss, {x, y, half, buttonHeight}, tower ? "건물 철거" : "부대 퇴각", true, false, true);
@@ -376,6 +418,31 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
         g.text("철수 비용 환급 없음", {x, y + 62}, 11, theme::muted);
         g.text("다시 배치할 때 카드 비용 사용", {x, y + 82}, 11, theme::muted);
     }
+}
+
+void View::boulderInspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state,
+                            Rect area) {
+    if (!state.play.selectedBoulder)
+        return;
+    const bool compact = layout.compact || area.h < 350;
+    const bool dense = compact && area.h < 170;
+    g.rect(area, {16, 32, 40, 180}, 9);
+    const float x = area.x + 12, w = area.w - 24;
+    const float titleY = area.y + 12;
+    drawBoulder(g, {compact ? x + 20 : x + w / 2, compact ? titleY + 15 : titleY + 68}, compact ? 34 : 78);
+    g.text("낙석 바위", {compact ? x + 49 : x, titleY}, compact ? 17 : 20, theme::text);
+    // The label shows the price the clear command will charge.
+    const game::PurchaseQuote price = run.boulderQuote(*state.play.selectedBoulder);
+    if (!dense) {
+        g.text("건물 패드를 막고 있어요", {x, area.y + (compact ? 54 : 130)}, 12, theme::muted, 0, w);
+        g.text("치우면 건물을 지을 수 있어요", {x, area.y + (compact ? 75 : 154)}, 12, theme::gold, 0, w);
+    }
+    float y = area.y + (dense ? 47.0F : compact ? 94.0F : 191.0F);
+    const float buttonHeight = dense ? 32.0F : 40.0F;
+    button(g, ui, ClearBoulder, {x, y, w, buttonHeight}, "바위 치우기 · " + game::costLabel(price.cost),
+           price.open(), price.allowed());
+    y += buttonHeight + 8;
+    button(g, ui, ClearSelection, {x, y, w, buttonHeight}, "선택 해제");
 }
 
 void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state) {
@@ -407,7 +474,7 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
                             : run.state().phase == game::Phase::Ready
                                 ? meta.name + " · 대기 중"
                                 : meta.name + " · " + std::to_string(run.state().wave) + "/" +
-                                      std::to_string(meta.wavesCount) + "W";
+                                      std::to_string(run.catalog().waves.size()) + "W";
         if (card) {
             const game::PlayAvailability availability = run.playAvailability(card->id);
             title += placement_ && placement_->card == card->id
@@ -469,14 +536,10 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
             g.rect(hubBox, theme::edge, 1);
 
             if (dense) {
-                g.text(run.state().phase == game::Phase::Ready
-                           ? "웨이브 시작 후 카드를 배치하세요"
-                           : "침투 " + std::to_string(run.state().enemies.size()) + " · 처치 " +
-                                 std::to_string(run.state().defeated),
-                       {x + 12, hubBox.y + 10}, 11, theme::muted, 0, w - 24);
+                g.text(laneSummary(run), {x + 12, hubBox.y + 10}, 11, theme::muted, 0, w - 24);
             } else if (run.state().phase == game::Phase::Ready) {
                 // Ready phase status hub
-                g.text("기지 현황", {x + 14, hubBox.y + 12}, 12, theme::gold);
+                g.text(laneSummary(run), {x + 14, hubBox.y + 12}, 12, theme::gold);
                 g.text("기지 내구도", {x + 14, hubBox.y + 36}, 11, theme::muted);
                 g.text(std::to_string(run.state().baseHp) + " / " +
                            std::to_string(run.catalog().balance.baseHp),
@@ -485,7 +548,7 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
                 g.text(std::to_string(run.state().units.size()) + " / " + std::to_string(run.state().slots),
                        {x + w - 14, hubBox.y + 56}, 11, theme::text, 1);
                 g.line({{x + 12, hubBox.y + 76}, {x + w - 12, hubBox.y + 76}}, 1, {36, 56, 68});
-                g.text("카드를 끌어다 전장에 배치하세요", {x + w / 2, hubBox.y + 86}, 11, theme::text, 0.5F);
+                g.text("확대 + · 빈 전장 끌어 이동", {x + w / 2, hubBox.y + 86}, 11, theme::text, 0.5F);
             } else {
                 // Battle phase live wave telemetry
                 g.text("웨이브 진행", {x + 14, hubBox.y + 12}, 11, theme::muted);
@@ -519,14 +582,10 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
         // Floating Popup Dialog: Appears on initial deploy or via [?]
         // -------------------------------------------------------------
         if (guideVisible) {
-            // Backdrop dimming
-            const Rect dimArea{side.x - 4, layout.world.y + 12.0F, side.w + 8,
-                               layout.hand.y - layout.world.y - 14.0F};
-            g.rect(dimArea, {6, 14, 22, 195}, 10);
-
-            // Floating Popup Card
-            const float popupY = layout.world.y + 12;
-            const Rect pop{side.x + 8, popupY, side.w - 16, std::min(268.0F, layout.hand.y - popupY - 12)};
+            // Rises from the command strip so the upper battlefield stays visible.
+            const float popupH = std::min(232.0F, layout.hand.y - layout.world.y - 20);
+            const Rect pop{side.x + 8, layout.hand.y - 8 - popupH, side.w - 16, popupH};
+            g.rect({side.x - 4, pop.y - 4, side.w + 8, layout.hand.y - pop.y}, {6, 14, 22, 150}, 10);
             ui.add(GuideBackdrop, pop, false, false, false);
             g.rect({pop.x, pop.y + 6, pop.w, pop.h}, {0, 0, 0, 220}, 14);
             g.rect(pop, theme::gold, 14);
@@ -569,189 +628,86 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
     const float bottom = side.y + side.h - 56;
 
     // Tactical commander plaque
-    g.rect({x, side.y + 13, w, 32.0F}, {18, 34, 42}, 6);
-    g.rect({x, side.y + 13, 4.0F, 32.0F}, theme::gold, 2);
+    const float plaqueY = side.y + (layout.denseMine ? 7 : 13);
+    g.rect({x, plaqueY, w, 32.0F}, {18, 34, 42}, 6);
+    g.rect({x, plaqueY, 4.0F, 32.0F}, theme::gold, 2);
     const auto &desktopMeta = game::stageMetadata(state.play.currentStage);
-    g.text(prep                                      ? "탐사 · 정비 지휘소"
+    const bool mineNotice = layout.denseMine && state.play.toastTime > 0 && !state.play.toast.empty();
+    g.text(mineNotice                                ? state.play.toast
+           : prep                                    ? "탐사 · 정비 지휘소"
            : run.state().phase == game::Phase::Ready ? desktopMeta.name + " 작전"
                                                      : desktopMeta.name + " 지휘소",
-           {x + 12, side.y + 18}, layout.compact ? 16 : 18, theme::text);
+           {x + 12, plaqueY + 5},
+           mineNotice       ? 11
+           : layout.compact ? 16
+           : prep           ? 18
+                            : 16,
+           mineNotice && state.play.error ? theme::red : theme::text, 0, prep ? w - 24 : w - 56);
 
-    // Desktop Side Wing Tab Button (사이드바 좌측으로 살짝 튀어나온 날개 탭)
+    // Briefing toggle inside the plaque, and the briefing itself inside the column, never over the map.
+    bool briefing = false;
+    float contentY = layout.minimap.w > 0 ? layout.minimap.y + layout.minimap.h + 16 : side.y + 56;
     if (!prep) {
-        const float wingTabW = 36.0F, wingTabH = 34.0F;
-        const Rect wingTabRect{side.x - wingTabW, side.y + 12.0F, wingTabW, wingTabH};
-        button(g, ui, ToggleDrawer, wingTabRect, "", true, state.play.guideOpen);
-        // Draw wing arrow indicator
-        const float tabCx = wingTabRect.x + wingTabRect.w / 2.0F;
-        const float tabCy = wingTabRect.y + wingTabRect.h / 2.0F;
-        if (state.play.guideOpen) {
-            // Arrow pointing right towards sidebar to close
-            g.polygon({{tabCx + 4, tabCy}, {tabCx - 4, tabCy - 5}, {tabCx - 4, tabCy + 5}}, theme::gold);
-        } else {
-            // Arrow pointing left towards battlefield to open wing
-            g.polygon({{tabCx - 4, tabCy}, {tabCx + 4, tabCy - 5}, {tabCx + 4, tabCy + 5}}, theme::gold);
-        }
-
-        // Tactical Side Wing Panel (누르면 옆에 날개가 펼쳐지는 느낌)
-        if (state.play.guideOpen && !placingCard_) {
-            const Rect wingBox{side.x - 248.0F, side.y + 48.0F, 242.0F, 268.0F};
-            ui.add(GuideBackdrop, wingBox, false, false, false);
-            g.rect({wingBox.x - 4, wingBox.y + 5, wingBox.w + 4, wingBox.h}, {0, 0, 0, 180}, 12);
-            g.rect(wingBox, theme::gold, 12);
-            g.rect({wingBox.x + 2.0F, wingBox.y + 2.0F, wingBox.w - 4.0F, wingBox.h - 4.0F}, {20, 36, 48},
-                   10);
-
-            // Wing Header
-            g.rect({wingBox.x + 8, wingBox.y + 8, wingBox.w - 16, 32}, {28, 48, 62}, 6);
-            g.rect({wingBox.x + 8, wingBox.y + 8, 4.0F, 32}, theme::gold, 2);
-            g.text("작전 브리핑", {wingBox.x + 18, wingBox.y + 15}, 14, theme::gold);
-            button(g, ui, CloseDrawer, {wingBox.x + wingBox.w - 36, wingBox.y + 9, 28, 30}, "X", true, false,
-                   true);
-
-            // Wing Tips
-            float wy = wingBox.y + 50;
+        button(g, ui, ToggleDrawer, {x + w - 34, plaqueY + 2, 30, 28}, "?", true, state.play.guideOpen);
+        briefing = state.play.guideOpen && !placingCard_;
+        if (briefing) {
+            const float height = std::min(232.0F, layout.hand.y - 8 - contentY);
+            const Rect box{x - 4, contentY, w + 8, height};
+            ui.add(GuideBackdrop, box, false, false, false);
+            g.rect(box, theme::gold, 10);
+            g.rect({box.x + 2, box.y + 2, box.w - 4, box.h - 4}, {20, 36, 48}, 8);
+            g.rect({box.x + 8, box.y + 8, box.w - 16, 30}, {28, 48, 62}, 6);
+            g.rect({box.x + 8, box.y + 8, 4.0F, 30}, theme::gold, 2);
+            g.text("작전 브리핑", {box.x + 18, box.y + 14}, 14, theme::gold);
+            button(g, ui, CloseDrawer, {box.x + box.w - 36, box.y + 9, 28, 28}, "X", true, false, true);
+            float wy = box.y + 50;
             const std::array<std::pair<const char *, Color>, 3> tips{
                 {{"타워 · 원형 발판에 건설해 자동 공격", theme::green},
                  {"병력 · 이동 경로에 배치해 적 저지", theme::blue},
                  {"마법 · 전장에 즉시 시전하는 광역 공격", theme::purple}}};
             for (const auto &tip : tips) {
-                gem(g, {wingBox.x + 20, wy + 7}, 6, tip.second);
-                g.text(tip.first, {wingBox.x + 32, wy}, 11.5F, {240, 245, 248}, 0, wingBox.w - 44);
+                gem(g, {box.x + 16, wy + 7}, 5, tip.second);
+                g.text(tip.first, {box.x + 26, wy}, 11, {240, 245, 248}, 0, box.w - 32);
                 wy += 25;
             }
             wy += 6;
-            g.line({{wingBox.x + 12, wy}, {wingBox.x + wingBox.w - 12, wy}}, 1, {42, 68, 84});
+            g.line({{box.x + 12, wy}, {box.x + box.w - 12, wy}}, 1, {42, 68, 84});
             wy += 10;
-            g.text("아군 선택 → 퇴각 · 철거", {wingBox.x + 14, wy}, 11, theme::muted, 0, wingBox.w - 28);
+            g.text("아군 선택 → 퇴각 · 철거", {box.x + 14, wy}, 11, theme::muted, 0, box.w - 28);
             wy += 20;
-            g.text("적의 경로와 약점을 고려해 방어하세요", {wingBox.x + 14, wy}, 10.5F, theme::muted, 0,
-                   wingBox.w - 28);
+            g.text("가장자리 화살표 → 그 입구로 이동", {box.x + 14, wy}, 11, theme::muted, 0, box.w - 28);
+            wy += 20;
+            g.text("웨이브를 시작하면 자동으로 닫혀요", {box.x + 14, wy}, 11, theme::muted, 0, box.w - 28);
+            contentY = box.y + box.h + 14;
         }
     }
 
     if (prep) {
 
         const float half = (w - 8) / 2;
-        button(g, ui, Surface, {x, side.y + 52, half, 36}, "지상 · 병력", true, !state.play.mine);
-        button(g, ui, Mine, {x + half + 8, side.y + 52, half, 36}, "지하 · 채굴", true, state.play.mine);
+        const float tabY = side.y + (layout.denseMine ? 40 : 52);
+        const float tabHeight = layout.denseMine ? 30.0F : 36.0F;
+        button(g, ui, Surface, {x, tabY, half, tabHeight}, "지상 · 병력", true, !state.play.mine);
+        button(g, ui, Mine, {x + half + 8, tabY, half, tabHeight}, "지하 · 채굴", true, state.play.mine);
         if (selected) {
             inspector(g, ui, run, state, {x, side.y + 97, w, side.h - 163});
-        } else if (layout.compact || side.h < 570) {
-            g.text("굴착 " + std::to_string(run.state().digs) + " / " +
-                       std::to_string(run.catalog().balance.prepDigs) + "   스캔 " +
-                       std::to_string(run.state().scans) + "   곡괭이 T" + std::to_string(run.state().tool),
-                   {x, side.y + 99}, 12, theme::muted);
-            if (run.state().nextExtra)
-                g.text("+" + std::to_string(run.state().nextExtra), {x + w, side.y + 99}, 12, theme::red, 1);
-            const float y = side.y + 124;
-            if (side.h < 320) {
-                const float third = (w - 12) / 3;
-                button(g, ui, Scan, {x, y, third, 38}, state.play.scan ? "스캔 선택 중" : "무료 스캔",
-                       run.state().scans > 0 && !run.state().job.active, state.play.scan);
-                button(g, ui, Tool, {x + third + 6, y, third, 38},
-                       run.state().tool >= 2 ? "T2 완료"
-                                             : "T2 " + game::costLabel(run.catalog().balance.tool, true),
-                       run.state().tool < 2);
-                button(g, ui, Armor, {x + (third + 6) * 2, y, third, 38},
-                       run.state().armor ? "장갑 완료"
-                                         : "장갑 " + game::costLabel(run.catalog().balance.armor, true),
-                       !run.state().armor);
-                button(g, ui, Slots, {x, y + 46, third, 38},
-                       run.state().slots >= run.catalog().balance.upgradedSlots
-                           ? std::to_string(run.catalog().balance.upgradedSlots) + "슬롯 완료"
-                           : "슬롯 " + game::costLabel(run.catalog().balance.slots, true),
-                       run.state().slots < run.catalog().balance.upgradedSlots);
-                button(g, ui, Recruit, {x + third + 6, y + 46, third, 38},
-                       "모집 " + game::costLabel(run.state().recruitmentOffer
-                                                     ? run.state().recruitmentOffer->cost
-                                                     : run.catalog().balance.recruit,
-                                                 true),
-                       run.state().recruitmentOffer.has_value());
-                button(g, ui, Coil, {x + (third + 6) * 2, y + 46, third, 38},
-                       run.state().coil ? "코일 완료" : game::costLabel(run.catalog().balance.coil, true),
-                       !run.state().coil);
-            } else {
-                button(g, ui, Scan, {x, y, half, 40}, state.play.scan ? "스캔 칸 선택 중" : "스캔 · 무료 1회",
-                       run.state().scans > 0 && !run.state().job.active, state.play.scan);
-                button(g, ui, Tool, {x + half + 8, y, half, 40},
-                       run.state().tool >= 2 ? "T2 제작 완료"
-                                             : "T2 · " + game::costLabel(run.catalog().balance.tool),
-                       run.state().tool < 2);
-                button(g, ui, Armor, {x, y + 48, half, 40},
-                       run.state().armor ? "장갑 제작 완료"
-                                         : "장갑 · " + game::costLabel(run.catalog().balance.armor),
-                       !run.state().armor);
-                button(g, ui, Slots, {x + half + 8, y + 48, half, 40},
-                       run.state().slots >= run.catalog().balance.upgradedSlots
-                           ? std::to_string(run.catalog().balance.upgradedSlots) + "슬롯 완료"
-                           : "슬롯 " + std::to_string(run.catalog().balance.upgradedSlots) + " · " +
-                                 game::costLabel(run.catalog().balance.slots),
-                       run.state().slots < run.catalog().balance.upgradedSlots);
-                button(g, ui, Recruit, {x, y + 96, half, 40},
-                       "유닛 모집 · " + game::costLabel(run.state().recruitmentOffer
-                                                            ? run.state().recruitmentOffer->cost
-                                                            : run.catalog().balance.recruit),
-                       run.state().recruitmentOffer.has_value());
-                button(g, ui, Coil, {x + half + 8, y + 96, half, 40},
-                       run.state().coil ? "코일 제작 완료"
-                                        : "코일 · " + game::costLabel(run.catalog().balance.coil),
-                       !run.state().coil);
-            }
+        } else if (state.play.selectedBoulder) {
+            boulderInspector(g, ui, run, state, {x, side.y + 97, w, side.h - 163});
         } else {
-            g.text("굴착 " + std::to_string(run.state().digs) + " / " +
-                       std::to_string(run.catalog().balance.prepDigs) + "   스캔 " +
-                       std::to_string(run.state().scans) + "   곡괭이 T" + std::to_string(run.state().tool),
-                   {x, side.y + 110}, 12, theme::muted);
-            if (run.state().job.active)
-                meter(g, {x, side.y + 135, w, 5}, run.state().job.elapsed / run.state().job.duration,
-                      theme::gold, 12);
-            else if (run.state().nextExtra)
-                g.text("둥지 경보 · 다음 공세 +" + std::to_string(run.state().nextExtra), {x, side.y + 134},
-                       12, theme::red);
-            float y = side.y + 161;
-            button(g, ui, Scan, {x, y, w, 42},
-                   state.play.scan ? "스캔할 경계 1칸을 선택" : "무료 스캔 · 정보만 공개",
-                   run.state().scans > 0 && !run.state().job.active, state.play.scan);
-            y += 52;
-            button(g, ui, Tool, {x, y, w, 42},
-                   run.state().tool >= 2 ? "T2 곡괭이 · 제작 완료"
-                                         : "T2 곡괭이 · " + game::costLabel(run.catalog().balance.tool),
-                   run.state().tool < 2);
-            y += 52;
-            button(g, ui, Armor, {x, y, w, 42},
-                   run.state().armor ? "경비병 장갑 · 제작 완료"
-                                     : "경비병 장갑 · " + game::costLabel(run.catalog().balance.armor),
-                   !run.state().armor);
-            y += 52;
-            button(g, ui, Slots, {x, y, w, 42},
-                   run.state().slots >= run.catalog().balance.upgradedSlots
-                       ? std::to_string(run.catalog().balance.upgradedSlots) + "슬롯 · 강화 완료"
-                       : "부대 슬롯 " + std::to_string(run.catalog().balance.upgradedSlots) + " · " +
-                             game::costLabel(run.catalog().balance.slots),
-                   run.state().slots < run.catalog().balance.upgradedSlots);
-            y += 52;
-            button(g, ui, Recruit, {x, y, w, 42},
-                   "유닛 카드 모집 · " + game::costLabel(run.state().recruitmentOffer
-                                                             ? run.state().recruitmentOffer->cost
-                                                             : run.catalog().balance.recruit),
-                   run.state().recruitmentOffer.has_value());
-            y += 52;
-            button(g, ui, Coil, {x, y, w, 42},
-                   run.state().coil ? "전격 코일 · 제작 완료"
-                                    : "전격 코일 · " + game::costLabel(run.catalog().balance.coil),
-                   !run.state().coil);
+            const float top = tabY + tabHeight + (layout.denseMine ? 8.0F : 12.0F);
+            prepActions(g, ui, run, state, {x, top, w, bottom - top - 8});
         }
         button(g, ui, Start, {x, bottom, w, 44},
                run.state().job.active ? "광부 작업 중…" : "정비 완료 · 다음 웨이브", !run.state().job.active,
                true);
         return;
     }
+    const float contentBottom = bottom - (side.h > 590 ? 57.0F : 8.0F);
     if (selected)
-        inspector(g, ui, run, state, {x, side.y + 56, w, side.h - 122});
-    else {
+        inspector(g, ui, run, state, {x, contentY, w, contentBottom - contentY});
+    else if (!briefing) {
         const game::Card *card = run.card(state.play.selectedCard);
-        float y = side.y + 59;
+        float y = contentY + 3;
         if (card) {
             g.text(run.catalog().card(card->kind).name, {x, y}, layout.compact ? 18 : 22, theme::gold);
             y += 31;
@@ -810,11 +766,11 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
                 y += 29;
                 g.text("침투한 적 " + std::to_string(run.state().enemies.size()) + "   ·   누적 격파 " +
                            std::to_string(run.state().defeated),
-                       {x, y}, 12, theme::text);
+                       {x, y}, 12, theme::text, 0, w);
                 y += 33;
                 if (!layout.compact) {
-                    g.text("카드를 선택해 방어선을 구축하세요", {x, y}, 12, theme::muted, 0, w);
-                    g.text("배치된 대상을 누르면 퇴각/철거 가능", {x, y + 25}, 12, theme::muted, 0, w);
+                    g.text(laneSummary(run), {x, y}, 12, theme::muted, 0, w);
+                    g.text("휠 확대 · 빈 전장 끌어 이동", {x, y + 25}, 12, theme::muted, 0, w);
                 }
             }
         }
@@ -840,30 +796,41 @@ void View::cardFace(engine::Renderer &g, const game::Catalog &catalog, const gam
     g.rect(box, affordable ? accent : Color{96, 111, 110}, 9);
     // Warm white card face
     g.gradientRect({box.x + 3, box.y + 3, box.w - 6, box.h - 6}, {252, 250, 245}, {242, 237, 226}, 7);
-    const Rect art{box.x + 6, box.y + 6, box.w - 12, box.h - (layout.compact ? 47.0F : 51.0F)};
+    // Short battle docks lay the face out sideways: square art on the left, name and role on the right.
+    const bool wide = box.w > box.h * 1.6F;
+    const Rect art = wide ? Rect{box.x + 6, box.y + 6, std::min(box.h - 12, box.w * .42F), box.h - 12}
+                          : Rect{box.x + 6, box.y + 6, box.w - 12, box.h - (layout.compact ? 47.0F : 51.0F)};
     // Illustration window
     g.gradientRect(art, {42, 64, 76}, {26, 42, 52}, 6);
     g.circle({art.x + art.w / 2, art.y + art.h * .54F}, std::min(art.w * .38F, art.h * .46F),
              {accent.r, accent.g, accent.b, 70});
     icon(g, catalog, card.kind, {art.x + art.w / 2, art.y + art.h * .53F},
-         std::min(layout.compact ? 42.0F : 58.0F, art.h * .9F));
+         std::min(layout.compact ? 42.0F : 58.0F, art.h * (wide ? .78F : .9F)));
 
-    // Card Nameplate ribbon plaque
-    const float plateY = art.y + art.h + 3.0F;
-    const float plateH = layout.compact ? 18.0F : 21.0F;
-    g.rect({box.x + 7, plateY, box.w - 14, plateH}, {235, 229, 216}, 4);
-    g.text(catalog.card(card.kind).name, {box.x + box.w / 2, plateY + (layout.compact ? 2.5F : 3.0F)},
-           layout.compact ? 12 : 14, theme::cardInk, .5F, box.w - 16);
+    const std::string category = cardCategoryName(catalog.card(card.kind).category);
+    if (wide) {
+        const float left = art.x + art.w + 8, room = box.x + box.w - 10 - left;
+        const float nameSize = box.h >= 110 ? 17.0F : 15.0F;
+        const float top = box.y + (box.h - nameSize - 30) / 2;
+        g.text(catalog.card(card.kind).name, {left, top}, nameSize, theme::cardInk, 0, room);
+        g.rect({left, top + nameSize + 9, 46, 16}, {accent.r, accent.g, accent.b, 55}, 6);
+        g.text(category, {left + 23, top + nameSize + 10.5F}, 10, {80, 68, 50}, .5F);
+    } else {
+        // Card Nameplate ribbon plaque
+        const float plateY = art.y + art.h + 3.0F;
+        const float plateH = layout.compact ? 18.0F : 21.0F;
+        g.rect({box.x + 7, plateY, box.w - 14, plateH}, {235, 229, 216}, 4);
+        g.text(catalog.card(card.kind).name, {box.x + box.w / 2, plateY + (layout.compact ? 2.5F : 3.0F)},
+               layout.compact ? 12 : 14, theme::cardInk, .5F, box.w - 16);
 
-    // Cute category pill badge
-    const float badgeW = layout.compact ? 38.0F : 46.0F;
-    const float badgeH = layout.compact ? 13.0F : 15.0F;
-    const float badgeY = box.y + box.h - (layout.compact ? 16.0F : 18.0F);
-    g.rect({box.x + (box.w - badgeW) / 2, badgeY, badgeW, badgeH},
-           {accent.r, accent.g, accent.b, 55}, 6);
-    g.text(cardCategoryName(catalog.card(card.kind).category),
-           {box.x + box.w / 2, badgeY + (layout.compact ? 1.0F : 1.5F)},
-           layout.compact ? 9 : 10, {80, 68, 50}, .5F);
+        // Cute category pill badge
+        const float badgeW = layout.compact ? 38.0F : 46.0F;
+        const float badgeH = layout.compact ? 13.0F : 15.0F;
+        const float badgeY = box.y + box.h - (layout.compact ? 16.0F : 18.0F);
+        g.rect({box.x + (box.w - badgeW) / 2, badgeY, badgeW, badgeH}, {accent.r, accent.g, accent.b, 55}, 6);
+        g.text(category, {box.x + box.w / 2, badgeY + (layout.compact ? 1.0F : 1.5F)},
+               layout.compact ? 9 : 10, {80, 68, 50}, .5F);
+    }
 
     if (charge && charge->mode == CardChargeMode::Charging)
         chargeMask(g, art, charge->fraction);
@@ -899,8 +866,8 @@ void View::hand(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
     g.rect(tabRect, {36, 58, 72}, 5);
     g.rect({tabRect.x + 1.5F, tabRect.y + 1.5F, tabRect.w - 3.0F, tabRect.h - 3.0F}, {20, 36, 46}, 4);
     g.rect({tabRect.x + 5.0F, tabRect.y + 4.5F, 3.0F, tabRect.h - 9.0F}, theme::gold, 1.5F);
-    g.text("전투 덱",
-           {tabRect.x + 14.0F, tabRect.y + (layout.compact ? 3.0F : 3.5F)}, layout.compact ? 11 : 12, theme::gold);
+    g.text("전투 덱", {tabRect.x + 14.0F, tabRect.y + (layout.compact ? 3.0F : 3.5F)},
+           layout.compact ? 11 : 12, theme::gold);
 
     // Elevated Next Card Tab
     const game::Card &next = run.state().deck[run.state().queue.front()];
@@ -913,7 +880,11 @@ void View::hand(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
     g.rect({nextRect.x + 1.5F, nextRect.y + 1.5F, nextRect.w - 3.0F, nextRect.h - 3.0F}, {18, 30, 38}, 4);
     g.text(preview, {nextRect.x + nextRect.w / 2, nextRect.y + (layout.compact ? 3.0F : 3.5F)},
            layout.compact ? 10 : 11, theme::text, 0.5F, nextW - 12);
-    const float gap = 9, cardWidth = (area.w - 30 - 3 * gap) / 4;
+    const float gap = 9;
+    const float cardWidth = std::min((area.w - 30 - 3 * gap) / 4, layout.compact ? 1e6F : 300.0F);
+    const float rowX = area.x + (area.w - 4 * cardWidth - 3 * gap) / 2;
+    const float cardTop = area.y + (layout.compact ? 29.0F : 28.0F);
+    const float cardBottom = layout.energyBar.y - (layout.compact ? 7.0F : 6.0F);
     for (int index = 0; index < 4; ++index) {
         const game::Card &card = run.state().deck[run.state().hand[index]];
         const CardTransition &transition = state.play.feedback.cards[index];
@@ -928,8 +899,8 @@ void View::hand(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
         const bool variable = !targeted && availability.variableCost();
         handCharge_[index] =
             cardCharge(run, card.id, cost, targeted ? placement_->rule.failure : availability.failure);
-        Rect box{area.x + 15 + index * (cardWidth + gap), area.y + 29 - (selected ? 6.0F : 0.0F), cardWidth,
-                 area.h - 71};
+        Rect box{rowX + index * (cardWidth + gap), cardTop - (selected ? 6.0F : 0.0F), cardWidth,
+                 cardBottom - cardTop};
         ui.add(CardBase + card.id, box, !busy, true, true, true);
         const bool rejected =
             state.play.feedback.rejectedCard == card.id && state.play.feedback.rejectionAge < .32F;
@@ -943,7 +914,7 @@ void View::hand(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
                                           : theme::blue,
                    10);
         g.rect(box, theme::inset, 9);
-        const Rect clip{box.x - 4, area.y + 22, box.w + 8, area.h - 62};
+        const Rect clip{box.x - 4, area.y + 22, box.w + 8, cardBottom + 2 - (area.y + 22)};
         if (changing && transition.age < Feedback::CardExit && transition.outgoing.id) {
             const float t = transition.age / Feedback::CardExit;
             Rect outgoing = box;
@@ -984,15 +955,38 @@ void View::handEnergy(engine::Renderer &g, const game::Run &run, const State &st
     const int cap = run.catalog().balance.energyCap;
     const float next = energy < cap ? run.state().energyTime / run.catalog().balance.energyInterval : 0;
     g.rect(bar, theme::inset, 6);
-    gem(g, {bar.x + 15, bar.y + 13}, 10, theme::blue);
-    g.text(std::to_string(energy) + " / " + std::to_string(cap), {bar.x + 31, bar.y + 5}, 14, theme::text);
+    gem(g, {bar.x + 15, bar.y + bar.h / 2}, 10, theme::blue);
+    g.text(std::to_string(energy) + " / " + std::to_string(cap), {bar.x + 31, bar.y + bar.h / 2 - 8}, 14,
+           theme::text);
     meter(g, layout.energyMeter, (energy + next) / cap, theme::blue, 10);
     if (state.play.feedback.energyAge < .65F) {
         const float age = state.play.feedback.energyAge;
         g.text("-" + std::to_string(state.play.feedback.energySpent),
-               {bar.x + bar.w - 6, bar.y + 7 - age * 4}, 12,
+               {bar.x + bar.w - 6, bar.y + bar.h / 2 - 6 - age * 4}, 12,
                {255, 217, 137, static_cast<std::uint8_t>(255 * (1 - age / .65F))}, 1);
     }
+}
+
+void View::toast(engine::Renderer &g, const State &state) {
+    if (state.play.toastTime <= 0 || state.play.toast.empty())
+        return;
+    const Rect area = layout.hand;
+    // Desktop keeps the deck and next-card tabs readable; compact docks cover both tabs briefly.
+    const float tabs = layout.compact ? 0.0F : 236.0F;
+    const float width = std::min(layout.compact ? area.w - 16 : 520.0F, area.w - 16 - tabs);
+    const float height = layout.compact ? 22.0F : 24.0F;
+    const Rect bounds{area.x + (area.w - width) / 2, area.y + 1, width, height};
+    const float fade = std::clamp(state.play.toastTime / .6F, 0.0F, 1.0F);
+    g.beginClip({bounds.x - 2, bounds.y - 2, bounds.w + 4, bounds.h + 6},
+                static_cast<std::uint8_t>(255 * fade));
+    g.rect({bounds.x, bounds.y + 2, bounds.w, bounds.h}, {6, 14, 20, 160}, 8);
+    g.rect(bounds, state.play.error ? Color{118, 44, 38} : Color{22, 42, 52}, 8);
+    g.rect({bounds.x + 1, bounds.y + 1, bounds.w - 2, bounds.h - 2},
+           state.play.error ? Color{150, 58, 48} : Color{30, 58, 70}, 7);
+    g.circle({bounds.x + 12, bounds.y + height / 2}, 3.5F, state.play.error ? theme::gold : theme::green);
+    g.text(state.play.toast, {bounds.x + bounds.w / 2 + 6, bounds.y + (height - 15) / 2},
+           layout.compact ? 11 : 12, theme::text, .5F, bounds.w - 34);
+    g.endClip();
 }
 
 void View::draw(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state,
@@ -1009,33 +1003,70 @@ void View::draw(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
     }
     const bool prep = run.state().phase == game::Phase::Prep;
     const bool mineView = prep && state.play.mine;
-    measure(g.width, g.height, prep, mineView, state.play.tutorial.active());
+    measure(g.width, g.height, prep, mineView, state.play.tutorial.active(), run.catalog(), state.play.camera,
+            run.state().mineWidth, run.state().mineHeight, state.play.mineScroll);
+    if (!state.play.cameraFramed && !mineView)
+        frameOpening(run, state);
     preparePlacement(run, ui, state, mineView);
     ui.beginFrame();
-    g.gradientRect({0, 0, static_cast<float>(g.width), static_cast<float>(g.height)}, {28, 46, 55},
-                   theme::background);
-    for (int index = 0; index < g.width / 76 + 1; ++index)
-        g.line({{index * 76.0F, -20}, {index * 76.0F + 60, static_cast<float>(g.height)}}, 1,
-               {98, 128, 125, 12});
+    const Rect screen{0, 0, static_cast<float>(g.width), static_cast<float>(g.height)};
+    const auto frame = [this, &g]() {
+        // Crisp tactical map shadow and frame instead of nested box-in-box
+        g.rect({layout.world.x, layout.world.y + 4.0F, layout.world.w, layout.world.h}, {6, 15, 20, 150}, 12);
+        g.rect(layout.world, {75, 102, 98}, 10);
+    };
+    // On the surface the HUD ends above the battlefield frame, so the frame and the field fill join the
+    // retained backdrop; the cutaway keeps drawing its frame after the HUD.
+    g.backdrop(engine::LayerKey{}.add(screen).add(layout.world).add(mineView).add(fieldKey(state)).value,
+               [&]() {
+                   g.gradientRect(screen, {28, 46, 55}, theme::background);
+                   for (int index = 0; index < g.width / 76 + 1; ++index)
+                       g.line({{index * 76.0F, -20}, {index * 76.0F + 60, screen.h}}, 1, {98, 128, 125, 12});
+                   if (!mineView) {
+                       frame();
+                       fieldGround(g, state);
+                   }
+               });
     hud(g, ui, run, state, audio);
-    // Crisp tactical map shadow and frame instead of nested box-in-box
-    g.rect({layout.world.x, layout.world.y + 4.0F, layout.world.w, layout.world.h}, {6, 15, 20, 150}, 12);
-    g.rect(layout.world, {75, 102, 98}, 10);
-    ui.add(World, layout.world, true, false, false);
     if (mineView)
-        underground(g, run, state);
-    else
+        frame();
+    // In the cutaway a long press or a resting pointer inspects a tile instead of digging it.
+    ui.add(World, layout.world, true,
+           mineView ? layout.mineScrollMax > 0 : !placingCard_ && !state.play.movingUnit, false, mineView);
+    if (mineView && run.catalog().mining == game::MiningMode::Excavate)
+        excavation(g, ui, run, state);
+    else if (mineView)
+        underground(g, ui, run, state);
+    else {
         surface(g, run, state);
-    if (state.play.toastTime > 0 && !state.play.toast.empty()) {
+        mapOverlays(g, ui, run, state);
+        if (layout.compact || prep)
+            minimap(g, ui, run, state);
+    }
+    if (prep && !layout.denseMine && state.play.toastTime > 0 && !state.play.toast.empty()) {
         const Rect toast{layout.world.x + 8, layout.world.y + layout.world.h - 38, layout.world.w - 16, 29};
         g.rect(toast, {15, 31, 38, 235}, 6);
         g.rect({toast.x, toast.y, 3, toast.h}, state.play.error ? theme::red : theme::gold, 1);
         g.text(state.play.toast, {toast.x + toast.w / 2, toast.y + 7}, layout.compact ? 10 : 12, theme::text,
                .5F, toast.w - 16);
     }
+    if (mineView && run.state().mineLayer < static_cast<int>(run.catalog().deeperMines.size())) {
+        const game::MineLayerDefinition &next = run.catalog().deeperMines[run.state().mineLayer];
+        const std::string label =
+            "B" + std::to_string(run.state().mineLayer + 2) +
+            (run.state().wave < next.opensAfterWave ? " · " + std::to_string(next.opensAfterWave) + "W 이후"
+             : run.state().tool < 2                 ? " · T2 필요"
+                                                    : " 내려가기");
+        button(g, ui, DescendMine, {layout.world.x + layout.world.w - 114, layout.world.y + 6, 106, 26},
+               label, run.descentAvailability().ok, run.descentAvailability().ok);
+    }
     commandPanel(g, ui, run, state);
-    if (!prep)
+    if (!mineView && !layout.compact && !prep)
+        minimap(g, ui, run, state);
+    if (!prep) {
         hand(g, ui, run, state);
+        toast(g, state);
+    }
     tutorialHighlights(g, ui, run, state);
     if (ui.dragging && ui.captured >= CardBase && ui.captured < DeckBase) {
         const game::Card *card = run.card(ui.captured - CardBase);
@@ -1084,22 +1115,25 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
     if (terminal) {
         const bool won = run.state().phase == game::Phase::Won;
         const auto &meta = game::stageMetadata(state.play.currentStage);
-        g.text(won ? (meta.name + " 방어 성공!") : "원정대 철수",
-               {box.x + width / 2, y + 23}, layout.compact ? 22 : 28, won ? theme::gold : theme::red, .5F);
+        g.text(won ? (meta.name + " 방어 성공!") : "원정대 철수", {box.x + width / 2, y + 23},
+               layout.compact ? 22 : 28, won ? theme::gold : theme::red, .5F);
         gem(g, {box.x + width / 2, y + 109}, 35, won ? theme::gold : theme::red);
-        g.text("도달 웨이브 " + std::to_string(run.state().wave) + " / " + std::to_string(meta.wavesCount) +
-                   "   ·   누적 격파 " + std::to_string(run.state().defeated),
+        g.text("도달 웨이브 " + std::to_string(run.state().wave) + " / " +
+                   std::to_string(run.catalog().waves.size()) + "   ·   누적 격파 " +
+                   std::to_string(run.state().defeated),
                {box.x + width / 2, y + 170}, 14, theme::text, .5F);
-        const bool hasNextStage = won && state.play.currentStage < game::TotalStages;
+        const bool hasNextStage = state.app.campaign && won && state.play.currentStage < game::TotalStages;
         if (hasNextStage) {
             const float third = (w - 16) / 3;
-            button(g, ui, NextStageRun, {x, box.y + height - 72, third * 1.35F, 45}, "다음 구역 출격", true, true);
-            button(g, ui, ConfirmReset, {x + third * 1.35F + 8, box.y + height - 72, third * 0.8F, 45}, "재도전");
+            button(g, ui, NextStageRun, {x, box.y + height - 72, third * 1.35F, 45}, "다음 구역 출격", true,
+                   true);
+            button(g, ui, ConfirmReset, {x + third * 1.35F + 8, box.y + height - 72, third * 0.8F, 45},
+                   "재도전");
             button(g, ui, GoHome, {x + third * 2.15F + 16, box.y + height - 72, third * 0.85F, 45}, "메인");
         } else {
             const float half = (w - 10) / 2;
-            button(g, ui, ConfirmReset, {x, box.y + height - 72, half, 45}, won ? "다시 도전" : "새 원정 시작",
-                   canConfirmNewRun(run.state().phase, state), true);
+            button(g, ui, ConfirmReset, {x, box.y + height - 72, half, 45},
+                   won ? "다시 도전" : "새 원정 시작", canConfirmNewRun(run.state().phase, state), true);
             button(g, ui, GoHome, {x + half + 10, box.y + height - 72, half, 45}, "메인 화면");
         }
         return;
@@ -1108,12 +1142,26 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
         g.text("전선을 확장하세요", {x, y + 22}, layout.compact ? 23 : 28, theme::text);
         g.text("다음 공세의 진입점이 바뀝니다", {x, y + 66}, 13, theme::muted);
         button(g, ui, ExpandLong, {x, y + 112, w, 49}, "우회 협곡 · 긴 방어 경로", true, true);
-        button(g, ui, ExpandShort, {x, y + 177, w, 49}, "노천 방어지 · 추가 패드 4개");
+        button(g, ui, ExpandShort, {x, y + 177, w, 49}, "노천 방어지 · 추가 건설 패드");
         g.text("기존 건물과 생존 병력은 유지됩니다", {x, y + 247}, 11, theme::muted, 0, w);
         return;
     }
     if (replacement || state.play.modal == presentation::Modal::Recruit) {
         cardOfferOverlay(g, ui, run, state, box, replacement);
+        return;
+    }
+    if (state.play.modal == Modal::MineDescent) {
+        const int remaining =
+            static_cast<int>(std::count_if(run.state().mine.begin(), run.state().mine.end(),
+                                           [](const game::MineCell &cell) -> bool { return !cell.dug; }));
+        g.text("다음 지층으로 내려갈까요?", {x, y + 22}, layout.compact ? 20 : 27, theme::gold);
+        g.text("현재 지층의 미굴착 " + std::to_string(remaining) + "칸은 남겨 둡니다", {x, y + 82}, 12,
+               theme::text, 0, w);
+        g.text("이전 지층으로 돌아올 수 없어요", {x, y + 109}, 12, theme::red, 0, w);
+        g.text("광물·장비·남은 굴착·스캔은 유지됩니다", {x, y + 138}, 11, theme::muted, 0, w);
+        button(g, ui, ConfirmDescend, {x, y + 185, w, 40}, "다음 지층 진입", run.descentAvailability().ok,
+               true);
+        button(g, ui, Close, {x, y + 235, w, 36}, "이 지층에 남기");
         return;
     }
     if (state.play.modal == presentation::Modal::Withdrawal) {

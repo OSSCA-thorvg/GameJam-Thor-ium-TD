@@ -138,9 +138,8 @@ void View::tutorialHighlights(engine::Renderer &g, const engine::Ui &ui, const g
             outline(g, item.bounds);
     const int cell = state.play.tutorial.mineCell;
     if (cell >= 0 && state.play.mine) {
-        const float size = layout.mineTile;
-        outline(g, {layout.mineOrigin.x + (cell % 5) * size + 2, layout.mineOrigin.y + (cell / 5) * size + 2,
-                    size - 4, size - 4});
+        const engine::Rect box = layout.mineCellBounds(cell);
+        outline(g, {box.x + 2, box.y + 2, box.w - 4, box.h - 4});
     }
 }
 } // namespace thorium::presentation

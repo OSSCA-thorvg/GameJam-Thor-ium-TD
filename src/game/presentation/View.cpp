@@ -10,7 +10,6 @@ using engine::Rect;
 using engine::ScreenPoint;
 namespace {
 constexpr Color ink{37, 54, 61};
-constexpr Color cream{249, 247, 239};
 constexpr Color mint{45, 130, 108};
 constexpr Color gold{231, 176, 64};
 constexpr Color blue{88, 149, 192};
@@ -20,36 +19,6 @@ Color cardColor(game::CardCategory category) {
     return category == game::CardCategory::Building ? mint
            : category == game::CardCategory::Unit   ? blue
                                                     : coral;
-}
-/** Return a localized ore name without leaking unknown mineral contents. */
-const char *oreName(game::Ore ore) {
-    switch (ore) {
-    case game::Ore::Iron:
-        return "철";
-    case game::Ore::Copper:
-        return "구리";
-    case game::Ore::Crystal:
-        return "수정";
-    case game::Ore::Gold:
-        return "금";
-    default:
-        return "암석";
-    }
-}
-/** Return a mineral's presentation color. */
-Color oreColor(game::Ore ore) {
-    switch (ore) {
-    case game::Ore::Iron:
-        return {171, 193, 204};
-    case game::Ore::Copper:
-        return {226, 144, 104};
-    case game::Ore::Crystal:
-        return {150, 139, 218};
-    case game::Ore::Gold:
-        return gold;
-    default:
-        return {172, 157, 134};
-    }
 }
 } // namespace
 
@@ -69,33 +38,75 @@ void View::rangeRing(engine::Renderer &graphics, ScreenPoint center, float radiu
     graphics.endClip();
 }
 
-void View::measure(int width, int height, bool prep, bool mineView, bool tutorial) {
+void View::measure(int width, int height, bool prep, bool mineView, bool tutorial,
+                   const game::Catalog &catalog, engine::CameraPose camera, int mineColumns, int mineRows,
+                   float mineScroll) {
     layout.compact = width < 980;
+    layout.denseMine = layout.compact && prep && mineView && !tutorial && height < 700;
     const float margin = layout.compact ? 12.0F : 24.0F;
-    if (!layout.compact) {
-        layout.world = {margin, 140.0F, width - 354.0F, height - 140.0F - (prep ? 24.0F : 234.0F)};
+    if (!layout.compact && prep) {
+        layout.world = {margin, 140.0F, width - 354.0F, height - 164.0F};
         layout.sidebar = {width - 294.0F, 140.0F, 270.0F, height - 164.0F};
+        layout.hand = {margin, height - 218.0F, layout.world.w, 198.0F};
+    } else if (!layout.compact) {
+        // Battle: a slim command column and a short card dock leave the rest to the battlefield.
+        const float top = 124.0F;
+        const float side = width >= 1600 ? 270.0F : 240.0F;
+        const float dock = height >= 1000 ? 184.0F : 156.0F;
+        layout.hand = {margin, height - dock - 10.0F, width - 2 * margin - side - 12.0F, dock};
+        layout.world = {margin, top, layout.hand.w, std::max(140.0F, layout.hand.y - 6.0F - top)};
+        layout.sidebar = {width - margin - side, top, side, height - top - margin};
     } else {
-        const float worldHeight = tutorial && prep && mineView ? std::min(420.0F, height - 340.0F)
-                                  : prep && mineView
-                                      ? std::min(420.0F, height - 514.0F)
-                                      : std::min((width - 24.0F) / 1.8F + 42.0F, height - 460.0F);
-        layout.world = {margin, 138.0F, width - 2 * margin, std::max(100.0F, worldHeight)};
+        // Battle keeps only a two-row command strip under the map; preparation and lessons keep the full
+        // panel.
+        const float worldHeight =
+            layout.denseMine               ? height - 370.0F
+            : tutorial && prep && mineView ? std::min(420.0F, height - 340.0F)
+            : prep && mineView             ? std::clamp(height - 430.0F, 200.0F, 560.0F)
+            : prep || tutorial
+                ? std::min(std::max((width - 24.0F) / 1.8F + 42.0F, height - 575.0F), height - 460.0F)
+                : height - 460.0F;
+        layout.world = {margin, layout.denseMine ? 92.0F : 138.0F, width - 2 * margin,
+                        std::max(100.0F, worldHeight)};
         const float sidebarY = layout.world.y + layout.world.h + 12;
         layout.sidebar = {margin, sidebarY, width - 2 * margin, height - sidebarY - (prep ? 16.0F : 186.0F)};
+        layout.hand = {margin, height - 174.0F, layout.world.w, 158.0F};
     }
-    layout.hand = {margin, height - (layout.compact ? 174.0F : 218.0F), layout.world.w,
-                   layout.compact ? 158.0F : 198.0F};
-    layout.energyBar =
-        prep ? Rect{} : Rect{layout.hand.x + 12, layout.hand.y + layout.hand.h - 35, layout.hand.w - 24, 26};
-    layout.energyMeter =
-        prep ? Rect{} : Rect{layout.energyBar.x + 100, layout.energyBar.y + 8, layout.energyBar.w - 128, 10};
-    layout.tile = std::min((layout.world.w - 24.0F) / 18.0F, (layout.world.h - 32.0F) / 10.0F);
-    layout.mapOrigin = {layout.world.x + (layout.world.w - layout.tile * 18) / 2,
-                        layout.world.y + (layout.world.h - layout.tile * 10) / 2};
-    layout.mineTile = std::min((layout.world.w - 40.0F) / 5.0F, (layout.world.h - 42.0F) / 6.0F);
-    layout.mineOrigin = {layout.world.x + (layout.world.w - layout.mineTile * 5) / 2,
-                         layout.world.y + (layout.world.h - layout.mineTile * 6) / 2 + 8};
+    if (prep)
+        layout.energyBar = layout.energyMeter = Rect{};
+    else {
+        const float bar = layout.compact ? 26.0F : 24.0F;
+        layout.energyBar = {layout.hand.x + 12,
+                            layout.hand.y + layout.hand.h - bar - (layout.compact ? 9 : 7),
+                            layout.hand.w - 24, bar};
+        layout.energyMeter = {layout.energyBar.x + 100, layout.energyBar.y + (bar - 10) / 2,
+                              layout.energyBar.w - 128, 10};
+    }
+    layout.camera = engine::Camera2D(layout.world, catalog.width, catalog.height, camera);
+    layout.tile = layout.camera.tileSize();
+    layout.mapOrigin = layout.camera.origin();
+    // Cutaway: a header band for the layer legend, a footer band for messages, and a vertically
+    // scrolling board whose tiles never shrink below a tappable size.
+    layout.mineColumns = std::max(1, mineColumns);
+    layout.mineRows = std::max(1, mineRows);
+    const float header = layout.denseMine ? 34.0F : 38.0F;
+    const float footer = layout.denseMine ? 6.0F : 44.0F;
+    layout.mineViewport = {layout.world.x + 4, layout.world.y + header, layout.world.w - 8,
+                           std::max(48.0F, layout.world.h - header - footer)};
+    const Rect &view = layout.mineViewport;
+    const float columns = static_cast<float>(layout.mineColumns), rows = static_cast<float>(layout.mineRows);
+    const float sideRoom = layout.compact ? 10.0F : 48.0F;
+    const float surfaceRows = .6F;
+    const float widthTile = (view.w - 2 * sideRoom) / columns;
+    const float fitTile = view.h / (rows + surfaceRows);
+    const float minimumTile = layout.compact ? 34.0F : 44.0F;
+    layout.mineTile = std::max(1.0F, std::min({widthTile, std::max(fitTile, minimumTile), 72.0F}));
+    const float content = layout.mineTile * (rows + surfaceRows);
+    layout.mineScrollMax = std::max(0.0F, content - view.h);
+    layout.mineScroll = std::clamp(mineScroll * layout.mineTile, 0.0F, layout.mineScrollMax);
+    const float offset = layout.mineScrollMax > 0 ? 0.0F : (view.h - content) / 2;
+    layout.mineOrigin = {view.x + (view.w - layout.mineTile * columns) / 2,
+                         view.y + offset + layout.mineTile * surfaceRows - layout.mineScroll};
 }
 void View::icon(engine::Renderer &graphics, const game::Catalog &catalog, game::CardKind kind,
                 ScreenPoint center, float size) {
@@ -118,6 +129,36 @@ void View::icon(engine::Renderer &graphics, const game::Catalog &catalog, game::
                               {center.x + size * .25F, center.y - size * .1F},
                               {center.x + size * .07F, center.y - size * .1F}},
                              gold);
+        } else if (kind == game::CardKind::Flame) {
+            graphics.circle({center.x + size * .2F, center.y + size * .02F}, size * .13F, {214, 92, 56});
+            graphics.polygon({{center.x - size * .1F, center.y - size * .02F},
+                              {center.x + size * .1F, center.y - size * .02F},
+                              {center.x + size * .2F, center.y - size * .44F},
+                              {center.x - size * .2F, center.y - size * .44F}},
+                             ink);
+            graphics.polygon({{center.x - size * .16F, center.y - size * .46F},
+                              {center.x, center.y - size * .78F},
+                              {center.x + size * .16F, center.y - size * .46F}},
+                             {255, 146, 60});
+            graphics.polygon({{center.x - size * .07F, center.y - size * .46F},
+                              {center.x, center.y - size * .64F},
+                              {center.x + size * .07F, center.y - size * .46F}},
+                             {255, 226, 120});
+        } else if (kind == game::CardKind::Sniper) {
+            graphics.rect({center.x - size * .05F, center.y - size * .78F, size * .1F, size * .86F}, ink,
+                          size * .04F);
+            graphics.rect({center.x - size * .09F, center.y - size * .82F, size * .18F, size * .08F}, ink,
+                          size * .03F);
+            graphics.circle({center.x + size * .16F, center.y - size * .28F}, size * .1F, ink);
+            graphics.circle({center.x + size * .16F, center.y - size * .28F}, size * .055F, {150, 220, 255});
+        } else if (kind == game::CardKind::Generator) {
+            graphics.rect({center.x - size * .15F, center.y - size * .44F, size * .3F, size * .5F}, ink,
+                          size * .08F);
+            for (float y : {-.36F, -.22F, -.08F})
+                graphics.rect({center.x - size * .19F, center.y + size * y, size * .38F, size * .06F}, gold,
+                              size * .03F);
+            graphics.circle({center.x, center.y - size * .54F}, size * .15F, {120, 240, 180, 120});
+            graphics.circle({center.x, center.y - size * .54F}, size * .09F, {200, 255, 225});
         } else {
             graphics.rect({center.x - size * .12F, center.y - size * .54F, size * .24F, size * .62F}, ink,
                           size * .08F);
@@ -164,6 +205,12 @@ void View::icon(engine::Renderer &graphics, const game::Catalog &catalog, game::
             const float x = std::cos(angle) * size * .4F, y = std::sin(angle) * size * .4F;
             graphics.line({{center.x - x, center.y - y}, {center.x + x, center.y + y}}, size * .09F, blue);
         }
+    } else if (kind == game::CardKind::Tar) {
+        graphics.circle({center.x, center.y + size * .08F}, size * .42F, {46, 32, 26});
+        graphics.circle({center.x - size * .1F, center.y + size * .02F}, size * .3F, {74, 52, 40});
+        graphics.circle({center.x - size * .17F, center.y - size * .08F}, size * .08F, {170, 148, 128});
+        graphics.circle({center.x + size * .18F, center.y - size * .12F}, size * .06F, {110, 88, 70});
+        graphics.circle({center.x + size * .05F, center.y - size * .3F}, size * .1F, {74, 52, 40});
     } else {
         graphics.circle(center, size * .34F, coral);
         graphics.line({{center.x + size * .12F, center.y - size * .3F},
@@ -175,39 +222,21 @@ void View::icon(engine::Renderer &graphics, const game::Catalog &catalog, game::
 void View::surface(engine::Renderer &graphics, const game::Run &run, const State &state) {
     if (state.play.feedback.screenShake > 0.0F && !state.app.preferences.reducedMotion) {
         const float intensity = state.play.feedback.screenShake / 0.35F;
-        shakeOffset.x = std::sin(state.play.visualTime * 52.0F) * layout.tile * 0.14F * intensity;
-        shakeOffset.y = std::cos(state.play.visualTime * 67.0F) * layout.tile * 0.10F * intensity;
+        // Whole physical pixels, so the cached ground moves with the shaken entities without rasterizing.
+        const float density = graphics.density();
+        shakeOffset.x =
+            std::round(std::sin(state.play.visualTime * 52.0F) * layout.tile * 0.14F * intensity * density) /
+            density;
+        shakeOffset.y =
+            std::round(std::cos(state.play.visualTime * 67.0F) * layout.tile * 0.10F * intensity * density) /
+            density;
     } else {
         shakeOffset = {};
     }
     const float tile = layout.tile;
-    graphics.gradientRect(layout.world, {163, 190, 147}, {198, 211, 165}, 12);
-    for (int y = 0; y < 10; ++y)
-        for (int x = 0; x < 18; ++x) {
-            const ScreenPoint p = screenPoint({static_cast<float>(x), static_cast<float>(y)});
-            if ((x * 17 + y * 13) % 9 == 0) {
-                graphics.circle({p.x, p.y}, tile * .15F, {125, 162, 119, 85});
-                graphics.line({{p.x - tile * .09F, p.y + tile * .04F},
-                               {p.x - tile * .02F, p.y - tile * .09F},
-                               {p.x + tile * .01F, p.y + tile * .03F},
-                               {p.x + tile * .09F, p.y - tile * .04F}},
-                              1, {113, 150, 103, 110});
-            }
-            if ((y == 1 || y == 8) && (x == 1 || x == 3 || x == 14 || x == 16)) {
-                graphics.circle({p.x, p.y + tile * .11F}, tile * .36F, {48, 83, 61, 60});
-                graphics.circle({p.x - tile * .12F, p.y}, tile * .25F, {87, 133, 94});
-                graphics.circle({p.x + tile * .12F, p.y - tile * .11F}, tile * .29F, {104, 150, 100});
-                graphics.circle({p.x + tile * .05F, p.y - tile * .22F}, tile * .15F, {128, 171, 111});
-            }
-        }
-    std::vector<ScreenPoint> route;
-    for (game::Point point : run.state().route)
-        route.push_back(screenPoint(point));
-    graphics.line(route, tile * .96F, {169, 151, 119});
-    graphics.line(route, tile * .77F, {228, 209, 165});
-    for (std::size_t index = 1; index < route.size(); index += 2)
-        graphics.circle({route[index].x - tile * .2F, route[index].y + tile * .19F}, tile * .04F,
-                        {179, 156, 116});
+    graphics.beginClip(layout.world);
+    const std::vector<game::LaneForecast> forecast = run.laneForecast();
+    terrain(graphics, run, state, forecast);
     if (run.state().phase == game::Phase::Ready) {
         const ScreenPoint entry = screenPoint(run.state().route.front());
         graphics.animation(
@@ -218,6 +247,8 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
     }
     for (game::Point point : run.state().unitCells) {
         const ScreenPoint p = screenPoint(point);
+        if (!inWorld(p, tile))
+            continue;
         const game::Card *placing = run.card(placingCard_);
         const Color cellColor =
             placing && run.catalog().isUnit(placing->kind)
@@ -228,17 +259,33 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
         graphics.circle(p, tile * .07F, {245, 231, 196});
     }
     const game::Card *selected = run.card(placingCard_);
+    const bool placingBuilding = selected && run.catalog().isBuilding(selected->kind);
     for (game::Point point : run.state().pads) {
         const ScreenPoint p = screenPoint(point);
+        if (!inWorld(p, tile))
+            continue;
+        const game::PadTrait trait = run.padTrait(point);
         graphics.circle({p.x, p.y + tile * .06F}, tile * .42F, {148, 173, 144});
         graphics.circle(p, tile * .38F, {79, 106, 91});
         graphics.circle(p, tile * .33F, {232, 228, 194});
         graphics.circle(p, tile * .25F,
-                        selected && run.catalog().isBuilding(selected->kind)
+                        placingBuilding
                             ? (run.previewPlay(selected->id, point).allowed() ? theme::green : theme::red)
-                            : Color{217, 226, 198});
+                        : trait == game::PadTrait::HighGround ? Color{246, 226, 160}
+                        : trait == game::PadTrait::Crystal    ? Color{184, 230, 246}
+                                                              : Color{217, 226, 198});
         for (float offset : {-.23F, .23F})
             graphics.circle({p.x + tile * offset, p.y}, tile * .035F, {125, 151, 128});
+    }
+    // A boulder is ringed red while a building card is held and gold while it is selected.
+    for (game::Point point : run.state().boulders) {
+        const ScreenPoint p = screenPoint(point);
+        const bool chosen =
+            state.play.selectedBoulder && game::distance(*state.play.selectedBoulder, point) < .01F;
+        if (!inWorld(p, tile) || (!chosen && !placingBuilding))
+            continue;
+        drawRing(graphics, p, tile * .54F, std::max(2.0F, tile * .08F),
+                 chosen ? Color{255, 226, 126} : theme::red);
     }
     const game::Tower *chosenTower = run.tower(state.play.selectedTower);
     const game::Unit *chosenUnit = run.unit(state.play.selectedUnit);
@@ -249,21 +296,16 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
     } else if (chosenTower || chosenUnit) {
         const game::Point position = chosenTower ? chosenTower->position : chosenUnit->position;
         const game::CardKind kind = chosenTower ? chosenTower->kind : chosenUnit->kind;
-        rangeRing(graphics, screenPoint(position), run.catalog().card(kind).range * tile,
+        rangeRing(graphics, screenPoint(position),
+                  (chosenTower ? run.buildingRange(kind, position) : run.catalog().card(kind).range) * tile,
                   {255, 236, 169, 200}, false);
     }
-    const ScreenPoint base = screenPoint(run.state().route.back());
-    graphics.circle({base.x, base.y + tile * .2F}, tile * .65F, {129, 164, 135, 80});
-    graphics.rect({base.x - tile * .48F, base.y - tile * .65F, tile * .96F, tile * 1.0F}, {243, 237, 209},
-                  tile * .18F);
-    graphics.rect({base.x - tile * .32F, base.y - tile * .98F, tile * .64F, tile * .4F}, mint, tile * .1F);
-    graphics.polygon({{base.x, base.y - tile * .35F},
-                      {base.x + tile * .24F, base.y},
-                      {base.x, base.y + tile * .22F},
-                      {base.x - tile * .24F, base.y}},
-                     gold);
+    basePlaza(graphics, run, state);
+    fieldEffects(graphics, run, state);
     for (const game::Tower &tower : run.state().towers) {
         const ScreenPoint p = screenPoint(tower.position);
+        if (!inWorld(p, tile))
+            continue;
         if (tower.id == state.play.selectedTower) {
             graphics.circle(p, tile * .47F, {255, 226, 126});
             graphics.circle(p, tile * .40F, {71, 110, 92});
@@ -271,11 +313,17 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
         const game::Point recoil =
             state.app.preferences.reducedMotion ? game::Point{} : state.play.feedback.recoil(tower.id);
         icon(graphics, run.catalog(), tower.kind, {p.x + recoil.x * tile, p.y + recoil.y * tile}, tile * .8F);
+        // Level pips stay centred under the icon; awakened levels beyond the card maximum glow violet.
         for (int level = 0; level < tower.level; ++level)
-            graphics.circle({p.x + (level - 1) * tile * .12F, p.y + tile * .42F}, tile * .045F, gold);
+            graphics.circle(
+                {p.x + (static_cast<float>(level) - static_cast<float>(tower.level - 1) / 2) * tile * .12F,
+                 p.y + tile * .42F},
+                tile * .045F, level < game::CardMaxLevel ? gold : Color{190, 150, 255});
     }
     for (const game::Unit &unit : run.state().units) {
         const ScreenPoint p = screenPoint(unit.position);
+        if (!inWorld(p, tile))
+            continue;
         if (unit.id == state.play.selectedUnit)
             graphics.circle(p, tile * .44F, {255, 226, 126, 220});
         const game::Point recoil =
@@ -289,113 +337,48 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
         graphics.rect({p.x - tile * .25F, p.y - tile * .47F, tile * .5F * unit.hp / unit.maxHp, tile * .07F},
                       mint, 2);
     }
-    for (const std::pair<const game::EntityId, ActorVisual> &entry : state.play.actors.actors()) {
-        const ActorVisual &enemy = entry.second;
-        const bool dying = enemy.animator.motion() == ActorMotion::Death;
-        if (dying && state.app.preferences.reducedMotion)
-            continue;
-        const ScreenPoint p = screenPoint(enemy.position);
-        const float size = tile * (enemy.kind == game::EnemyKind::Armored ? 1.0F : 0.85F);
-        if (!dying && enemy.kind == game::EnemyKind::Armored)
-            graphics.circle(p, tile * .46F, {95, 122, 138});
-        if (!dying && enemy.slowed)
-            graphics.circle(p, tile * .48F, {155, 219, 234, 180});
-        const float hit = state.app.preferences.reducedMotion || dying
-                              ? 0.0F
-                              : state.play.feedback.hitIntensity(enemy.id, true);
-        const float width = size * (1 + hit * .18F), height = size * (1 - hit * .15F);
-        graphics.animation(enemy.animator.sample(state.app.preferences.reducedMotion), enemy.id,
-                           {p.x - width / 2, p.y - height * .62F, width, height});
-        if (hit > 0)
-            graphics.circle({p.x, p.y - size * .1F}, size * .3F,
-                            {255, 249, 221, static_cast<std::uint8_t>(170 * hit)});
-    }
+    enemies(graphics, run, state);
     combatFeedback(graphics, state);
+    // Sabotage markers and enemy labels go above enemies and floating numbers so a crowd on the road never
+    // hides a countdown or an elite name.
+    for (const game::Tower &tower : run.state().towers) {
+        const ScreenPoint p = screenPoint(tower.position);
+        if (tower.disabled > 0 && inWorld(p, tile * 2)) {
+            // A sabotaged building is greyed out with a draining ring and the seconds until it works again.
+            const float total = std::max(.01F, run.catalog().enemy(game::EnemyKind::Sapper).abilityDuration);
+            const float left = std::clamp(tower.disabled / total, 0.0F, 1.0F);
+            graphics.circle(p, tile * .42F, {30, 26, 30, 170});
+            const float flicker =
+                state.app.preferences.reducedMotion ? 1.0F : .6F + .4F * std::sin(state.play.visualTime * 17);
+            const float r = tile * .22F;
+            graphics.line({{p.x - r, p.y - r * .3F},
+                           {p.x - r * .1F, p.y + r * .2F},
+                           {p.x + r * .2F, p.y - r * .4F},
+                           {p.x + r, p.y + r * .3F}},
+                          std::max(1.5F, tile * .05F),
+                          {255, 196, 90, static_cast<std::uint8_t>(230 * flicker)});
+            std::vector<ScreenPoint> ring;
+            const int steps = std::max(2, static_cast<int>(36 * left));
+            for (int index = 0; index <= steps; ++index) {
+                const float angle = -1.5707963F + 6.2831853F * left * index / steps;
+                ring.push_back({p.x + std::cos(angle) * tile * .46F, p.y + std::sin(angle) * tile * .46F});
+            }
+            graphics.line(ring, std::max(2.0F, tile * .06F), {255, 136, 48, 220});
+            const float label = std::clamp(tile * .34F, 10.0F, 15.0F);
+            graphics.rect({p.x - label * 1.9F, p.y + tile * .5F, label * 3.8F, label * 1.2F},
+                          {58, 20, 16, 220}, 4);
+            graphics.text("마비 " + std::to_string(static_cast<int>(std::ceil(tower.disabled))),
+                          {p.x, p.y + tile * .5F + 1}, label, {255, 214, 150}, .5F);
+        }
+    }
+    enemyMarkers(graphics, run, state);
+    enemyHud(graphics, run, state);
+    graphics.endClip();
     graphics.rect({layout.world.x + 10, layout.world.y + 9, layout.compact ? 116.0F : 184.0F, 25},
                   {34, 67, 56, 220}, 5);
     const auto &stageMeta = game::stageMetadata(state.play.currentStage);
     graphics.text(run.state().phase == game::Phase::Prep ? "정비 구역 · 지상" : stageMeta.name,
                   {layout.world.x + 21, layout.world.y + 15}, layout.compact ? 11 : 12, {235, 231, 198});
-}
-
-void View::underground(engine::Renderer &graphics, const game::Run &run, const State &state) {
-    graphics.gradientRect(layout.world, {80, 69, 57}, {40, 41, 41}, 12);
-    for (int row = 0; row < 6; ++row)
-        graphics.rect({layout.world.x + 8, layout.world.y + row * layout.world.h / 6 + 6, layout.world.w - 16,
-                       layout.world.h / 6 - 9},
-                      row % 2 ? Color{132, 98, 65, 60} : Color{177, 135, 85, 40}, 8);
-    const float tile = layout.mineTile;
-    for (int index = 0; index < 30; ++index) {
-        const game::MineCell &cell = run.state().mine[index];
-        const float x = layout.mineOrigin.x + (index % 5) * tile,
-                    y = layout.mineOrigin.y + (index / 5) * tile;
-        const Rect box{x + 3, y + 3, tile - 6, tile - 6};
-        graphics.rect({x + 3, y + 6, tile - 6, tile - 6}, {136, 107, 83, 80}, 9);
-        const Color rock = cell.dug               ? Color{94, 84, 78}
-                           : run.reachable(index) ? Color{194, 161, 122}
-                                                  : Color{139, 118, 97};
-        graphics.rect(box, cell.dug ? Color{39, 45, 45} : run.reachable(index) ? gold : Color{86, 77, 64}, 8);
-        graphics.gradientRect({box.x + 2, box.y + 2, box.w - 4, box.h - 4}, rock,
-                              cell.dug ? Color{48, 51, 49}
-                                       : Color{static_cast<std::uint8_t>(rock.r - 25),
-                                               static_cast<std::uint8_t>(rock.g - 23),
-                                               static_cast<std::uint8_t>(rock.b - 20)},
-                              6);
-        if (!cell.dug) {
-            graphics.line(
-                {{box.x + box.w * .12F, box.y + box.h * .12F}, {box.x + box.w * .38F, box.y + box.h * .08F}},
-                1, {240, 213, 169, 85});
-            graphics.line({{box.x + box.w * .75F, box.y + box.h * .62F},
-                           {box.x + box.w * .67F, box.y + box.h * .79F},
-                           {box.x + box.w * .77F, box.y + box.h * .9F}},
-                          1, {77, 62, 47, 110});
-        }
-        if (run.state().job.active && run.state().job.target == index)
-            graphics.rect({box.x - 2, box.y - 2, box.w + 4, box.h + 4}, {244, 222, 159, 110}, 10);
-        if (cell.dug) {
-            if (cell.clueKnown)
-                graphics.text(std::to_string(cell.clue), {x + tile * .78F, y + tile * .12F}, tile * .19F,
-                              {201, 206, 186}, 0.5F);
-        } else {
-            if (cell.info && cell.ore != game::Ore::Rock) {
-                const Color color = oreColor(cell.ore);
-                graphics.polygon({{x + tile * .5F, y + tile * .19F},
-                                  {x + tile * .71F, y + tile * .41F},
-                                  {x + tile * .55F, y + tile * .65F},
-                                  {x + tile * .29F, y + tile * .48F}},
-                                 color);
-                graphics.polygon({{x + tile * .5F, y + tile * .19F},
-                                  {x + tile * .71F, y + tile * .41F},
-                                  {x + tile * .47F, y + tile * .43F}},
-                                 {255, 245, 208, 100});
-                graphics.text(oreName(cell.ore), {x + tile * .5F, y + tile * .69F}, tile * .17F,
-                              {255, 241, 214}, 0.5F);
-            } else
-                graphics.text(cell.grade == 2 ? "T2" : "?", {x + tile * .5F, y + tile * .32F}, tile * .25F,
-                              {230, 206, 168}, 0.5F);
-            if (cell.clueKnown)
-                graphics.text(std::to_string(cell.clue), {x + tile * .81F, y + tile * .12F}, tile * .2F,
-                              cell.clue ? Color{252, 232, 164} : Color{231, 218, 187}, 0.5F);
-            if (cell.info && cell.nest)
-                graphics.circle({x + tile * .2F, y + tile * .2F}, tile * .08F, coral);
-        }
-    }
-    const game::Point miner = run.minerPosition();
-    const ScreenPoint p{layout.mineOrigin.x + (miner.x + .5F) * tile,
-                        layout.mineOrigin.y + (miner.y + .5F) * tile};
-    graphics.circle({p.x, p.y + tile * .22F}, tile * .24F, {20, 20, 20, 70});
-    graphics.rect({p.x - tile * .2F, p.y - tile * .08F, tile * .4F, tile * .34F}, mint, 6);
-    graphics.circle({p.x, p.y - tile * .13F}, tile * .18F, {245, 205, 155});
-    graphics.rect({p.x - tile * .24F, p.y - tile * .33F, tile * .48F, tile * .19F}, gold, 5);
-    graphics.circle({p.x + tile * .08F, p.y - tile * .25F}, tile * .07F, cream);
-    if (run.state().job.active)
-        graphics.line(
-            {{p.x + tile * .2F, p.y},
-             {p.x + tile * .38F, p.y - tile * .22F - std::sin(state.play.visualTime * 14) * tile * .08F}},
-            tile * .06F, cream);
-    graphics.text(layout.compact ? "지하 탐사 · 숫자 = 인접 둥지 수"
-                                 : "지하 탐사 / 숫자는 주변 8칸의 최초 둥지 수",
-                  {layout.world.x + 16, layout.world.y + 12}, layout.compact ? 10 : 12, {237, 216, 175});
 }
 
 } // namespace thorium::presentation

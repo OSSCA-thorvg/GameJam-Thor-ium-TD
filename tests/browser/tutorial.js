@@ -41,9 +41,12 @@ async (page) => {
     }
     /** Resolve surface or cutaway coordinates from the actual canvas registration. @param {import('playwright').Page} target @param {number} x @param {number} y @param {boolean} mine @returns {Promise<Point>} */
     async function cell(target,x,y,mine=false){
-        /** @type {Widget} */ const area=await widget(target,1);
-        /** @type {number} */ const tile=mine?Math.min((area.w-40)/5,(area.h-42)/6):Math.min((area.w-24)/18,(area.h-32)/10);
-        return {x:area.x+(area.w-tile*(mine?5:18))/2+(x+.5)*tile,y:area.y+(area.h-tile*(mine?6:10))/2+(mine?8:0)+(y+.5)*tile};
+        if(!mine){
+            /** @type {{originX:number,originY:number,tile:number}} */ const field=await target.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+            return {x:field.originX+(x+.5)*field.tile,y:field.originY+(y+.5)*field.tile};
+        }
+        /** @type {{x:number,y:number,tile:number}} */ const board=(await state(target)).mine;
+        return {x:board.x+(x+.5)*board.tile,y:board.y+(y+.5)*board.tile};
     }
     /** Tap a logical target using a real pointer. @param {import('playwright').Page} target @param {Point} point @param {boolean} touch @returns {Promise<void>} */
     async function pointClick(target,point,touch){if(touch)await target.touchscreen.tap(point.x,point.y);else await target.mouse.click(point.x,point.y);}

@@ -21,6 +21,15 @@ CardDetails cardDetails(const game::Catalog &catalog, game::CardKind kind) {
         result.description = "범위 안 적을 느리게 만들어 진입을 늦춰요";
         result.stats.push_back({"둔화", number((1 - catalog.balance.slowFactor) * 100) + "%"});
         result.stats.push_back({"지속 시간", number(definition.slowDuration) + "초"});
+    } else if (spell && kind == game::CardKind::Tar) {
+        result.description = "길목에 타르를 부어 지나가는 적을 계속 느리게 해요";
+        result.stats.push_back({"둔화", number((1 - catalog.balance.slowFactor) * 100) + "%"});
+        result.stats.push_back({"유지 시간", number(definition.slowDuration) + "초"});
+    } else if (definition.aura > 0) {
+        result.description = "범위 안 다른 건물의 공격력을 높여요 · 직접 공격하지 않음";
+        result.stats.front().label = "증폭 범위";
+        result.stats.push_back({"공격력 증폭", "+" + number(definition.aura * 100) + "%"});
+        result.stats.push_back({"중첩", "가장 높은 효과 1개"});
     } else {
         result.stats.push_back({spell ? "피해" : "공격력", std::to_string(definition.damage)});
         if (spell)
@@ -35,10 +44,16 @@ CardDetails cardDetails(const game::Catalog &catalog, game::CardKind kind) {
         result.stats.push_back({"체력", std::to_string(definition.hp)});
         result.stats.push_back({"저지", std::to_string(definition.blockers) + "명"});
     } else if (catalog.isBuilding(kind)) {
-        result.description = kind == game::CardKind::Cannon      ? "포탄으로 주변 적을 함께 공격해요"
-                              : kind == game::CardKind::Lightning ? "가까운 적을 연쇄 공격해요 · 방어 무시"
-                                                                 : "범위 안의 적 하나를 집중 공격해요";
+        if (definition.aura <= 0)
+            result.description = kind == game::CardKind::Cannon      ? "포탄으로 주변 적을 함께 공격해요"
+                                 : kind == game::CardKind::Lightning ? "가까운 적을 연쇄 공격해요 · 방어 무시"
+                                 : kind == game::CardKind::Flame
+                                     ? "부채꼴 안의 적을 빠르게 태워요 · 방어에 약함"
+                                 : kind == game::CardKind::Sniper ? "먼 거리에서 체력이 가장 높은 적을 노려요"
+                                                                  : "범위 안의 적 하나를 집중 공격해요";
     }
+    if (catalog.isBuilding(kind) && definition.arc > 0)
+        result.stats.push_back({"화염 각도", number(definition.arc * 2) + "°"});
     if ((catalog.isBuilding(kind) && kind == game::CardKind::Cannon) ||
         (catalog.isUnit(kind) && kind == game::CardKind::Demolition))
         result.stats.push_back({"폭발 범위", number(definition.splash) + "칸"});

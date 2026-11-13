@@ -32,7 +32,7 @@ class SourceBoundaryTests(unittest.TestCase):
 
     def test_rules_and_content_stay_headless(self) -> None:
         """Keep drawing, input devices and screen navigation out of gameplay state mutations."""
-        for boundary in ('src/game/rules', 'src/game/content', 'src/game/model'):
+        for boundary in ('src/game/rules', 'src/game/content', 'src/game/model', 'src/game/autoplay'):
             for path in sources(boundary):
                 for include in INCLUDES.findall(path.read_text(encoding='utf-8')):
                     with self.subTest(path=path, include=include):
@@ -40,7 +40,7 @@ class SourceBoundaryTests(unittest.TestCase):
 
     def test_controllers_do_not_need_a_view_or_render_device(self) -> None:
         """Keep app-flow and placement contracts testable without initializing graphics."""
-        for name in ('AppFlow', 'GameplayController', 'FeedbackChannel', 'GameInput', 'TutorialDirector'):
+        for name in ('AppFlow', 'GameplayController', 'FeedbackChannel', 'GameInput', 'TutorialDirector', 'MapCamera'):
             for suffix in ('.h', '.cpp'):
                 path: Path = ROOT / 'src/app' / (name + suffix)
                 if not path.exists():

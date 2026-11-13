@@ -44,6 +44,8 @@ const char *PlayPreview::message() const {
         return "열린 전장 안을 선택해 주세요";
     case PlayFailure::EnergyShortage:
         return "에너지가 부족해요";
+    case PlayFailure::PadBlocked:
+        return "바위가 막은 패드예요 · 정비 중에 치워 주세요";
     }
     return "현재는 사용할 수 없어요";
 }
@@ -69,7 +71,8 @@ Run::PlayPlan Run::planPlay(CardId id, Point target) const {
         plan.preview.action = PlayAction::Install;
         const std::optional<Point> pad = resolveCell(state_.pads, target);
         if (!pad) {
-            plan.preview.failure = PlayFailure::BuildingPadRequired;
+            plan.preview.failure = resolveCell(state_.boulders, target) ? PlayFailure::PadBlocked
+                                                                        : PlayFailure::BuildingPadRequired;
             return plan;
         }
         plan.target = *pad;
@@ -81,7 +84,7 @@ Run::PlayPlan Run::planPlay(CardId id, Point target) const {
             if (existing.kind == plan.kind) {
                 plan.preview.action = PlayAction::Upgrade;
                 plan.preview.cost = existing.level == 1 ? 2 : 3;
-                if (existing.level >= 3) {
+                if (existing.level >= CardMaxLevel) {
                     plan.preview.failure = PlayFailure::MaximumLevel;
                     return plan;
                 }
@@ -107,7 +110,7 @@ Run::PlayPlan Run::planPlay(CardId id, Point target) const {
             }
     } else {
         plan.preview.action = PlayAction::Cast;
-        if (target.x < 0 || target.x > 17 || target.y < 0 || target.y > 9) {
+        if (target.x < 0 || target.x > catalog_.width - 1 || target.y < 0 || target.y > catalog_.height - 1) {
             plan.preview.failure = PlayFailure::OutsideBattlefield;
             return plan;
         }
@@ -192,31 +195,25 @@ Result Run::play(CardId id, Point target) {
                                                                : catalog_.card(kind).hp;
         state_.units.push_back({nextEntity_++, kind, target, hp, hp});
         emit({CombatEventKind::Placement, state_.units.back().id, target, target, kind, 1, false});
+    } else if (kind == CardKind::Tar) {
+        const CardDefinition &definition = catalog_.card(kind);
+        state_.fields.push_back(
+            {nextEntity_++, kind, target, definition.range, state_.battleTime + definition.slowDuration});
+        emit({CombatEventKind::Attack, 0, target, target, kind, 0, false, definition.range});
     } else {
+        const std::vector<std::size_t> guards = auraSources();
         for (Enemy &enemy : state_.enemies)
-            if (distance(enemy.position, target) <= catalog_.card(kind).range) {
+            if (!underground(enemy) && distance(enemy.position, target) <= catalog_.card(kind).range) {
                 if (kind == CardKind::Frost)
                     enemy.slowUntil = state_.battleTime + catalog_.card(kind).slowDuration;
                 else {
                     const int damage =
-                        std::max(1, catalog_.card(kind).damage - catalog_.enemy(enemy.kind).armor);
-                    enemy.hp -= damage;
+                        damageEnemy(enemy, mitigate(enemy, catalog_.card(kind).damage, false, guards));
                     emit({CombatEventKind::Damage, enemy.id, target, enemy.position, kind, damage, true});
                 }
             }
         emit({CombatEventKind::Attack, 0, target, target, kind, 0, false, catalog_.card(kind).range});
-        state_.enemies.erase(std::remove_if(state_.enemies.begin(), state_.enemies.end(),
-                                            [this](const Enemy &enemy) {
-                                                if (enemy.hp <= 0) {
-                                                    ++state_.defeated;
-                                                    emit({CombatEventKind::Defeated, enemy.id, enemy.position,
-                                                          enemy.position, CardKind::Gun, 0, true, 0,
-                                                          enemy.kind});
-                                                    return true;
-                                                }
-                                                return false;
-                                            }),
-                             state_.enemies.end());
+        removeDefeated();
     }
     state_.energy -= plan.preview.cost;
     cycle(plan.handPosition);

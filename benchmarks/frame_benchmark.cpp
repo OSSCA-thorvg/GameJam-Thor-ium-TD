@@ -22,7 +22,8 @@ struct Host {
     }
 };
 /** Drive real app, PCM pump and SDL output; only fixture population differs from gameplay. */
-int measure(int count, int frames, bool cache, float density, int width = 1200, int height = 800, const char *capture = nullptr) {
+int measure(int count, int frames, bool cache, float density, int width = 1200, int height = 800,
+            const char *capture = nullptr) {
     using namespace thorium;
     Host host;
     host.window = SDL_CreateWindow("Thorium frame benchmark", width, height, SDL_WINDOW_HIDDEN);
@@ -52,14 +53,22 @@ int measure(int count, int frames, bool cache, float density, int width = 1200, 
         const float progress = (index + .5F) / count * (app.game().routeLength() - 2);
         game::scenario(ApplicationTestAccess::run(app))
             .enemies.push_back({static_cast<game::EntityId>(100000 + index),
-                                static_cast<game::EnemyKind>(index % 3), app.game().routePoint(progress),
-                                progress, 1000000});
+                                static_cast<game::EnemyKind>(index % (game::EnemyKindCount - 1)),
+                                app.game().routePoint(progress), progress, 1000000});
+        // Every twentieth enemy carries an elite modifier, as in the second half of a campaign stage.
+        if (index % 20 == 19)
+            game::scenario(ApplicationTestAccess::run(app)).enemies.back().affix =
+                static_cast<game::EliteAffix>(1 + index / 20 % (game::EliteAffixCount - 1));
     }
-    for (std::size_t index = 0; index < app.game().state().pads.size(); ++index)
+    for (std::size_t index = 0; index < app.game().state().pads.size(); ++index) {
         game::scenario(ApplicationTestAccess::run(app))
             .towers.push_back({static_cast<game::EntityId>(50000 + index),
                                index % 2 ? game::CardKind::Cannon : game::CardKind::Gun,
                                app.game().state().pads[index]});
+        // Every fourth building starts sabotaged, so the disabled overlay is part of the measured frame.
+        if (index % 4 == 3)
+            game::scenario(ApplicationTestAccess::run(app)).towers.back().disabled = 1000;
+    }
     engine::FrameProfiler profiler;
     engine::FrameTimings cold;
     std::uint64_t previous = SDL_GetTicksNS();
@@ -86,7 +95,8 @@ int measure(int count, int frames, bool cache, float density, int width = 1200, 
         if (frame == 2 && capture) {
             SDL_Surface *surface = SDL_CreateSurfaceFrom(
                 static_cast<int>(width * density), static_cast<int>(height * density), SDL_PIXELFORMAT_RGBA32,
-                const_cast<std::uint32_t *>(app.renderOutput().pixels.data()), static_cast<int>(width * density * 4));
+                const_cast<std::uint32_t *>(app.renderOutput().pixels.data()),
+                static_cast<int>(width * density * 4));
             if (surface) {
                 SDL_SaveBMP(surface, capture);
                 SDL_DestroySurface(surface);

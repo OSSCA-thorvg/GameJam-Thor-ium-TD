@@ -161,6 +161,27 @@ void outputContracts() {
     require(std::all_of(pcm.begin(), pcm.end(), [](float value) -> bool { return value == 0; }),
             "the output capability honors application-owned stop and mute");
 }
+/** Keep the center of a larger campaign field centered in stereo after a stage reset. */
+void campaignStereoContracts() {
+    thorium::game::RunCreation created = thorium::game::Run::create(thorium::game::stageCatalog(3));
+    require(static_cast<bool>(created.run), "wide-field audio fixture uses validated campaign content");
+    AudioMixer mixer;
+    Soundscape sound(mixer, "/thorium-no-optional-audio");
+    sound.reset(*created.run);
+    const float center = (created.run->catalog().width - 1) / 2.0F;
+    sound.consume(
+        {{thorium::game::CombatEventKind::Damage, 1, {}, {center, 10}, thorium::game::CardKind::Gun, 12}});
+    std::array<float, 1024> pcm{};
+    mixer.output().render(pcm.data(), 512);
+    float energy = 0;
+    float difference = 0;
+    for (std::size_t index = 0; index < pcm.size(); index += 2) {
+        energy += std::abs(pcm[index]);
+        difference += std::abs(pcm[index] - pcm[index + 1]);
+    }
+    require(energy > 0 && difference < .001F,
+            "wide-field center events have audible, balanced left/right PCM");
+}
 } // namespace
 
 /** Run portable audio and game-routing tests with one real MP3 fixture directory. */
@@ -170,5 +191,6 @@ int main(int argc, char **argv) {
     outputContracts();
     assetContracts(argv[1]);
     routingContracts();
+    campaignStereoContracts();
     std::cout << checks << " audio checks passed\n";
 }

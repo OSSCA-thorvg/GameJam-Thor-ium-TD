@@ -19,6 +19,23 @@ inline constexpr engine::Color purple{187, 149, 224};
 inline constexpr engine::Color red{225, 119, 99};
 inline constexpr engine::Color cardInk{43, 53, 54};
 
+/** Return the crown, ring and chip color of one elite modifier. */
+inline engine::Color elite(game::EliteAffix affix) {
+    switch (affix) {
+    case game::EliteAffix::Steel:
+        return {164, 190, 212};
+    case game::EliteAffix::Swift:
+        return {190, 238, 84};
+    case game::EliteAffix::Regen:
+        return {84, 226, 170};
+    case game::EliteAffix::Enrage:
+        return {246, 86, 58};
+    case game::EliteAffix::Leader:
+        return {200, 140, 255};
+    default:
+        return gold;
+    }
+}
 /** Return a persistent color for the three card action categories. */
 inline engine::Color accent(game::CardCategory category) {
     return category == game::CardCategory::Building ? green

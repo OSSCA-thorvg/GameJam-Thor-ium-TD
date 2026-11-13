@@ -3,26 +3,45 @@
 #include <algorithm>
 #include <cmath>
 namespace thorium {
+game::Catalog expeditionContent(int stage, presentation::AppState &app) {
+    game::Catalog content = game::stageCatalog(stage);
+    content.mining = app.preferences.excavation ? game::MiningMode::Excavate : game::MiningMode::Sweep;
+    content.mineSeed =
+        (app.animationSeed ^ static_cast<std::uint32_t>(stage)) + ++app.expeditions * 2654435761U;
+    return content;
+}
 AppFlow::AppFlow(game::Run &run, presentation::State &state, engine::Ui &ui, engine::AudioMixer &audio,
                  presentation::Soundscape &sound, FeedbackChannel &feedback)
     : run(run), state(state), ui(ui), audio(audio), sound(sound), feedback(feedback) {}
-void AppFlow::restart(int stageIndex) {
-    ui.cancel();
-    ui.focused = 0;
-    if (stageIndex >= 1 && stageIndex <= game::TotalStages) {
-        auto created = game::Run::create(game::stageCatalog(stageIndex));
-        if (created.run)
-            run = std::move(*created.run);
-        state.play.currentStage = stageIndex;
-        state.app.selectedStage = stageIndex;
+bool AppFlow::restart(int stageIndex) {
+    const int stage = stageIndex ? stageIndex : state.app.selectedStage;
+    if (state.app.campaign) {
+        game::RunCreation created = game::Run::create(expeditionContent(stage, state.app));
+        if (!created.run) {
+            feedback.notify({false, created.validation.summary()});
+            return false;
+        }
+        run = std::move(*created.run);
+        state.app.selectedStage = stage;
     } else {
         run.reset();
     }
-    const int stage = state.app.selectedStage;
+    ui.cancel();
+    ui.focused = 0;
     state.play = presentation::PlayState{};
-    state.play.currentStage = (stage >= 1 && stage <= game::TotalStages) ? stage : 1;
+    state.play.currentStage = stage;
     state.app.navigation.enterGame();
     feedback.reset();
+    return true;
+}
+bool AppFlow::synchronizeProgress() {
+    if (!state.app.campaign || state.play.tutorial.active() || run.state().phase != game::Phase::Won)
+        return false;
+    const int unlocked = std::min(game::TotalStages, state.play.currentStage + 1);
+    if (unlocked <= state.app.highestUnlockedStage)
+        return false;
+    state.app.highestUnlockedStage = unlocked;
+    return true;
 }
 FlowResult AppFlow::act(presentation::Action action) {
     using namespace presentation;
@@ -33,7 +52,8 @@ FlowResult AppFlow::act(presentation::Action action) {
         if (state.app.navigation.hasRun())
             state.play.modal = presentation::Modal::NewRun;
         else {
-            restart();
+            if (!restart())
+                return FlowResult::Handled;
             sound.play(Sound::Confirm);
             return FlowResult::Restarted;
         }
@@ -109,8 +129,13 @@ FlowResult AppFlow::act(presentation::Action action) {
         break;
     case SettingsAudio:
     case SettingsVisual:
-        state.app.settingsTab = action == SettingsAudio ? 0 : 1;
+    case SettingsGame:
+        state.app.settingsTab = action == SettingsAudio ? 0 : action == SettingsVisual ? 1 : 2;
         ui.cancel();
+        sound.play(Sound::Select);
+        break;
+    case ToggleMining:
+        state.app.preferences.excavation = !state.app.preferences.excavation;
         sound.play(Sound::Select);
         break;
     case GuidePrevious:
@@ -128,8 +153,7 @@ FlowResult AppFlow::act(presentation::Action action) {
     case ConfirmReset:
         if (!canConfirmNewRun(run.state().phase, state))
             return FlowResult::Handled;
-        restart();
-        return FlowResult::Restarted;
+        return restart() ? FlowResult::Restarted : FlowResult::Handled;
     case AudioMute:
         audio.settings.muted = !audio.settings.muted;
         audio.stop();
@@ -145,30 +169,24 @@ FlowResult AppFlow::act(presentation::Action action) {
         sound.play(Sound::Select);
         break;
     case SelectStagePrev:
-        if (state.app.selectedStage > 1) {
-            --state.app.selectedStage;
-            auto created = game::Run::create(game::stageCatalog(state.app.selectedStage));
-            if (created.run)
-                run = std::move(*created.run);
+    case SelectStageNext: {
+        if (!state.app.campaign || state.app.navigation.current() != Screen::Home ||
+            state.play.modal != Modal::None)
+            return FlowResult::Handled;
+        const int next = state.app.selectedStage + (action == SelectStageNext ? 1 : -1);
+        if (next >= 1 && next <= std::min(game::TotalStages, state.app.highestUnlockedStage)) {
+            state.app.selectedStage = next;
             sound.play(Sound::Select);
         }
         ui.cancel();
         break;
-    case SelectStageNext:
-        if (state.app.selectedStage < std::min(game::TotalStages, state.app.highestUnlockedStage + 1)) {
-            ++state.app.selectedStage;
-            auto created = game::Run::create(game::stageCatalog(state.app.selectedStage));
-            if (created.run)
-                run = std::move(*created.run);
-            sound.play(Sound::Select);
-        }
-        ui.cancel();
-        break;
+    }
     case NextStageRun:
-        if (state.play.currentStage < game::TotalStages) {
-            const int nextStage = state.play.currentStage + 1;
-            state.app.highestUnlockedStage = std::max(state.app.highestUnlockedStage, nextStage);
-            restart(nextStage);
+        if (state.app.campaign && state.app.navigation.gameplay() && run.state().phase == game::Phase::Won &&
+            !state.play.tutorial.active() && state.play.currentStage < game::TotalStages) {
+            synchronizeProgress();
+            if (!restart(state.play.currentStage + 1))
+                return FlowResult::Handled;
             sound.play(Sound::Confirm);
             return FlowResult::Restarted;
         }
@@ -186,7 +204,8 @@ FlowResult AppFlow::act(presentation::Action action) {
 bool AppFlow::allowsSimulation() const {
     return state.app.navigation.gameplay() && !state.play.paused &&
            state.play.modal != presentation::Modal::Withdrawal &&
-           state.play.modal != presentation::Modal::NewRun;
+           state.play.modal != presentation::Modal::NewRun &&
+           state.play.modal != presentation::Modal::MineDescent;
 }
 FlowResult AppFlow::key(int key) {
     using namespace presentation;

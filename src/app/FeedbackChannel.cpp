@@ -7,6 +7,7 @@ void FeedbackChannel::reset() {
     state.play.actors.reset(state.app.animationSeed);
     state.play.actors.observe(run, {}, state.app.animationSets);
     state.play.feedback.observeHand(run);
+    state.play.feedback.observeMine(run);
     sound.reset(run);
 }
 void FeedbackChannel::collect() {
@@ -14,6 +15,7 @@ void FeedbackChannel::collect() {
     state.play.actors.observe(run, events, state.app.animationSets);
     state.play.feedback.consume(events);
     state.play.feedback.observeHand(run);
+    state.play.feedback.observeMine(run);
     if (state.app.preferences.reducedMotion)
         state.play.feedback.settleCards();
     sound.observe(run);
@@ -60,6 +62,14 @@ void FeedbackChannel::collect() {
             state.play.toastTime = 5.0F;
             state.play.error = false;
         }
+    }
+    // The boulder hint stands apart from the chain above, which holds later hints back during preparation.
+    if (state.play.toastTime <= 0.0F && state.app.navigation.gameplay() && !state.play.hints.boulder &&
+        !run.state().boulders.empty() && run.boulderQuote(run.state().boulders.front()).allowed()) {
+        state.play.hints.boulder = true;
+        state.play.toast = "철이 모였어요! 지상 화면에서 낙석 바위를 누르면 치울 수 있어요.";
+        state.play.toastTime = 5.0F;
+        state.play.error = false;
     }
 }
 void FeedbackChannel::notify(const game::Result &result, presentation::Sound success) {

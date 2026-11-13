@@ -1,9 +1,11 @@
-"""Author original oreling movement, attack and death segments in one Lottie asset."""
+"""Author original creature movement, attack and death segments, one Lottie asset per enemy role."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any
+
+from make_assets import CREATURES
 
 ROOT: Path = Path(__file__).resolve().parents[1]
 
@@ -22,9 +24,9 @@ def channel(values: list[tuple[int, list[float]]], holds: set[int]) -> dict[str,
     return {'a': 1, 'k': keys}
 
 
-def build() -> None:
-    """Extend the original vector character while preserving its hand-authored shapes."""
-    path: Path = ROOT / 'content/animations/oreling.json'
+def build(key: str) -> None:
+    """Extend one original vector character while preserving its hand-authored shapes."""
+    path: Path = ROOT / f'content/animations/{key}.json'
     asset: dict[str, Any] = json.loads(path.read_text(encoding='utf-8'))
     asset['op'] = 75
     asset['markers'] = [
@@ -51,4 +53,5 @@ def build() -> None:
 
 
 if __name__ == '__main__':
-    build()
+    for creature in CREATURES:
+        build(creature)

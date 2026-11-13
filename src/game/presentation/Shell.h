@@ -9,6 +9,8 @@ struct Preferences {
     bool reducedMotion = false;
     bool damageNumbers = true;
     bool cachedAnimations = false;
+    /** New expeditions excavate a rock wall; otherwise they dig tile by tile with nest clues. */
+    bool excavation = true;
 };
 /** Own bounded in-app navigation without serializing or mutating the game run. */
 class Navigation {

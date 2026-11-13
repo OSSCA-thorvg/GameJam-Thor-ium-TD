@@ -6,5 +6,6 @@
 - dr_mp3 0.7.4 at commit `aec2dd20667f54acfdb66031217df6d240f56c52`: [upstream source](https://github.com/mackron/dr_libs/blob/aec2dd20667f54acfdb66031217df6d240f56c52/dr_mp3.h), provided under a choice of public domain or MIT-0. The source retains its notices in [dr_mp3.h](third_party/dr_mp3/dr_mp3.h); the full dual-license notice is bundled in [dr_libs.txt](content/licenses/dr_libs.txt).
 - Procedural sound effects and the short MP3 decoder-test sine wave are original generated prototype content. The game currently uses synthesized tones; the MP3 fixture is included only in tests.
 - The oreling Lottie, tower/unit shapes and game UI art are original prototype assets generated in this project. The Lottie source generator is [make_assets.py](tools/make_assets.py).
+- The SVG pictures in `content/art` (ores, nest, relic chest, fossil, energy crystal, cracked rock and the pick, blast and scan icons) are original assets written by [make_art.py](tools/make_art.py). No third-party artwork is bundled.
 
 [dependencies.lock.json](dependencies.lock.json) records source archive hashes, the font source hashes and tested build-tool versions. CMake, fontTools, Meson, Ninja, Emscripten and Playwright are development tools rather than game UI frameworks. SDL and ThorVG notices are also included in the web data package.

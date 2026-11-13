@@ -34,15 +34,14 @@ async (page) => {
     }
     /** Transform a logical surface cell using the same viewport dimensions. @param {import('playwright').Page} target @param {number} x @param {number} y @returns {Promise<Point>} */
     async function cell(target,x,y){
-        /** @type {Widget} */ const area=await widget(target,1);
-        /** @type {number} */ const tile=Math.min((area.w-24)/18,(area.h-32)/10);
-        return {x:area.x+(area.w-tile*18)/2+(x+.5)*tile,y:area.y+(area.h-tile*10)/2+(y+.5)*tile};
+        /** @type {{originX:number,originY:number,tile:number}} */
+        const field=await target.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+        return {x:field.originX+(x+.5)*field.tile,y:field.originY+(y+.5)*field.tile};
     }
     /** Resolve one mine tile in the current cutaway view. @param {import('playwright').Page} target @param {number} index @returns {Promise<Point>} */
     async function mineCell(target,index){
-        /** @type {Widget} */ const area=await widget(target,1);
-        /** @type {number} */ const tile=Math.min((area.w-40)/5,(area.h-42)/6);
-        return {x:area.x+(area.w-5*tile)/2+(index%5+.5)*tile,y:area.y+(area.h-6*tile)/2+8+(Math.floor(index/5)+.5)*tile};
+        /** @type {{x:number,y:number,tile:number,columns:number}} */ const mine=(await state(target)).mine;
+        return {x:mine.x+(index%mine.columns+.5)*mine.tile,y:mine.y+(Math.floor(index/mine.columns)+.5)*mine.tile};
     }
     /** Click a mine tile and wait for its actual automatic job to finish. @param {number} index @param {number} expectedDigs @returns {Promise<void>} */
     async function dig(index,expectedDigs){
@@ -52,6 +51,8 @@ async (page) => {
     page.on('pageerror',onError);
     try{
         await page.setViewportSize({width:1200,height:900});
+        // This scenario checks the tile-by-tile cutaway; a fresh profile would open an excavation wall.
+        await page.addInitScript(()=>{if(location.origin==='http://127.0.0.1:8317'&&!localStorage.getItem('thorium_td_save'))localStorage.setItem('thorium_td_save','{"excavation":false}');});
         await page.goto('http://127.0.0.1:8317/');
         await wait(page,'s.width===1200&&s.height===900&&s.phase===0');
         check((await state(page)).energy===6,'Initial energy budget');await click(page,36);await wait(page,'s.screen===1');
@@ -78,12 +79,12 @@ async (page) => {
         check((await state(page)).digs===5,'Wave completion enters five-dig preparation');
         checks.push('real combat, pause/resume and preparation transition');
         await click(page,15);
-        /** @type {Point} */ const scan=await mineCell(page,0);await page.mouse.click(scan.x,scan.y);
+        /** @type {Point} */ const scan=await mineCell(page,1);await page.mouse.click(scan.x,scan.y);
         await wait(page,'s.scans===0');check((await state(page)).digs===5,'Scan does not spend a dig');
-        await dig(6,4);check((await state(page)).iron===2,'First real excavation grants iron');
-        await dig(7,3);await dig(11,2);await dig(12,1);
+        await dig(9,4);check((await state(page)).iron===2,'First real excavation grants iron');
+        await dig(10,3);await dig(8,2);await dig(11,1);
         await click(page,17);await wait(page,'s.tool===2&&s.iron===0&&s.copper===0');
-        await dig(13,0);check((await state(page)).gold===4,'Fifth dig grants expected gold');
+        await dig(12,0);check((await state(page)).gold===8,'Fifth dig with the crafted T2 pickaxe grants hard-rock gold');
         await page.screenshot({path:'.playwright-mcp/thorium-mining.png',scale:'css'});
         checks.push('scan, automatic digging and crafting resource ledger');
         await click(page,13);
@@ -92,15 +93,15 @@ async (page) => {
         /** @type {Point} */ const move=await cell(page,8,6);await page.mouse.click(move.x,move.y);
         await click(page,33);await page.mouse.click(move.x,move.y);await wait(page,'s.selectedUnit!==0');
         await click(page,23);await wait(page,'s.modal===3');await click(page,25);await wait(page,'s.modal===0');
-        check((await state(page)).units===1&&(await state(page)).gold===4,'Preparation movement and withdrawal cancel preserve survivor and wallet');
+        check((await state(page)).units===1&&(await state(page)).gold===8,'Preparation movement and withdrawal cancel preserve survivor and wallet');
         await click(page,33);await click(page,14);
         checks.push('explicit preparation move and survivor withdrawal cancellation');
         /** @type {CardOffer} */ const offered=(await state(page)).offers.recruitment;
-        check(offered&&offered.candidates.join(',')==='2,6,7'&&offered.cost.gold===4,'Run publishes its actual recruitment candidates and price');
+        check(offered&&offered.candidates.join(',')==='2,6,7'&&offered.cost.gold===6,'Run publishes its actual recruitment candidates and price');
         await click(page,20);await wait(page,'s.modal===1');await click(page,3006);await wait(page,'s.modal===2');
-        await click(page,25);await wait(page,'s.modal===0');check((await state(page)).gold===4,'Recruit cancel is free');
+        await click(page,25);await wait(page,'s.modal===0');check((await state(page)).gold===8,'Recruit cancel is free');
         check(JSON.stringify((await state(page)).offers.recruitment)===JSON.stringify(offered),'Cancel preserves the same run-owned offer, candidates and price');
-        await click(page,20);await click(page,3006);await click(page,2008);await wait(page,'s.modal===0&&s.gold===0');
+        await click(page,20);await click(page,3006);await click(page,2008);await wait(page,'s.modal===0&&s.gold===2');
         check((await state(page)).offers.recruitment===null,'Successful replacement consumes the run-owned offer');
         await click(page,10);await wait(page,'s.phase===1&&s.wave===2');check((await state(page)).hand.includes(6),'New unit card enters next hand');check((await state(page)).cardMotion.some(card=>card.nextKind===6&&card.age<.85),'Recently recruited card is visibly dealt after preparation');
         checks.push('recruit cancel and atomic card replacement');
@@ -109,6 +110,7 @@ async (page) => {
         /** @type {import('playwright').Browser} */ const browser=page.context().browser();check(browser,'Browser connection available');
         /** @type {import('playwright').BrowserContext} */ const mobileContext=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});
         /** @type {import('playwright').Page} */ const mobile=await mobileContext.newPage();mobile.on('pageerror',onError);
+        await mobile.addInitScript(()=>{if(location.origin==='http://127.0.0.1:8317'&&!localStorage.getItem('thorium_td_save'))localStorage.setItem('thorium_td_save','{"excavation":false}');});
         try{
             await mobile.goto('http://127.0.0.1:8317/');await wait(mobile,'s.width===390&&s.height===844');await click(mobile,36,true);await wait(mobile,'s.screen===1');
             await click(mobile,56,true);await wait(mobile,'!s.guideOpen');

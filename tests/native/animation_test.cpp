@@ -1,6 +1,7 @@
 #include "Scenario.h"
 #include "app/FeedbackChannel.h"
 #include "game/presentation/ActorAnimator.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -29,9 +30,20 @@ AnimationAssets metadata() {
     return {{"oreling",
              {75, 2.5F, {{"idle", {0, 1}}, {"move", {0, 45}}, {"attack", {45, 57}}, {"death", {57, 75}}}}}};
 }
+/** Bind every catalog enemy profile to the single test source. */
+AnimationBindings shared(const Catalog &content = defaultCatalog()) {
+    AnimationBindings result;
+    for (const EnemyDefinition &enemy : content.enemies)
+        if (std::none_of(result.begin(), result.end(),
+                         [&enemy](const ActorAnimationBinding &binding) -> bool {
+                             return binding.profile == enemy.animation;
+                         }))
+            result.push_back({enemy.animation, "oreling"});
+    return result;
+}
 /** Verify playback identity, loop boundaries, one-shot edges and invalid input atomicity. */
 void playerContracts() {
-    const AnimationSets sets = animationSets(metadata(), {{"oreling", "oreling"}}, defaultCatalog());
+    const AnimationSets sets = animationSets(metadata(), shared(), defaultCatalog());
     require(sets.error.empty() && sets.find("oreling"), "semantic profiles resolve from source metadata");
     const ActorAnimationSet clips = *sets.find("oreling");
     require(near(clips.move.duration, 1.5F) && near(clips.attack.duration, .4F) &&
@@ -104,8 +116,7 @@ void playerContracts() {
 }
 /** Protect state priority and resume the most recent locomotion after an attack. */
 void stateMachineContracts() {
-    const ActorAnimationSet clips =
-        *animationSets(metadata(), {{"oreling", "oreling"}}, defaultCatalog()).find("oreling");
+    const ActorAnimationSet clips = *animationSets(metadata(), shared(), defaultCatalog()).find("oreling");
     ActorAnimator actor(clips);
     require(actor.motion() == ActorMotion::Idle && actor.sample().frame == 0, "actors begin in an idle pose");
     actor.locomotion(true);
@@ -148,7 +159,7 @@ void lifecycleContracts() {
     run.startWave();
     scenario(run).deck[3].kind = CardKind::Blast;
     scenario(run).enemies.push_back({77, EnemyKind::Armored, {4, 3}, 0, 1});
-    const AnimationSets sets = animationSets(metadata(), {{"oreling", "oreling"}}, defaultCatalog());
+    const AnimationSets sets = animationSets(metadata(), shared(), defaultCatalog());
     ActorAnimations actors;
     actors.observe(run, {}, sets);
     actors.advance(.1F);
@@ -224,7 +235,7 @@ void combatEventContracts() {
     require(attacked && run.unit(80)->hp == 104,
             "one enemy attack fact accompanies already-committed damage");
     ActorAnimations actors;
-    actors.observe(run, events, animationSets(metadata(), {{"oreling", "oreling"}}, defaultCatalog()));
+    actors.observe(run, events, animationSets(metadata(), shared(), defaultCatalog()));
     require(actors.find(81)->animator.motion() == ActorMotion::Attack,
             "enemy attack facts drive the visual one-shot");
     actors.advance(.5F);
@@ -236,6 +247,8 @@ void bindingContracts() {
     AnimationAssets sources = metadata();
     sources.emplace("beetle-source", sources.at("oreling"));
     Catalog content = defaultCatalog();
+    for (EnemyDefinition &enemy : content.enemies)
+        enemy.animation = "oreling";
     content.enemies[0].animation = "crystal-beetle";
     const AnimationBindings bindings{{"oreling", "oreling"}, {"crystal-beetle", "beetle-source"}};
     const AnimationSets sets = animationSets(sources, bindings, content);

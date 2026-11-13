@@ -109,7 +109,7 @@ void practiceContracts() {
     require(app.run.upgrade(game::UpgradeKind::Tool).ok, "craft the real T2 upgrade");
     app.director.observe();
     require(app.state.play.tutorial.lesson == Lesson::Investment && app.run.state().iron == 0 &&
-                app.run.state().copper == 0 && app.run.catalog().mine[13].grade == 2,
+                app.run.state().copper == 0 && app.run.catalog().mine.cells[13].grade == 2,
             "paid crafting unlocks a genuinely T2 practice stratum");
     app.dig(13);
     require(app.state.play.tutorial.lesson == Lesson::Complete && app.state.app.tutorialCompleted &&

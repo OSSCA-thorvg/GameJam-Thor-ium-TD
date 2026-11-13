@@ -5,8 +5,10 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <memory>
+#include <sstream>
 #include <string>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -32,6 +34,24 @@ struct Desktop {
             SDL_DestroyWindow(window);
     }
 };
+/** One completed bench battle frame: live enemies and the measured CPU stages. */
+struct BenchFrame {
+    std::uint32_t enemies = 0;
+    thorium::engine::FrameTimings timings;
+};
+/** Bench battle frames not yet read by the browser; the oldest are overwritten after 4096 frames. */
+struct BenchRecorder {
+    std::array<BenchFrame, 4096> frames{};
+    std::size_t next = 0;
+    std::size_t count = 0;
+    /** Keep one frame without allocating. */
+    void record(const BenchFrame &frame) {
+        frames[next] = frame;
+        next = (next + 1) % frames.size();
+        count = std::min(count + 1, frames.size());
+    }
+};
+BenchRecorder benchRecorder;
 thorium::Application *diagnosticApp = nullptr;
 thorium::platform::AudioDevice *diagnosticAudio = nullptr;
 thorium::engine::FrameProfiler *diagnosticProfiler = nullptr;
@@ -59,6 +79,42 @@ extern "C" const char *thorium_debug_state() {
 extern "C" const char *thorium_debug_ui() {
     diagnosticBuffer = diagnosticApp ? diagnosticApp->debugUi() : "[]";
     return diagnosticBuffer.c_str();
+}
+
+/** Drain recorded bench battle frames as `enemies,total,simulation,presentation,scene,raster,upload,present,
+ * steps` lines; empty outside a bench session. */
+extern "C" const char *thorium_bench_frames() {
+    using thorium::engine::FrameStage;
+    std::ostringstream output;
+    for (std::size_t index = benchRecorder.count; index > 0; --index) {
+        const BenchFrame &frame =
+            benchRecorder.frames[(benchRecorder.next + benchRecorder.frames.size() - index) %
+                                 benchRecorder.frames.size()];
+        const thorium::engine::FrameTimings &timing = frame.timings;
+        output << frame.enemies << ',' << timing.totalMs << ',' << timing.stage(FrameStage::Simulation) << ','
+               << timing.stage(FrameStage::Presentation) << ',' << timing.stage(FrameStage::Scene) << ','
+               << timing.stage(FrameStage::Raster) << ',' << timing.stage(FrameStage::Upload) << ','
+               << timing.stage(FrameStage::Present) << ',' << timing.simulationSteps << '\n';
+    }
+    benchRecorder.count = 0;
+    diagnosticBuffer = output.str();
+    return diagnosticBuffer.c_str();
+}
+/** Collect the bench query from the page URL or from native `--key=value` arguments. */
+std::string benchQuery(int argc, char *argv[]) {
+#ifdef __EMSCRIPTEN__
+    static_cast<void>(argc);
+    static_cast<void>(argv);
+    return emscripten_run_script_string("location.search");
+#else
+    std::string query;
+    for (int index = 1; index < argc; ++index) {
+        const std::string argument = argv[index];
+        if (argument.rfind("--", 0) == 0 && argument.find('=') != std::string::npos)
+            query += argument.substr(2) + '&';
+    }
+    return query;
+#endif
 }
 
 /** Initialize the SDL adapter and the same engine/game application on each target. */
@@ -89,17 +145,19 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
         SDL_Log("Renderer: %s", state->video.error.c_str());
         return SDL_APP_FAILURE;
     }
-    thorium::game::RunCreation candidate = thorium::game::Run::create(thorium::game::defaultCatalog());
-    if (!candidate.run) {
-        SDL_Log("Content: %s", candidate.validation.summary().c_str());
-        return SDL_APP_FAILURE;
-    }
-    state->app = std::make_unique<thorium::Application>(std::move(*candidate.run));
+    state->app = std::make_unique<thorium::Application>();
     if (!state->app->error().empty()) {
-        SDL_Log("ThorVG: %s", state->app->error().c_str());
+        SDL_Log("Application: %s", state->app->error().c_str());
         return SDL_APP_FAILURE;
     }
     diagnosticApp = state->app.get();
+    // Measurement-only scene: opened only by an explicit bench query, never by saved progress.
+    if (const std::optional<thorium::BenchRequest> bench = thorium::parseBenchQuery(benchQuery(argc, argv))) {
+        if (!state->app->startBenchmark(*bench)) {
+            SDL_Log("Bench: %s", state->app->error().c_str());
+            return SDL_APP_FAILURE;
+        }
+    }
     if (!state->audio.open())
         SDL_Log("Audio unavailable: %s", state->audio.error.c_str());
     for (const std::string &error : state->app->audioAssetErrors())
@@ -136,6 +194,12 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
         int mapped = 0;
         if (key >= SDLK_1 && key <= SDLK_4)
             mapped = '1' + static_cast<int>(key - SDLK_1);
+        else if (key == SDLK_EQUALS || key == SDLK_PLUS || key == SDLK_KP_PLUS)
+            mapped = '+';
+        else if (key == SDLK_MINUS || key == SDLK_KP_MINUS)
+            mapped = '-';
+        else if (key == SDLK_0 || key == SDLK_KP_0)
+            mapped = '0';
         else if (key == SDLK_SPACE)
             mapped = ' ';
         else if (key == SDLK_TAB)
@@ -158,7 +222,12 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
     if (!state.video.convertEvent(logical))
         return SDL_APP_CONTINUE;
     using thorium::engine::PointerPhase;
-    if (logical.type == SDL_EVENT_MOUSE_BUTTON_DOWN || logical.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+    if (logical.type == SDL_EVENT_MOUSE_WHEEL) {
+        if (logical.wheel.which != SDL_TOUCH_MOUSEID)
+            state.app->wheel({logical.wheel.mouse_x, logical.wheel.mouse_y},
+                             logical.wheel.y *
+                                 (logical.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0F : 1.0F));
+    } else if (logical.type == SDL_EVENT_MOUSE_BUTTON_DOWN || logical.type == SDL_EVENT_MOUSE_BUTTON_UP) {
         if (logical.button.which == SDL_TOUCH_MOUSEID || logical.button.button != SDL_BUTTON_LEFT)
             return SDL_APP_CONTINUE;
         state.app->pointer(
@@ -232,6 +301,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
         SDL_Log("Invalid overlapping frame measurements");
         return SDL_APP_FAILURE;
     }
+    if (state.app->benchmark() && state.app->game().state().phase == thorium::game::Phase::Battle)
+        benchRecorder.record({static_cast<std::uint32_t>(state.app->game().state().enemies.size()), timings});
     if (state.smoke && ++state.frames >= 4) {
         SDL_Surface *surface = SDL_CreateSurfaceFrom(
             graphics.pixelWidth, graphics.pixelHeight, SDL_PIXELFORMAT_RGBA32,

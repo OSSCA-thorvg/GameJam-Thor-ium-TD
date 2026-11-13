@@ -28,7 +28,11 @@ async (page) => {
         for(let i=0;i<controls.length;++i)for(let j=i+1;j<controls.length;++j){/** @type {Widget} */ const a=controls[i],b=controls[j];check(a.x+a.w<=b.x+.5||b.x+b.w<=a.x+.5||a.y+a.h<=b.y+.5||b.y+b.h<=a.y+.5,`Front-end controls ${a.id}/${b.id} overlap`);}
     }
     /** Click a logical battlefield cell through the measured world transform. @param {number} x @param {number} y @returns {Promise<void>} */
-    async function cell(x,y){/** @type {Widget} */ const world=(await widgets()).find(item=>item.id===1);/** @type {number} */ const tile=Math.min((world.w-24)/18,(world.h-32)/10);await page.mouse.click(world.x+(world.w-tile*18)/2+(x+.5)*tile,world.y+(world.h-tile*10)/2+(y+.5)*tile);}
+    async function cell(x,y){
+        /** @type {{originX:number,originY:number,tile:number}} */
+        const field=await page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+        await page.mouse.click(field.originX+(x+.5)*field.tile,field.originY+(y+.5)*field.tile);
+    }
     /** Capture unexpected script failures. @param {Error} error @returns {void} */
     const onError=error=>errors.push(error.message);
     page.on('pageerror',onError);

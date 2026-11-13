@@ -23,6 +23,14 @@ struct RunState {
     int defeated = 0;
     bool armor = false;
     bool coil = false;
+    /** Relics in acquisition order; effects last until the run ends. */
+    std::vector<Relic> relics;
+    /** Energy added once to the start of the next battle by excavated energy veins and supply crates. */
+    int bonusEnergy = 0;
+    /** Miners hired in the current preparation; each adds one dig and raises the next price. */
+    int hires = 0;
+    /** Whether the current preparation's supply crate was bought. */
+    bool supplied = false;
     std::optional<CardOffer> recruitmentOffer;
     bool expansionPending = false;
     std::optional<CardOffer> rewardOffer;
@@ -30,16 +38,24 @@ struct RunState {
     float battleTime = 0.0F;
     float energyTime = 0.0F;
     int minerCell = 2;
+    int mineLayer = 0;
     MineJob job;
     std::array<Card, 8> deck{};
     std::array<int, 4> hand{};
     std::deque<int> queue;
-    std::array<MineCell, 30> mine{};
+    int mineWidth = 5;
+    int mineHeight = 6;
+    std::vector<MineCell> mine;
+    /** Excavate: buried objects of the active wall, referenced by `MineCell::deposit`. */
+    std::vector<Deposit> deposits;
     std::vector<Tower> towers;
     std::vector<Unit> units;
     std::vector<Enemy> enemies;
+    std::vector<GroundField> fields;
     std::vector<Point> route;
     std::vector<Point> pads;
     std::vector<Point> unitCells;
+    /** Building pads still blocked by a boulder; a cleared boulder moves to `pads`. */
+    std::vector<Point> boulders;
 };
 } // namespace thorium::game

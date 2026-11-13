@@ -75,6 +75,9 @@ class Ui {
     /** Activate the focused control without fabricating pointer events. */
     std::optional<Interaction> activate() const;
 
+    /** Read the topmost hit in the current frame, including disabled overlay occluders. */
+    const Widget *hit(ScreenPoint position) const;
+
   private:
     std::int64_t pointerId_ = 0;
     ScreenPoint origin_;
@@ -89,8 +92,6 @@ class Ui {
     WidgetId held_ = 0;
     float hoverTime_ = 0;
     float pressTime_ = 0;
-    /** Resolve the topmost hit, including disabled occluders. */
-    const Widget *hit(ScreenPoint position) const;
     /** Find a current registration by stable ID. */
     const Widget *find(WidgetId id) const;
     /** Release capture without discarding a completed inspect-only touch gesture. */

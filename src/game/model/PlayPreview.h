@@ -16,7 +16,9 @@ enum class PlayFailure {
     SlotsFull,
     OccupiedCell,
     OutsideBattlefield,
-    EnergyShortage
+    EnergyShortage,
+    /** The target is a building pad still blocked by a boulder. */
+    PadBlocked
 };
 /** Read-only answer for one target; callers must not treat this value as a commit token. */
 struct PlayPreview {

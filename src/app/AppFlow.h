@@ -4,6 +4,9 @@
 #include "game/presentation/Actions.h"
 
 namespace thorium {
+/** Author a campaign stage for a new expedition: the selected mining mode and a wall seed that differs for
+ * every expedition of the session. */
+game::Catalog expeditionContent(int stage, presentation::AppState &app);
 /** Explicit dispatch outcome; only a replaced run invalidates the fixed-step clock. */
 enum class FlowResult { Unhandled, Handled, Restarted };
 /** Handle navigation, preferences and new-run transitions; query simulation gates without a renderer. */
@@ -18,6 +21,8 @@ class AppFlow {
     FlowResult key(int key);
     /** Gate simulation consistently for menus, manual pause and destructive confirmations. */
     bool allowsSimulation() const;
+    /** Unlock and remember a won campaign immediately, independently of which result button is chosen. */
+    bool synchronizeProgress();
 
   private:
     game::Run &run;
@@ -27,6 +32,6 @@ class AppFlow {
     presentation::Soundscape &sound;
     FeedbackChannel &feedback;
     /** Replace run and disposable interaction state while preserving session preferences. */
-    void restart(int stageIndex = 0);
+    bool restart(int stageIndex = 0);
 };
 } // namespace thorium

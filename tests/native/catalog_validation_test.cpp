@@ -61,10 +61,13 @@ void rejectionContracts() {
     reject([](Catalog &data) -> void { data.balance.minerStep = 0; }, "balance.minerStep");
     reject([](Catalog &data) -> void { data.balance.initialEnergy = data.balance.energyCap + 1; },
            "balance.initialEnergy");
-    reject([](Catalog &data) -> void { data.mine[2].opened = false; }, "mine[2].opened");
-    reject([](Catalog &data) -> void { data.mine[29].opened = true; }, "mine[29].opened");
-    reject([](Catalog &data) -> void { data.mine[2].nest = true; }, "mine[2].nest");
-    reject([](Catalog &data) -> void { data.mine[6].grade = 3; }, "mine[6].grade");
+    reject([](Catalog &data) -> void { data.mine.cells[2].opened = false; }, "mine.cells[2].opened");
+    reject([](Catalog &data) -> void { data.mine.cells[29].opened = true; }, "mine.cells[29].opened");
+    reject([](Catalog &data) -> void { data.mine.cells[2].nest = true; }, "mine.cells[2].nest");
+    reject([](Catalog &data) -> void { data.mine.cells[6].grade = 3; }, "mine.cells[6].grade");
+    reject([](Catalog &data) -> void { data.mine.cells.pop_back(); }, "mine.cells");
+    reject([](Catalog &data) -> void { data.mine.width = 2; }, "mine.width");
+    reject([](Catalog &data) -> void { data.mine.start = 30; }, "mine.start");
     Catalog empty;
     RunCreation malformed = Run::create(empty);
     require(
@@ -76,17 +79,20 @@ void acceptanceContracts() {
     require(validateCatalog(defaultCatalog()).ok(),
             "all shipped definitions pass numeric and geometry validation");
     auto v1 = validateCatalog(stageCatalog(1));
-    if (!v1.ok()) std::cerr << "Stage 1 error: " << v1.summary() << '\n';
+    if (!v1.ok())
+        std::cerr << "Stage 1 error: " << v1.summary() << '\n';
     require(v1.ok(), "stage 1 catalog passes validation");
     auto v2 = validateCatalog(stageCatalog(2));
-    if (!v2.ok()) std::cerr << "Stage 2 error: " << v2.summary() << '\n';
+    if (!v2.ok())
+        std::cerr << "Stage 2 error: " << v2.summary() << '\n';
     require(v2.ok(), "stage 2 catalog passes validation");
     auto v3 = validateCatalog(stageCatalog(3));
-    if (!v3.ok()) std::cerr << "Stage 3 error: " << v3.summary() << '\n';
+    if (!v3.ok())
+        std::cerr << "Stage 3 error: " << v3.summary() << '\n';
     require(v3.ok(), "stage 3 catalog passes validation");
-    require(stageMetadata(1).wavesCount == 3, "stage 1 has 3 waves");
-    require(stageMetadata(2).wavesCount == 4, "stage 2 has 4 waves");
-    require(stageMetadata(3).wavesCount == 5, "stage 3 has 5 waves");
+    require(stageMetadata(1).wavesCount == 8, "stage 1 has 8 waves");
+    require(stageMetadata(2).wavesCount == 10, "stage 2 has 10 waves");
+    require(stageMetadata(3).wavesCount == 12, "stage 3 has 12 waves");
     Catalog authored = defaultCatalog();
     authored.enemies[0].speed = 0;
     authored.cards[0].cost = 0;

@@ -171,7 +171,8 @@ def build(target: str) -> None:
     build_dir: Path = ROOT / 'build' / target
     configure_meson: list[str] = ['meson', 'setup', str(build_dir), '--buildtype=release']
     if (build_dir / 'meson-private/coredata.dat').exists():
-        configure_meson.append('--reconfigure')
+        # A reconfigure keeps the subproject options of the first setup, so the loader list is passed again.
+        configure_meson.extend(['--reconfigure', '-Dthorvg:loaders=lottie,ttf,svg'])
     if target == 'web':
         configure_meson.extend(['--cross-file', str(ROOT / 'cross/wasm32.txt')])
     run(configure_meson, environment=environment)

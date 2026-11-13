@@ -100,7 +100,9 @@ void ActorAnimations::observe(const game::Run &run, const std::vector<game::Comb
         actor.position = enemy.position;
         actor.slowed = enemy.slowUntil > run.state().battleTime;
         actor.seen = true;
-        actor.animator.locomotion(run.state().phase == game::Phase::Battle && !enemy.blocker,
+        actor.affix = enemy.affix;
+        actor.animator.locomotion(run.state().phase == game::Phase::Battle && !enemy.blocker &&
+                                      !enemy.sabotage,
                                   actor.slowed ? run.catalog().balance.slowFactor : 1);
     }
     for (const game::CombatEvent &event : events) {
@@ -130,6 +132,7 @@ void ActorAnimations::observe(const game::Run &run, const std::vector<game::Comb
                         .first;
             }
             found->second.position = event.to;
+            found->second.affix = event.affix;
             found->second.animator.die();
             found->second.deathOrder = ++deathOrder_;
         }
@@ -185,6 +188,7 @@ std::string ActorAnimations::debugState() const {
             output << ',';
         const ActorVisual &actor = entry.second;
         output << "{\"id\":" << actor.id << ",\"kind\":" << static_cast<int>(actor.kind)
+               << ",\"affix\":" << static_cast<int>(actor.affix)
                << ",\"state\":" << static_cast<int>(actor.animator.motion())
                << ",\"phase\":" << actor.animator.loopPhase() << ",\"time\":" << actor.animator.elapsed()
                << ",\"frame\":" << actor.animator.sample().frame << ",\"x\":" << actor.position.x

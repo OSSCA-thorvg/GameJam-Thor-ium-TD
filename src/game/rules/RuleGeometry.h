@@ -5,24 +5,28 @@
 #include <optional>
 
 namespace thorium::game {
-/** Return four cardinal mine neighbors without wrapping board rows. */
-inline std::vector<int> neighbors(int index) {
+/** Return four cardinal neighbors of a row-major board without wrapping rows. */
+inline std::vector<int> neighbors(int index, int width, int height) {
     std::vector<int> result;
-    const int x = index % 5;
-    const int y = index / 5;
+    const int x = index % width;
+    const int y = index / width;
     if (x > 0)
         result.push_back(index - 1);
-    if (x < 4)
+    if (x < width - 1)
         result.push_back(index + 1);
     if (y > 0)
-        result.push_back(index - 5);
-    if (y < 5)
-        result.push_back(index + 5);
+        result.push_back(index - width);
+    if (y < height - 1)
+        result.push_back(index + width);
     return result;
 }
+/** Check whether two row-major cells are distinct and touch horizontally, vertically or diagonally. */
+inline bool surrounding(int a, int b, int width) {
+    return a != b && std::abs(a % width - b % width) <= 1 && std::abs(a / width - b / width) <= 1;
+}
 /** Convert a mine index into horizontal/depth coordinates. */
-inline Point minePoint(int index) {
-    return {static_cast<float>(index % 5), static_cast<float>(index / 5)};
+inline Point minePoint(int index, int width) {
+    return {static_cast<float>(index % width), static_cast<float>(index / width)};
 }
 /** Resolve a finite tolerant target to its authored center before occupancy, pricing or movement. */
 inline std::optional<Point> resolveCell(const std::vector<Point> &points, Point target) {

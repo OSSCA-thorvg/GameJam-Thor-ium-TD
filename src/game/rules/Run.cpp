@@ -1,5 +1,6 @@
 #include "Run.h"
 #include "RuleGeometry.h"
+#include "game/content/Excavation.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -58,8 +59,45 @@ Run::Run(Catalog catalog, Checked) : catalog_(std::move(catalog)) {
     state_.route = catalog_.route;
     state_.pads = catalog_.pads;
     state_.unitCells = catalog_.unitCells;
-    for (int index = 0; index < 30; ++index) {
-        const MineTileDefinition &tile = catalog_.mine[index];
+    state_.boulders = catalog_.boulders;
+    resolveTunnels();
+    initializeMine(catalog_.mine);
+}
+void Run::initializeMine(const MineLayerDefinition &layer) {
+    state_.deposits.clear();
+    if (catalog_.mining == MiningMode::Excavate) {
+        ExcavationWall wall = excavationWall(layer, catalog_.mineSeed);
+        state_.mineWidth = wall.width;
+        state_.mineHeight = wall.height;
+        state_.minerCell = layer.start;
+        state_.mine.assign(wall.cells.size(), MineCell{});
+        for (std::size_t index = 0; index < wall.cells.size(); ++index) {
+            MineCell &cell = state_.mine[index];
+            cell.cover = wall.cells[index].cover;
+            cell.grade = wall.cells[index].grade;
+            cell.deposit = wall.cells[index].deposit;
+            cell.info = wall.cells[index].revealed;
+            if (cell.deposit) {
+                const Deposit &deposit = wall.deposits[static_cast<std::size_t>(cell.deposit - 1)];
+                cell.ore = deposit.ore;
+                cell.amount = deposit.amount;
+                cell.nest = deposit.nest;
+                cell.special = deposit.special;
+                cell.relic = deposit.relic;
+                cell.card = deposit.card;
+            }
+        }
+        state_.deposits = std::move(wall.deposits);
+        return;
+    }
+    const std::vector<MineTileDefinition> &tiles = layer.cells;
+    const int count = static_cast<int>(tiles.size());
+    state_.mineWidth = layer.width;
+    state_.mineHeight = layer.height;
+    state_.mine.assign(tiles.size(), MineCell{});
+    state_.minerCell = layer.start;
+    for (int index = 0; index < count; ++index) {
+        const MineTileDefinition &tile = tiles[index];
         MineCell &cell = state_.mine[index];
         cell.ore = tile.ore;
         cell.amount = tile.amount;
@@ -68,9 +106,11 @@ Run::Run(Catalog catalog, Checked) : catalog_(std::move(catalog)) {
         cell.dug = tile.opened;
         cell.info = tile.opened || tile.revealed;
         cell.clueKnown = tile.opened;
-        for (int other = 0; other < 30; ++other)
-            if (other != index && catalog_.mine[other].nest && std::abs(index % 5 - other % 5) <= 1 &&
-                std::abs(index / 5 - other / 5) <= 1)
+        cell.special = tile.special;
+        cell.relic = tile.relic;
+        cell.card = tile.card;
+        for (int other = 0; other < count; ++other)
+            if (tiles[other].nest && surrounding(index, other, layer.width))
                 ++cell.clue;
     }
 }
@@ -129,9 +169,21 @@ std::string Run::debugState() const {
            << ",\"iron\":" << state_.iron << ",\"copper\":" << state_.copper
            << ",\"crystal\":" << state_.crystal << ",\"tool\":" << state_.tool << ",\"digs\":" << state_.digs
            << ",\"scans\":" << state_.scans << ",\"busy\":" << (state_.job.active ? "true" : "false")
-           << ",\"spawned\":" << state_.spawned << ",\"defeated\":" << state_.defeated
-           << ",\"nextExtra\":" << state_.nextExtra << ",\"branch\":" << state_.branch
-           << ",\"time\":" << state_.battleTime << ",\"hand\":[";
+           << ",\"mining\":" << static_cast<int>(catalog_.mining) << ",\"buried\":" << buriedDeposits()
+           << ",\"deposits\":" << state_.deposits.size() << ",\"spawned\":" << state_.spawned
+           << ",\"defeated\":" << state_.defeated << ",\"nextExtra\":" << state_.nextExtra
+           << ",\"branch\":" << state_.branch << ",\"time\":" << state_.battleTime
+           << ",\"bonusEnergy\":" << state_.bonusEnergy << ",\"hires\":" << state_.hires
+           << ",\"supplied\":" << (state_.supplied ? "true" : "false")
+           << ",\"boulders\":" << state_.boulders.size() << ",\"relics\":[";
+    for (std::size_t index = 0; index < state_.relics.size(); ++index)
+        output << (index ? "," : "") << static_cast<int>(state_.relics[index]);
+    output << "],\"buildings\":[";
+    for (std::size_t index = 0; index < state_.towers.size(); ++index)
+        output << (index ? "," : "") << "{\"id\":" << state_.towers[index].id
+               << ",\"kind\":" << static_cast<int>(state_.towers[index].kind)
+               << ",\"level\":" << state_.towers[index].level << '}';
+    output << "],\"hand\":[";
     for (int index = 0; index < 4; ++index) {
         if (index)
             output << ',';

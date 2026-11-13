@@ -47,7 +47,7 @@ void View::cardInspection(engine::Renderer &g, const engine::Ui &ui, const game:
         if (!card)
             return;
         kind = card->kind;
-    } else if (id >= CandidateBase && id < CandidateBase + 8)
+    } else if (id >= CandidateBase && id < CandidateBase + game::CardKindCount)
         kind = static_cast<game::CardKind>(id - CandidateBase);
     else
         return;
@@ -85,15 +85,16 @@ void View::cardOfferOverlay(engine::Renderer &g, engine::Ui &ui, const game::Run
     if (!active)
         return;
     if (replacement) {
-        const game::CardKind incoming = active->source == game::OfferSource::Expansion
-                                            ? active->candidates.front()
-                                            : state.play.candidate;
+        const bool reward = active->source != game::OfferSource::Recruitment;
+        const game::CardKind incoming = reward ? active->candidates.front() : state.play.candidate;
         offerCard_ = cardDetails(run.catalog(), incoming);
-        g.text(active->source == game::OfferSource::Expansion ? "새 카드 획득" : "모집 카드 확인",
+        g.text(active->source == game::OfferSource::Fossil ? "카드 화석 발견"
+               : reward                                    ? "새 카드 획득"
+                                                           : "모집 카드 확인",
                {x, box.y + 17}, 21, theme::gold, 0, w);
-        g.text(active->source == game::OfferSource::Expansion
-                   ? "기존 카드 1장과 교체 · 활성 덱 8장 유지"
-                   : "교체 확정 시 " + game::costLabel(active->cost) + " 사용 · 활성 덱 8장 유지",
+        g.text(active->source == game::OfferSource::Fossil ? "화석에서 나온 카드 · 기존 카드 1장과 무료 교체"
+               : reward ? "기존 카드 1장과 교체 · 활성 덱 8장 유지"
+                        : "교체 확정 시 " + game::costLabel(active->cost) + " 사용 · 활성 덱 8장 유지",
                {x, box.y + 47}, 11, theme::muted, 0, w);
         offerDetailsBounds_ = {box.x + 12, box.y + 70, box.w - 24, 150};
         cardDetailsPanel(g, run.catalog(), *offerCard_, offerDetailsBounds_, true);

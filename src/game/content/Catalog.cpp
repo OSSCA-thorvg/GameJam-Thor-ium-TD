@@ -3,6 +3,96 @@
 #include <cmath>
 
 namespace thorium::game {
+namespace {
+/** Create one enemy role with its common combat fields; special abilities are assigned afterwards. */
+EnemyDefinition role(const char *name, const char *animation, int hp, int armor, float speed, int attack,
+                     float interval, int leak) {
+    EnemyDefinition result;
+    result.name = name;
+    result.animation = animation;
+    result.hp = hp;
+    result.armor = armor;
+    result.speed = speed;
+    result.attack = attack;
+    result.interval = interval;
+    result.leak = leak;
+    return result;
+}
+/** Author every enemy role in EnemyKind order. */
+std::array<EnemyDefinition, EnemyKindCount> enemyRoster() {
+    std::array<EnemyDefinition, EnemyKindCount> roster{{
+        role("광석졸개", "oreling", 36, 0, 1, 8, 1, 1),
+        role("질주꾼", "dashling", 24, 0, 1.6F, 6, .8F, 1),
+        role("중장갑", "ironback", 100, 4, .65F, 16, 1.5F, 3),
+        role("자갈떼", "pebbling", 12, 0, 1.35F, 3, .6F, 1),
+        role("방패병", "shieldling", 60, 0, .8F, 10, 1.2F, 2),
+        role("치유사", "mender", 50, 0, .85F, 4, 1, 1),
+        role("분열체", "splitter", 70, 1, .8F, 10, 1.2F, 2),
+        role("굴착충", "burrower", 50, 1, 1, 8, 1, 2),
+        role("파쇄병", "sapper", 45, 0, 1.1F, 6, 1, 2),
+        role("광석 골렘", "golem", 900, 3, .36F, 30, 1.6F, 10),
+    }};
+    EnemyDefinition &shielded = roster[static_cast<std::size_t>(EnemyKind::Shielded)];
+    shielded.shield = 60;
+    shielded.shieldCap = 8;
+    EnemyDefinition &healer = roster[static_cast<std::size_t>(EnemyKind::Healer)];
+    healer.ability = EnemyAbility::Heal;
+    healer.abilityInterval = 2.5F;
+    healer.abilityRadius = 1.8F;
+    healer.abilityAmount = 10;
+    roster[static_cast<std::size_t>(EnemyKind::Splitter)].splitCount = 3;
+    EnemyDefinition &burrower = roster[static_cast<std::size_t>(EnemyKind::Burrower)];
+    burrower.ability = EnemyAbility::Burrow;
+    burrower.abilityInterval = 4;
+    burrower.abilityDuration = 1.6F;
+    burrower.abilitySpeed = 2;
+    EnemyDefinition &sapper = roster[static_cast<std::size_t>(EnemyKind::Sapper)];
+    sapper.ability = EnemyAbility::Sabotage;
+    sapper.abilityInterval = 1;
+    sapper.abilityRadius = 1.6F;
+    sapper.abilityAmount = 1;
+    sapper.abilityDuration = 6;
+    sapper.abilityWindup = 3;
+    EnemyDefinition &boss = roster[static_cast<std::size_t>(EnemyKind::Boss)];
+    boss.ability = EnemyAbility::Stomp;
+    boss.abilityInterval = 7;
+    boss.abilityRadius = 2.4F;
+    boss.abilityAmount = 2;
+    boss.abilityDuration = 1.5F;
+    return roster;
+}
+/** Create one elite modifier with its health multiplier and leak bonus; effects are assigned afterwards. */
+EliteDefinition elite(const char *name, float health, int leak) {
+    EliteDefinition result;
+    result.name = name;
+    result.health = health;
+    result.leak = leak;
+    return result;
+}
+} // namespace
+std::array<EliteDefinition, EliteAffixCount> eliteRoster() {
+    std::array<EliteDefinition, EliteAffixCount> roster{{
+        elite("", 1, 0),
+        elite("강철", 1.3F, 0),
+        elite("신속", 1.4F, 0),
+        elite("재생", 1.5F, 0),
+        elite("폭주", 1.5F, 0),
+        elite("우두머리", 5, 2),
+    }};
+    roster[static_cast<std::size_t>(EliteAffix::Steel)].armor = 2;
+    EliteDefinition &swift = roster[static_cast<std::size_t>(EliteAffix::Swift)];
+    swift.auraRadius = 1.8F;
+    swift.auraSpeed = 1.2F;
+    roster[static_cast<std::size_t>(EliteAffix::Regen)].regen = .04F;
+    EliteDefinition &enrage = roster[static_cast<std::size_t>(EliteAffix::Enrage)];
+    enrage.enrageBelow = .5F;
+    enrage.enrageSpeed = 1.6F;
+    EliteDefinition &leader = roster[static_cast<std::size_t>(EliteAffix::Leader)];
+    leader.speed = .9F;
+    leader.auraRadius = 2.2F;
+    leader.auraGuard = .35F;
+    return roster;
+}
 std::string costLabel(const ResourceCost &cost, bool compact) {
     const std::array<int, 4> amounts{{cost.iron, cost.copper, cost.crystal, cost.gold}};
     const std::array<const char *, 4> names = compact
@@ -33,14 +123,40 @@ bool Catalog::isUnit(CardKind kind) const {
 const EnemyDefinition &Catalog::enemy(EnemyKind kind) const {
     return enemies.at(static_cast<std::size_t>(kind));
 }
+const EliteDefinition &Catalog::elite(EliteAffix affix) const {
+    return elites.at(static_cast<std::size_t>(affix));
+}
+int Catalog::health(const Enemy &live) const {
+    if (live.maxHp > 0)
+        return live.maxHp;
+    return static_cast<int>(std::lround(enemy(live.kind).hp * elite(live.affix).health));
+}
+float Catalog::waveVigor(int wave) const {
+    return wave >= 1 && static_cast<std::size_t>(wave) <= vigor.size()
+               ? vigor[static_cast<std::size_t>(wave - 1)]
+               : 1.0F;
+}
+int Catalog::shield(const Enemy &live) const {
+    return live.maxShield > 0 ? live.maxShield : enemy(live.kind).shield;
+}
+int Catalog::armor(const Enemy &live) const {
+    return enemy(live.kind).armor + elite(live.affix).armor;
+}
 std::vector<Spawn> Catalog::schedule(int wave) const {
     std::vector<Spawn> result;
     for (const SpawnGroup &group : waves.at(static_cast<std::size_t>(wave - 1)))
         for (int index = 0; index < group.count; ++index)
-            result.push_back({group.start + index * group.interval, group.kind});
+            result.push_back({group.start + index * group.interval, group.kind, group.route, group.affix});
     std::stable_sort(result.begin(), result.end(),
                      [](const Spawn &a, const Spawn &b) { return a.time < b.time; });
     return result;
+}
+int Catalog::introductionWave(EnemyKind kind) const {
+    for (std::size_t wave = 0; wave < waves.size(); ++wave)
+        for (const SpawnGroup &group : waves[wave])
+            if (group.kind == kind && group.count > 0)
+                return static_cast<int>(wave + 1);
+    return 0;
 }
 const Catalog &defaultCatalog() {
     static const Catalog content{
@@ -51,14 +167,23 @@ const Catalog &defaultCatalog() {
           {"폭발", 3, CardCategory::Spell, 1.5F, 38},
           {"전격탑", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
           {"사수", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
-          {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1}}},
-        {{{36, 0, 1, 8, 1, 1}, {24, 0, 1.6F, 6, .8F, 1}, {100, 4, .65F, 16, 1.5F, 3}}},
+          {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1},
+          {"화염방사탑", 4, CardCategory::Building, 2.2F, 6, .25F, 0, 0, 0, 1, 0, 0, 35},
+          {"저격탑", 5, CardCategory::Building, 7, 70, 2.8F},
+          {"증폭 발전기", 3, CardCategory::Building, 2.3F, 0, 1, 0, 0, 0, 1, 0, 0, 0, .3F},
+          {"타르 웅덩이", 2, CardCategory::Spell, 1.8F, 0, 1, 0, 0, 0, 1, 0, 14}}},
+        enemyRoster(),
         {{CardKind::Gun, CardKind::Guard, CardKind::Cannon, CardKind::Frost, CardKind::Gun, CardKind::Guard,
           CardKind::Blast, CardKind::Gun}},
         {{4, 3}, {8, 3}, {8, 7}, {14, 7}, {14, 5}, {16, 5}},
         {{6, 4}, {9, 4}, {7, 6}, {10, 6}, {12, 8}, {15, 6}},
         {{8, 4}, {8, 6}, {10, 7}, {12, 7}, {14, 6}, {15, 5}, {9, 7}, {13, 7}},
-        {{{},
+        {"표층 갱도",
+         0,
+         5,
+         6,
+         2,
+         {{},
           {Ore::Rock, 0, 1, false, true},
           {Ore::Rock, 0, 1, false, true},
           {Ore::Rock, 0, 1, false, true},
@@ -101,156 +226,6 @@ const Catalog &defaultCatalog() {
     return content;
 }
 
-const Catalog &stage2Catalog() {
-    static const Catalog content{
-        {{{"연사탑", 3, CardCategory::Building, 3, 12, .75F},
-          {"포격탑", 4, CardCategory::Building, 3.5F, 26, 1.8F, 1.1F},
-          {"경비병", 3, CardCategory::Unit, 1.1F, 10, 1, 0, 120, 2},
-          {"서리", 2, CardCategory::Spell, 2, 0, 1, 0, 0, 0, 1, 0, 3},
-          {"폭발", 3, CardCategory::Spell, 1.5F, 38},
-          {"전격탑", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
-          {"사수", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
-          {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1}}},
-        {{{36, 0, 1, 8, 1, 1}, {24, 0, 1.6F, 6, .8F, 1}, {100, 4, .65F, 16, 1.5F, 3}}},
-        {{CardKind::Gun, CardKind::Guard, CardKind::Cannon, CardKind::Frost, CardKind::Gun, CardKind::Guard,
-          CardKind::Blast, CardKind::Gun}},
-        {{1, 2}, {7, 2}, {7, 5}, {3, 5}, {3, 8}, {12, 8}, {12, 4}, {17, 4}},
-        {{5, 3}, {8, 3}, {5, 6}, {2, 6}, {5, 7}, {9, 7}, {13, 6}, {14, 3}},
-        {{4, 2}, {7, 3}, {5, 5}, {3, 6}, {6, 8}, {10, 8}, {12, 6}, {15, 4}},
-        {{{Ore::Iron, 2},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Copper, 2},
-          {Ore::Iron, 2},
-          {Ore::Gold, 3},
-          {Ore::Iron, 2, 1, false, true},
-          {Ore::Crystal, 2},
-          {Ore::Copper, 2},
-          {Ore::Rock, 0, 2},
-          {Ore::Iron, 4, 1, true},
-          {Ore::Gold, 4},
-          {Ore::Copper, 4, 1, true},
-          {Ore::Rock, 0, 2},
-          {},
-          {Ore::Iron, 3},
-          {Ore::Crystal, 3, 2},
-          {Ore::Gold, 4},
-          {},
-          {},
-          {Ore::Gold, 6, 1, true},
-          {Ore::Crystal, 3},
-          {Ore::Gold, 4},
-          {},
-          {},
-          {Ore::Rock, 0, 2},
-          {Ore::Crystal, 4, 2},
-          {},
-          {}}},
-        {{{EnemyKind::Normal, 14, 3, 1.0F}, {EnemyKind::Runner, 6, 16.0F, 0.7F}},
-         {{EnemyKind::Normal, 18, 3, 0.8F},
-          {EnemyKind::Runner, 12, 15.0F, 0.6F},
-          {EnemyKind::Armored, 4, 22.0F, 1.8F}},
-         {{EnemyKind::Normal, 22, 3, 0.6F},
-          {EnemyKind::Runner, 16, 16.0F, 0.5F},
-          {EnemyKind::Armored, 8, 24.0F, 1.2F}},
-         {{EnemyKind::Normal, 28, 3, 0.5F},
-          {EnemyKind::Runner, 24, 15.0F, 0.4F},
-          {EnemyKind::Armored, 12, 22.0F, 1.0F}}},
-        {{{{{1, 0}, {1, 1}}, {{2, 1}, {3, 1}}, {{2, 0}}, CardKind::Blast},
-          {{{0, 2}}, {{0, 1}, {0, 3}}, {{0, 4}}, CardKind::Demolition}}},
-        {}};
-    return content;
-}
-
-const Catalog &stage3Catalog() {
-    static const Catalog content{
-        {{{"연사탑", 3, CardCategory::Building, 3, 12, .75F},
-          {"포격탑", 4, CardCategory::Building, 3.5F, 26, 1.8F, 1.1F},
-          {"경비병", 3, CardCategory::Unit, 1.1F, 10, 1, 0, 120, 2},
-          {"서리", 2, CardCategory::Spell, 2, 0, 1, 0, 0, 0, 1, 0, 3},
-          {"폭발", 3, CardCategory::Spell, 1.5F, 38},
-          {"전격탑", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
-          {"사수", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
-          {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1}}},
-        {{{36, 0, 1, 8, 1, 1}, {24, 0, 1.6F, 6, .8F, 1}, {100, 4, .65F, 16, 1.5F, 3}}},
-        {{CardKind::Gun, CardKind::Guard, CardKind::Cannon, CardKind::Frost, CardKind::Gun, CardKind::Guard,
-          CardKind::Blast, CardKind::Gun}},
-        {{2, 1}, {16, 1}, {16, 8}, {6, 8}, {6, 4}, {11, 4}},
-        {{8, 3}, {10, 3}, {8, 5}, {10, 5}, {5, 3}, {5, 5}, {14, 3}, {14, 6}, {11, 7}},
-        {{6, 1}, {12, 1}, {16, 4}, {16, 6}, {12, 8}, {8, 8}, {6, 6}, {7, 4}, {10, 4}},
-        {{{Ore::Iron, 2},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Crystal, 2},
-          {Ore::Iron, 2},
-          {Ore::Rock, 0, 2},
-          {Ore::Iron, 2, 1, false, true},
-          {Ore::Copper, 2, 1, false, true},
-          {Ore::Copper, 2},
-          {Ore::Rock, 0, 2},
-          {Ore::Gold, 3},
-          {Ore::Crystal, 3},
-          {Ore::Iron, 4, 1, true},
-          {Ore::Rock, 0, 2},
-          {Ore::Iron, 3},
-          {Ore::Gold, 4, 1, true},
-          {Ore::Crystal, 3, 2},
-          {Ore::Gold, 4},
-          {Ore::Rock, 0, 2},
-          {},
-          {Ore::Rock, 0, 2},
-          {Ore::Crystal, 4, 2},
-          {Ore::Gold, 6, 1, true},
-          {},
-          {},
-          {Ore::Rock, 0, 2},
-          {Ore::Crystal, 4, 2},
-          {},
-          {}}},
-        {{{EnemyKind::Normal, 16, 3, 0.9F}, {EnemyKind::Runner, 6, 17.0F, 0.7F}},
-         {{EnemyKind::Normal, 20, 3, 0.8F},
-          {EnemyKind::Runner, 10, 16.0F, 0.6F},
-          {EnemyKind::Armored, 6, 21.0F, 1.8F}},
-         {{EnemyKind::Normal, 24, 3, 0.6F},
-          {EnemyKind::Runner, 16, 16.0F, 0.5F},
-          {EnemyKind::Armored, 8, 23.0F, 1.4F}},
-         {{EnemyKind::Normal, 30, 3, 0.5F},
-          {EnemyKind::Runner, 20, 15.0F, 0.4F},
-          {EnemyKind::Armored, 12, 22.0F, 1.0F}},
-         {{EnemyKind::Normal, 36, 3, 0.4F},
-          {EnemyKind::Runner, 30, 14.0F, 0.35F},
-          {EnemyKind::Armored, 18, 20.0F, 0.9F}}},
-        {{{{{2, 3}, {2, 2}}, {{1, 2}, {3, 2}}, {{1, 3}}, CardKind::Lightning},
-          {{{0, 1}}, {{1, 0}, {1, 1}}, {{0, 2}}, CardKind::Frost}}},
-        {}};
-    return content;
-}
-
-const Catalog &stageCatalog(int stageIndex) {
-    switch (stageIndex) {
-    case 2:
-        return stage2Catalog();
-    case 3:
-        return stage3Catalog();
-    case 1:
-    default:
-        return defaultCatalog();
-    }
-}
-
-const StageMetadata &stageMetadata(int stageIndex) {
-    static const std::array<StageMetadata, 3> meta{{
-        {1, "표층 방어선", "제1 작전 구역 - 지상 초소",
-         "기본적인 S자 경로를 방어하며 자원 채굴과 타워 배치의 기초를 다집니다.", 3, 1},
-        {2, "흑요석 협곡", "제2 작전 구역 - 험준한 바위산",
-         "지그재그 협곡 통로로 고속 러너들이 쇄도합니다. 범위 공격과 길목 차단이 필수입니다.", 4, 2},
-        {3, "동토의 고대 갱도", "제3 작전 구역 - 영구동토 순환로",
-         "외곽을 순환하는 적들을 중앙 섬형 진지에서 요격하고, 심층 엘리트 공세를 저지하십시오.", 5, 3}}};
-    const int index = std::clamp(stageIndex, 1, TotalStages) - 1;
-    return meta[static_cast<std::size_t>(index)];
-}
 float distance(Point a, Point b) {
     return std::hypot(a.x - b.x, a.y - b.y);
 }

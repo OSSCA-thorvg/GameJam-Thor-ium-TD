@@ -1,4 +1,5 @@
 #include "Persistence.h"
+#include "game/content/Catalog.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -18,7 +19,8 @@ std::string serialize(const SaveData &data) {
        << ",\"reducedMotion\":" << (data.reducedMotion ? "true" : "false")
        << ",\"damageNumbers\":" << (data.damageNumbers ? "true" : "false")
        << ",\"cachedAnimations\":" << (data.cachedAnimations ? "true" : "false")
-       << ",\"volume\":" << data.volume << ",\"muted\":" << (data.muted ? "true" : "false") << "}";
+       << ",\"excavation\":" << (data.excavation ? "true" : "false") << ",\"volume\":" << data.volume
+       << ",\"muted\":" << (data.muted ? "true" : "false") << "}";
     return ss.str();
 }
 
@@ -65,10 +67,11 @@ SaveData deserialize(const std::string &json) {
     findBool("reducedMotion", data.reducedMotion);
     findBool("damageNumbers", data.damageNumbers);
     findBool("cachedAnimations", data.cachedAnimations);
+    findBool("excavation", data.excavation);
     findFloat("volume", data.volume);
     findBool("muted", data.muted);
 
-    data.highestUnlockedStage = std::clamp(data.highestUnlockedStage, 1, 3);
+    data.highestUnlockedStage = std::clamp(data.highestUnlockedStage, 1, game::TotalStages);
     data.volume = std::clamp(data.volume, 0.0F, 1.0F);
     return data;
 }
@@ -93,7 +96,8 @@ SaveData Persistence::load() {
     char *raw = reinterpret_cast<char *>(EM_ASM_INT({
         try {
             var val = localStorage.getItem("thorium_td_save");
-            if (!val) return 0;
+            if (!val)
+                return 0;
             var lengthBytes = lengthBytesUTF8(val) + 1;
             var stringOnWasmHeap = _malloc(lengthBytes);
             stringToUTF8(val, stringOnWasmHeap, lengthBytes);

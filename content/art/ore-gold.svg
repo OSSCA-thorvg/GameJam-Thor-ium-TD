@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<polygon points="10,34 14,22 26,16 36,22 38,34 28,44 16,44" fill="#7a5412"/>
+<polygon points="12.52,33.4343 15.8,23.5943 25.64,18.6743 33.84,23.5943 35.48,33.4343 27.28,41.6343 17.44,41.6343" fill="#f1c066"/>
+<polygon points="16.8,23.92 25.44,19.6 32.64,23.92 24,30.2971" fill="#fff0b8"/>
+<polygon points="34,44 40,34 52,32 58,42 54,54 42,56" fill="#7a5412"/>
+<polygon points="36.28,43.94 41.2,35.74 51.04,34.1 55.96,42.3 52.68,52.14 42.84,53.78" fill="#f1c066"/>
+<polygon points="41.8667,36.1467 50.5067,34.7067 54.8267,41.9067 46.6667,43.1067" fill="#fff0b8"/>
+<polygon points="40,22 46,12 56,16 56,26 48,30" fill="#7a5412"/>
+<polygon points="41.656,21.856 46.576,13.656 54.776,16.936 54.776,25.136 48.216,28.416" fill="#f1c066"/>
+<polygon points="42.576,21.216 46.896,14.016 54.096,16.896 49.2,20.64" fill="#fff0b8"/>
+<path d="M42 40L50 40M46 36L46 44" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+</svg>

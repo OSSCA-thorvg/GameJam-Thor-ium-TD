@@ -30,11 +30,10 @@ async (page) => {
         await page.mouse.click(widget.x + widget.w / 2, widget.y + widget.h / 2);
     }
     /** Target a surface cell using the measured world geometry. @param {number} x @param {number} y @returns {Promise<void>} */
-    async function cell(x, y) {
-        /** @type {Widget} */ const area = await page.evaluate(() => JSON.parse(Module.UTF8ToString(Module._thorium_debug_ui())).find(widget => widget.id === 1));
-        /** @type {number} */ const tile = Math.min((area.w - 24) / 18, (area.h - 32) / 10);
-        await page.mouse.click(area.x + (area.w - tile * 18) / 2 + (x + .5) * tile,
-                               area.y + (area.h - tile * 10) / 2 + (y + .5) * tile);
+    async function cell(x, y){
+        /** @type {{originX:number,originY:number,tile:number}} */
+        const field=await page.evaluate(()=>JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).field);
+        await page.mouse.click(field.originX+(x+.5)*field.tile,field.originY+(y+.5)*field.tile);
     }
     page.on('pageerror', onError);
     try {

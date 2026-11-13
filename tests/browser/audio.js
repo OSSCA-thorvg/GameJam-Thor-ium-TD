@@ -63,6 +63,12 @@ async (page) => {
         await page.waitForTimeout(250);
         check(await page.evaluate(time=>window.__thoriumAudioProbe.lastAudible===time,silence),'Mute must silence the actual output graph after the bounded queue drains');
         await click(page,34);await wait(page,'!s.audio.muted');
+        // Toggling speed plays the selection cue, so audible output resumes without waiting for combat.
+        // The cue's cooldown runs on the frame-advanced mixer clock, and unmuting plays the same cue, so each
+        // toggle waits for frames after the previous cue.
+        await page.waitForTimeout(120);
+        /** @type {number} */ const cues=(await state(page)).audio.played;
+        await click(page,12);await page.waitForTimeout(120);await click(page,12);await wait(page,`s.audio.played>=${cues+2}`);
         await page.waitForFunction(time=>window.__thoriumAudioProbe.lastAudible>time,silence);
         /** @type {number} */ const volume=(await state(page)).audio.volume;
         await click(page,35);await wait(page,`s.audio.volume!==${volume}`);check((await state(page)).audio.volume!==volume,'Volume control changes master gain');

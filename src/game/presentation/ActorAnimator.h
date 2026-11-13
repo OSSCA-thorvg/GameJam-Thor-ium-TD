@@ -54,6 +54,7 @@ struct ActorVisual {
     bool slowed = false;
     bool seen = false;
     std::uint64_t deathOrder = 0;
+    game::EliteAffix affix = game::EliteAffix::None;
 };
 /** Own live enemy animation instances and bounded visual-only death tails. */
 class ActorAnimations {

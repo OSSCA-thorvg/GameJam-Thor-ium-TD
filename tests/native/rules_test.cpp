@@ -228,6 +228,23 @@ void feedbackContracts() {
                      {CombatEventKind::Damage, 10, {}, {}, CardKind::Cannon, 26}});
     require(grouped.hits == 2 && grouped.cues.size() == 1 && grouped.cues.front().event.amount == 38,
             "simultaneous damage uses one legible total rather than overlapping labels");
+    grouped.advance(.1F, true);
+    grouped.advance(.1F, true);
+    grouped.consume({{CombatEventKind::Damage, 10, {}, {1, 2}, CardKind::Gun, 12},
+                     {CombatEventKind::Damage, 11, {}, {}, CardKind::Gun, 12}});
+    require(grouped.cues.size() == 2 && grouped.cues.front().event.amount == 50 &&
+                grouped.cues.front().age == 0 && grouped.cues.front().event.to.y == 2 &&
+                grouped.hitIntensity(10, true) == 1,
+            "a quick follow-up hit joins the target's running total, moves with it and flashes again");
+    for (int tick = 0; tick < 12; ++tick) {
+        grouped.advance(.1F, true);
+        if (tick % 3 == 2)
+            grouped.consume({{CombatEventKind::Damage, 10, {}, {}, CardKind::Gun, 12}});
+    }
+    require(std::count_if(
+                grouped.cues.begin(), grouped.cues.end(),
+                [](const thorium::presentation::CombatCue &cue) { return cue.event.subject == 10; }) == 2,
+            "a running total closes after its span so a long fight starts a fresh number");
     const int energy = scenario(run).energy;
     feedback.revealHand(run);
     require(feedback.cardBusy(0) && feedback.cards[0].outgoing.id == 0 && scenario(run).energy == energy,

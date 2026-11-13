@@ -1,6 +1,7 @@
 #include "Scenario.h"
 #include "app/AppFlow.h"
 #include "app/GameplayController.h"
+#include "game/presentation/AssetKeys.h"
 #include "game/presentation/CardPresentation.h"
 #include "game/presentation/CommandPolicy.h"
 #include "game/presentation/Theme.h"
@@ -41,7 +42,10 @@ struct Session {
     explicit Session(Catalog content = defaultCatalog()) : run(makeRun(std::move(content))) {
         const engine::AnimationInfo info{
             75, 2.5F, {{"idle", {0, 1}}, {"move", {0, 45}}, {"attack", {45, 57}}, {"death", {57, 75}}}};
-        state.app.animationSets = animationSets({{"oreling", info}}, {{"oreling", "oreling"}}, run.catalog());
+        AnimationBindings bindings;
+        for (const char *creature : assets::Creatures)
+            bindings.push_back({creature, "oreling"});
+        state.app.animationSets = animationSets({{"oreling", info}}, bindings, run.catalog());
         feedback.reset();
         layout.world = {0, 0, 400, 300};
         layout.tile = 10;
@@ -256,6 +260,63 @@ void gameplayContracts() {
                 !decodeInput({engine::Interaction::Kind::Click, 9, {}}),
             "unknown widget controls cannot become unchecked card enums");
 }
+/** A rejected drop releases its card, while a click-selected card stays armed for another target. */
+void rejectedDropContracts() {
+    Session session;
+    session.click(HomeNew);
+    session.click(Start);
+    scenario(session.run).energy = 0;
+    const engine::ScreenPoint pad = session.layout.screenPoint({6, 4});
+    const std::string before = session.run.debugState();
+    session.gameplay.act({InputKind::Hand, World, 1, engine::Interaction::Kind::Drop, pad});
+    require(session.run.debugState() == before && session.state.play.selectedCard == 0 &&
+                session.state.play.error && session.state.play.feedback.rejectedCard == 1,
+            "an unaffordable drop changes nothing, explains itself and leaves no card selected");
+    session.click(CardBase + 1);
+    session.click(World, pad);
+    require(session.run.debugState() == before && session.state.play.selectedCard == 1,
+            "a click-selected card survives a rejected target so its reason and exchange stay available");
+}
+/** A boulder is explained, selected and cleared through world taps and the inspector's control. */
+void boulderContracts() {
+    Catalog content = defaultCatalog();
+    content.boulders = {{11, 5}};
+    content.padTraits = {{{9, 4}, PadTrait::Crystal}};
+    Session session(content);
+    session.click(HomeNew);
+    const engine::ScreenPoint rock = session.layout.screenPoint({11, 5});
+    session.click(World, rock);
+    require(!session.state.play.selectedBoulder &&
+                session.state.play.toast.find("낙석 바위") != std::string::npos && !session.state.play.error,
+            "a boulder tapped outside preparation explains itself without a selection");
+    session.click(World, session.layout.screenPoint({9, 4}));
+    require(session.state.play.toast.find("결정 지반") != std::string::npos &&
+                session.state.play.toast.find("+20%") != std::string::npos,
+            "an empty trait pad names its bonus");
+    const Phase before = session.run.state().phase;
+    enterPreparation(session.run);
+    session.gameplay.synchronize(before);
+    session.click(Surface);
+    session.click(World, rock);
+    require(session.state.play.selectedBoulder &&
+                distance(*session.state.play.selectedBoulder, {11, 5}) == 0 &&
+                !session.state.play.selectedTower && !session.state.play.selectedUnit,
+            "a preparation tap selects the boulder");
+    session.click(ClearBoulder);
+    require(session.run.state().boulders.size() == 1 && session.state.play.error &&
+                session.state.play.selectedBoulder,
+            "an unaffordable clear explains itself and keeps the boulder selected");
+    scenario(session.run).iron = 3;
+    session.click(ClearBoulder);
+    require(session.run.state().boulders.empty() && session.run.state().iron == 0 &&
+                !session.state.play.selectedBoulder && !session.state.play.error,
+            "the clear control pays once and drops the selection");
+    scenario(session.run).iron = 3;
+    session.click(ClearBoulder);
+    require(session.run.state().iron == 3, "a clear command without a selected boulder does nothing");
+    session.click(World, rock);
+    require(!session.state.play.selectedBoulder, "the cleared tile is an ordinary pad");
+}
 /** Keep custom card categories authoritative through pointer transforms and visual vocabulary. */
 void customCategoryContracts() {
     Catalog content = defaultCatalog();
@@ -327,5 +388,7 @@ int main() {
     flowContracts();
     restartPolicyContracts();
     gameplayContracts();
+    rejectedDropContracts();
+    boulderContracts();
     std::cout << checks << " controller/content checks passed\n";
 }
