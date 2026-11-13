@@ -49,6 +49,71 @@ Application::Application() : Application(game::Run{}) {
     run = std::move(*initial.run);
     state.app.campaign = true;
     feedback.reset();
+    restoreRun();
+}
+void Application::restoreRun() {
+    const std::string text = Persistence::loadRun();
+    if (text.empty())
+        return;
+    // The first line names the stage, mining mode and wall seed the expedition was created with.
+    std::istringstream header(text.substr(0, text.find('\n')));
+    std::string tag;
+    int stage = 0, mining = -1;
+    long long seed = -1;
+    header >> tag >> stage >> mining >> seed;
+    const bool known = tag == "stage" && stage >= 1 &&
+                       stage <= std::min(game::TotalStages, state.app.highestUnlockedStage) &&
+                       (mining == 0 || mining == 1) && seed >= 0 && seed <= 0xffffffffLL &&
+                       text.find('\n') != std::string::npos;
+    if (known) {
+        game::Catalog content = game::stageCatalog(stage);
+        content.mining = static_cast<game::MiningMode>(mining);
+        content.mineSeed = static_cast<std::uint32_t>(seed);
+        game::RunCreation created = game::Run::create(std::move(content));
+        if (created.run) {
+            const game::Result restored = created.run->restore(text.substr(text.find('\n') + 1));
+            if (restored.ok) {
+                run = std::move(*created.run);
+                state.app.selectedStage = stage;
+                state.play = presentation::PlayState{};
+                state.play.currentStage = stage;
+                state.play.toast = restored.message;
+                state.app.navigation.resume();
+                feedback.reset();
+                savedRun_ = text;
+                savedPhase_ = run.state().phase;
+                return;
+            }
+        }
+    }
+    Persistence::clearRun();
+}
+void Application::syncRunSave(float elapsed, bool force) {
+    if (benchmark_ || !state.app.campaign || tutorial.active() || !state.app.navigation.hasRun())
+        return;
+    const game::Phase phase = run.state().phase;
+    if (phase == game::Phase::Won || phase == game::Phase::Lost) {
+        if (!savedRun_.empty()) {
+            Persistence::clearRun();
+            savedRun_.clear();
+        }
+        return;
+    }
+    runSaveTimer_ += std::isfinite(elapsed) ? std::max(0.0F, elapsed) : 0.0F;
+    if (!force && phase == savedPhase_ && runSaveTimer_ < .5F)
+        return;
+    runSaveTimer_ = 0;
+    savedPhase_ = phase;
+    const std::string body = run.snapshot();
+    if (body.empty())
+        return;
+    const std::string text = "stage " + std::to_string(state.play.currentStage) + " " +
+                             std::to_string(static_cast<int>(run.catalog().mining)) + " " +
+                             std::to_string(run.catalog().mineSeed) + "\n" + body;
+    if (text == savedRun_)
+        return;
+    Persistence::saveRun(text);
+    savedRun_ = text;
 }
 Application::Application(game::Run initialRun)
     : run(std::move(initialRun)), graphics(presentation::assets::renderAssets()), sound(audio),
@@ -116,6 +181,7 @@ bool Application::frame(int width, int height, float density, float elapsed) {
     tutorial.observe();
     if (flow.synchronizeProgress())
         savePersistence();
+    syncRunSave(elapsed);
     frameTimings_.add(FrameStage::Presentation, engine::frameMilliseconds(stage));
     if (state.app.preferences.cachedAnimations && !animationCachePrepared_) {
         stage = FrameClock::now();
@@ -328,6 +394,7 @@ void Application::suspend() {
     sound.cancelPending();
     accumulator_ = 0;
     savePersistence();
+    syncRunSave(0, true);
     if (run.state().phase == game::Phase::Battle || run.state().job.active)
         state.play.paused = true;
 }

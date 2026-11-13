@@ -76,7 +76,52 @@ SaveData deserialize(const std::string &json) {
     return data;
 }
 
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+/** Read one localStorage entry into an owned string; empty when missing or storage is unavailable. */
+std::string readStorage(const char *key) {
+    char *raw = reinterpret_cast<char *>(EM_ASM_INT(
+        {
+            try {
+                var val = localStorage.getItem(UTF8ToString($0));
+                if (!val)
+                    return 0;
+                var lengthBytes = lengthBytesUTF8(val) + 1;
+                var stringOnWasmHeap = _malloc(lengthBytes);
+                stringToUTF8(val, stringOnWasmHeap, lengthBytes);
+                return stringOnWasmHeap;
+            } catch (e) {
+                return 0;
+            }
+        },
+        key));
+    if (!raw)
+        return {};
+    std::string value(raw);
+    std::free(raw);
+    return value;
+}
+/** Write or, for an empty value, remove one localStorage entry; storage failures are ignored. */
+void writeStorage(const char *key, const std::string &value) {
+    EM_ASM(
+        {
+            try {
+                var key = UTF8ToString($0);
+                var str = UTF8ToString($1);
+                if (str.length)
+                    localStorage.setItem(key, str);
+                else
+                    localStorage.removeItem(key);
+            } catch (e) {
+            }
+        },
+        key, value.c_str());
+}
+#else
+/** Path of a save file in the home directory, or in the working directory without one. */
+std::string homeFile(const char *name) {
+    const char *home = std::getenv("HOME");
+    return home && home[0] ? std::string(home) + "/" + name : std::string(name);
+}
 const char *saveFilePath() {
     static std::string path;
     if (path.empty()) {
@@ -90,6 +135,40 @@ const char *saveFilePath() {
 }
 #endif
 } // namespace
+
+std::string Persistence::loadRun() {
+#ifdef __EMSCRIPTEN__
+    return readStorage("thorium_td_run");
+#else
+    FILE *f = std::fopen(homeFile(".thorium_td_run.txt").c_str(), "r");
+    if (!f)
+        return {};
+    std::string content;
+    char buffer[4096];
+    while (std::size_t bytes = std::fread(buffer, 1, sizeof(buffer), f))
+        content.append(buffer, bytes);
+    std::fclose(f);
+    return content;
+#endif
+}
+void Persistence::saveRun(const std::string &text) {
+#ifdef __EMSCRIPTEN__
+    writeStorage("thorium_td_run", text);
+#else
+    FILE *f = std::fopen(homeFile(".thorium_td_run.txt").c_str(), "w");
+    if (!f)
+        return;
+    std::fwrite(text.data(), 1, text.size(), f);
+    std::fclose(f);
+#endif
+}
+void Persistence::clearRun() {
+#ifdef __EMSCRIPTEN__
+    writeStorage("thorium_td_run", {});
+#else
+    std::remove(homeFile(".thorium_td_run.txt").c_str());
+#endif
+}
 
 SaveData Persistence::load() {
 #ifdef __EMSCRIPTEN__

@@ -6,7 +6,7 @@
  * @returns {Promise<{checks:string[],errors:string[]}>}
  */
 async (page) => {
-    /** @typedef {{screen:number,phase:number,width:number,digs:number,scans:number,mining:number,buried:number,deposits:number,mineView:boolean,towers:number,units:number,energy:number,iron:number,copper:number,crystal:number,gold:number,mine:{x:number,y:number,tile:number,columns:number,rows:number}}} GameState */
+    /** @typedef {{screen:number,phase:number,wave:number,hasRun:boolean,modal:number,width:number,digs:number,scans:number,mining:number,buried:number,deposits:number,mineView:boolean,towers:number,units:number,energy:number,iron:number,copper:number,crystal:number,gold:number,mine:{x:number,y:number,tile:number,columns:number,rows:number}}} GameState */
     /** @typedef {{id:number,x:number,y:number,w:number,h:number,enabled:boolean}} Widget */
     /** @typedef {{x:number,y:number}} Point */
     /** @type {string[]} */ const errors=[];
@@ -100,9 +100,23 @@ async (page) => {
         await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
         await page.waitForFunction(()=>(localStorage.getItem('thorium_td_save')||'').includes('"excavation":false'),null,{timeout:5000});
         await page.screenshot({path:'.playwright-mcp/thorium-settings-mining.png',scale:'css'});
-        await page.reload();await wait(page,'s.phase===0&&s.screen===0');
-        await click(page,36);await wait(page,'s.screen===1');
-        check((await state(page)).mining===0&&(await state(page)).buried===0,'The saved setting starts the next expedition as a tile-by-tile mine');
+        await page.reload();
+        // The preparation in progress is stored, so the title offers to continue the same wall.
+        await wait(page,'s.screen===0&&s.hasRun&&s.phase===2&&s.mining===1');
+        /** @type {GameState} */ const resumed=await state(page);
+        check(resumed.digs===worked.digs&&resumed.scans===worked.scans&&resumed.buried===worked.buried&&resumed.iron===worked.iron,
+              `A reload restores the preparation in progress: ${JSON.stringify({digs:resumed.digs,scans:resumed.scans,buried:resumed.buried})}`);
+        await click(page,37);await wait(page,'s.screen===1&&s.phase===2&&s.mineView===false');
+        await click(page,14);await wait(page,'s.mineView');
+        await page.screenshot({path:'.playwright-mcp/thorium-excavation-resumed.png',scale:'css'});
+        checks.push('a reload continues the stored preparation on the same wall');
+        await click(page,10);await wait(page,'s.phase===1&&s.wave===2');
+        await page.reload();
+        await wait(page,'s.screen===0&&s.hasRun&&s.phase===2&&s.wave===1');
+        checks.push('a reload during a battle continues from the preparation before it');
+        await click(page,36);await wait(page,'s.modal===4');await click(page,30);await wait(page,'s.screen===1');
+        check((await state(page)).mining===0&&(await state(page)).buried===0&&(await state(page)).wave===0,
+              'A confirmed new expedition replaces the stored one and uses the saved mining setting');
         checks.push('mining mode setting persists and applies to a new expedition');
 
         /** @type {import('playwright').BrowserContext} */ const context=await page.context().browser().newContext({viewport:{width:320,height:568},hasTouch:true,isMobile:true});

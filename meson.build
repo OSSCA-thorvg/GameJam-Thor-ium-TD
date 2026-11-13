@@ -16,7 +16,7 @@ endif
 inc = include_directories('src')
 profiling = static_library('thorium-profiling', 'src/engine/diagnostics/FrameProfiler.cpp', include_directories: inc)
 
-rules = static_library('thorium-rules', 'src/game/rules/Run.cpp', 'src/game/rules/Combat.cpp', 'src/game/rules/Cards.cpp', 'src/game/rules/Mining.cpp', 'src/game/rules/Progression.cpp', 'src/game/content/Catalog.cpp', 'src/game/content/StageCatalog.cpp', 'src/game/content/MineCatalog.cpp', 'src/game/content/Excavation.cpp', 'src/game/content/TutorialCatalog.cpp', 'src/game/content/CatalogValidation.cpp', include_directories: inc)
+rules = static_library('thorium-rules', 'src/game/rules/Run.cpp', 'src/game/rules/Combat.cpp', 'src/game/rules/Cards.cpp', 'src/game/rules/Mining.cpp', 'src/game/rules/Progression.cpp', 'src/game/rules/RunSnapshot.cpp', 'src/game/content/Catalog.cpp', 'src/game/content/StageCatalog.cpp', 'src/game/content/MineCatalog.cpp', 'src/game/content/Excavation.cpp', 'src/game/content/TutorialCatalog.cpp', 'src/game/content/CatalogValidation.cpp', include_directories: inc)
 animation = static_library('thorium-animation', 'src/engine/animation/Animation.cpp', include_directories: inc)
 ui = static_library('thorium-ui', 'src/engine/ui/Ui.cpp', include_directories: inc)
 soundscape = static_library('thorium-soundscape', 'src/game/presentation/Soundscape.cpp', include_directories: inc)
@@ -75,6 +75,8 @@ else
   test('campaign-real-cost-playthrough', playthrough_tests)
   mine_tests = executable('thorium-mine-content-tests', 'tests/native/mine_content_test.cpp', include_directories: inc, link_with: rules)
   test('mine-special-tiles', mine_tests)
+  snapshot_tests = executable('thorium-run-snapshot-tests', 'tests/native/run_snapshot_test.cpp', include_directories: inc, link_with: rules)
+  test('run-snapshot-and-restore', snapshot_tests, timeout: 120)
   excavation_tests = executable('thorium-excavation-tests', 'tests/native/excavation_test.cpp', include_directories: inc, link_with: rules)
   test('excavation-walls-and-strikes', excavation_tests)
   economy_tests = executable('thorium-economy-sink-tests', 'tests/native/economy_sinks_test.cpp', include_directories: inc, link_with: rules)

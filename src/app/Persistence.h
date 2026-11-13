@@ -23,5 +23,11 @@ class Persistence {
     static SaveData load();
     /** Persist the supplied settings and progress through the platform storage adapter. */
     static void save(const SaveData &data);
+    /** Read the stored in-progress expedition, or an empty string when there is none or storage fails. */
+    static std::string loadRun();
+    /** Store the in-progress expedition, replacing any earlier one. */
+    static void saveRun(const std::string &text);
+    /** Remove the stored in-progress expedition. */
+    static void clearRun();
 };
 } // namespace thorium

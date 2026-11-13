@@ -44,6 +44,7 @@ python3 -m http.server 8317 --bind 127.0.0.1 --directory dist
 | [현재 구현 아키텍처](docs/current-architecture.md) | 승인 후 적용한 엔진/콘텐츠/규칙/앱 경계·폴더·소유권·검증·후속 범위 |
 | [첫 구현 v0.1](docs/implementation-v0.1.md) | 실행·조작·구현 코드 경계·네이티브/웹 검증·후속 범위 |
 | [사운드·MP3 교체](docs/audio-system.md) | 임시 비프음·음소거/볼륨·23개 효과음 파일명·MP3 교체·오디오 테스트 |
+| [원정 저장](docs/expedition-save.md) | 웨이브 사이 자동 저장, 새로고침 뒤 계속하기, 저장 형식·검증·삭제 시점, 테스트 |
 | [메인·설정·플레이 방법](docs/front-end.md) | 시작 화면·원정 계속하기·음량/피드백 설정·메뉴 중 정지·탐색과 테스트 |
 | [개발 전 시작 계획](docs/preproduction-plan.md) | 조사 결과, 먼저 고를 규칙, 첫 범위와 구현 전 통과 조건 |
 | [규칙 선택지·답변란](docs/rule-options.md) | 규칙별 A/B/C·추천·영향·검증과 답변·상태, 미정 우선 질문 |

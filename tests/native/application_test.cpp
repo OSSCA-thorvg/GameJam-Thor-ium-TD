@@ -1,6 +1,7 @@
 #include "ApplicationScenario.h"
 #include "app/Application.h"
 #include "app/Persistence.h"
+#include "game/autoplay/Autoplayer.h"
 #include "game/presentation/Theme.h"
 #include <cmath>
 #include <cstdlib>
@@ -655,6 +656,60 @@ void campaignUiContracts() {
                 layout.surfacePoint(layout.screenPoint({20, 14}), true).x == 20,
             "enlarged field input and rendering use the same tile centers");
 }
+/** Store a campaign expedition between waves, continue it after a restart, and drop it once it ends or when
+ * the stored text does not match. */
+void runSaveContracts() {
+    Persistence::clearRun();
+    std::string played;
+    {
+        Application app;
+        require(app.debugState().find("\"hasRun\":false") != std::string::npos &&
+                    Persistence::loadRun().empty(),
+                "a first launch has nothing to continue");
+        app.act({engine::Interaction::Kind::Click, presentation::HomeNew, {}});
+        // Frames clamp their elapsed time to 0.1 s, so the half-second check needs six of them.
+        for (int frame = 0; frame < 6; ++frame)
+            require(app.frame(1200, 900, 1, .1F), "render a new expedition");
+        require(Persistence::loadRun().rfind("stage 1 ", 0) == 0,
+                "a new expedition is stored before its first wave");
+        game::Run &run = ApplicationTestAccess::run(app);
+        require(run.startWave().ok && app.frame(1200, 900, 1, 0), "start the first wave");
+        const std::string ready = Persistence::loadRun();
+        for (int step = 0; step < 6000 && run.state().phase == game::Phase::Battle; ++step) {
+            if (step % 5 == 0)
+                game::autoplay::playCard(run);
+            run.advance(.1F);
+        }
+        require(run.state().phase == game::Phase::Prep, "the first wave ends in preparation");
+        require(Persistence::loadRun() == ready, "a battle keeps the stored state from before the wave");
+        require(app.frame(1200, 900, 1, 0), "render preparation");
+        require(Persistence::loadRun() != ready && Persistence::loadRun().find("\n") != std::string::npos,
+                "entering preparation stores the expedition at once");
+        played = run.debugState();
+    }
+    {
+        Application app;
+        require(ApplicationTestAccess::run(app).debugState() == played &&
+                    app.debugState().find("\"hasRun\":true") != std::string::npos &&
+                    app.debugState().find("\"screen\":0") != std::string::npos,
+                "a restart opens the title with the stored expedition ready to continue");
+        app.act({engine::Interaction::Kind::Click, presentation::HomeContinue, {}});
+        require(app.frame(1200, 900, 1, 0) && app.debugState().find("\"screen\":1") != std::string::npos &&
+                    ApplicationTestAccess::run(app).state().phase == game::Phase::Prep,
+                "continue enters the restored preparation");
+        game::scenario(ApplicationTestAccess::run(app)).phase = game::Phase::Won;
+        require(app.frame(1200, 900, 1, 0) && Persistence::loadRun().empty(),
+                "an ended expedition is removed");
+    }
+    for (const char *stored :
+         {"stage 1 1 5\nTHORIUM-RUN 1 1 5 8 0 broken", "stage 4 1 5\nTHORIUM-RUN", "garbage"}) {
+        Persistence::saveRun(stored);
+        Application app;
+        require(app.debugState().find("\"hasRun\":false") != std::string::npos &&
+                    Persistence::loadRun().empty(),
+                "a damaged, locked or unknown stored expedition is discarded");
+    }
+}
 } // namespace
 /** Exercise composition, actual ThorVG UI pixels and timing boundaries without SDL. */
 int main() {
@@ -670,5 +725,7 @@ int main() {
     cardChargeContracts();
     designIntegrationContracts();
     tutorialApplicationContracts();
+    runSaveContracts();
+    Persistence::clearRun();
     std::cout << checks << " application integration checks passed\n";
 }

@@ -150,6 +150,14 @@ class Run {
     float ventCountdown(std::size_t vent) const;
     /** Check whether a position lies inside the blast radius of any lava vent. */
     bool ventThreatens(Point position) const;
+    /** Serialize everything a run keeps between waves, as text; empty during a battle, while the miner works
+     * and after the run has ended. Hidden mine contents are included, so the text is save data and never
+     * shown to the player. */
+    std::string snapshot() const;
+    /** Replace a new run's state with a snapshot taken from a run of the same catalog, mining mode and wall
+     * seed. Every count, enum, placement and identity is checked against the catalog first; a rejected
+     * snapshot leaves the run unchanged. */
+    Result restore(const std::string &snapshot);
     /** Expose a small debug snapshot, excluding hidden mine contents. */
     std::string debugState() const;
 

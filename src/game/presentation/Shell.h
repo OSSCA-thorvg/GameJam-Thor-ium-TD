@@ -48,6 +48,10 @@ class Navigation {
         hasRun_ = true;
         history_.clear();
     }
+    /** Offer an expedition restored from storage through Continue while the title stays open. */
+    void resume() {
+        hasRun_ = true;
+    }
     /** Return to title and preserve a living expedition only when requested. */
     void home(bool preserveRun = true) {
         current_ = Screen::Home;

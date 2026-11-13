@@ -78,6 +78,9 @@ class Application {
 
     /** Save persistent player settings and progression; a bench session never writes. */
     void savePersistence();
+    /** Store the campaign expedition between waves so a reload can continue it, and remove the stored copy
+     * once the expedition ends. Checks at most twice a second unless the phase changed or `force` is set. */
+    void syncRunSave(float elapsed, bool force = false);
     /** Open a measurement-only late battle in place of the title and disable saving for this session. */
     bool startBenchmark(const BenchRequest &request);
     /** Read the active bench request, if this session opened one. */
@@ -98,6 +101,13 @@ class Application {
     float accumulator_ = 0.0F;
     bool audioPaused_ = false;
     bool animationCachePrepared_ = false;
+    /** Last stored expedition text, the phase it was checked in and the time since the last check. */
+    std::string savedRun_;
+    game::Phase savedPhase_ = game::Phase::Ready;
+    float runSaveTimer_ = 0;
+    /** Continue a stored campaign expedition from the title when it still matches its stage content;
+     * otherwise discard it. */
+    void restoreRun();
     /** Lowers the render density while the measured CPU work of recent frames exceeds the frame budget. */
     engine::RenderScale renderScale_;
     std::optional<BenchRequest> benchmark_;
