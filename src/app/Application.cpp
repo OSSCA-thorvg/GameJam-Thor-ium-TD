@@ -134,6 +134,7 @@ Application::Application(game::Run initialRun)
     state.app.preferences.cachedAnimations = saved.cachedAnimations;
     state.app.preferences.excavation = saved.excavation;
     audio.settings.volume = saved.volume;
+    audio.settings.music = saved.music;
     audio.settings.muted = saved.muted;
 }
 bool Application::frame(int width, int height, float density, float elapsed) {
@@ -153,6 +154,7 @@ bool Application::frame(int width, int height, float density, float elapsed) {
     }
     audioPaused_ = stopAudio;
     sound.advance(elapsed);
+    audio.setBattle(run.state().phase == game::Phase::Battle);
     state.play.feedback.advance(elapsed, !stopAudio);
     frameTimings_.add(FrameStage::Presentation, engine::frameMilliseconds(stage));
     if (!stopAudio) {
@@ -361,6 +363,7 @@ void Application::savePersistence() {
     data.cachedAnimations = state.app.preferences.cachedAnimations;
     data.excavation = state.app.preferences.excavation;
     data.volume = audio.settings.volume;
+    data.music = audio.settings.music;
     data.muted = audio.settings.muted;
     Persistence::save(data);
 }

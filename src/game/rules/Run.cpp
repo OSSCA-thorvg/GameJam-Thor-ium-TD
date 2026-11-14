@@ -64,6 +64,17 @@ Run::Run(Catalog catalog, Checked) : catalog_(std::move(catalog)) {
     for (const ForkDefinition &fork : catalog_.forks)
         state_.detours.push_back(fork.startDetour ? 1 : 0);
     resolveTunnels();
+    if (catalog_.hero && !state_.unitCells.empty()) {
+        const Point post = routePoint(routeLength(0) * .85F, 0);
+        Point cell = state_.unitCells.front();
+        for (Point candidate : state_.unitCells)
+            if (distance(candidate, post) < distance(cell, post))
+                cell = candidate;
+        state_.heroCell = cell;
+        state_.units.push_back(
+            {nextEntity_++, CardKind::Guard, cell, catalog_.balance.heroHp, catalog_.balance.heroHp});
+        state_.units.back().hero = true;
+    }
     resetMachines();
     initializeMine(catalog_.mine);
 }
@@ -171,9 +182,9 @@ std::string Run::debugState() const {
     std::ostringstream output;
     output << "{\"phase\":" << static_cast<int>(state_.phase) << ",\"wave\":" << state_.wave
            << ",\"hp\":" << state_.baseHp << ",\"energy\":" << state_.energy
-           << ",\"towers\":" << state_.towers.size() << ",\"units\":" << state_.units.size()
-           << ",\"enemies\":" << state_.enemies.size() << ",\"gold\":" << state_.gold
-           << ",\"iron\":" << state_.iron << ",\"copper\":" << state_.copper
+           << ",\"towers\":" << state_.towers.size() << ",\"units\":" << squadSize()
+           << ",\"hero\":" << (hero() ? 1 : 0) << ",\"enemies\":" << state_.enemies.size()
+           << ",\"gold\":" << state_.gold << ",\"iron\":" << state_.iron << ",\"copper\":" << state_.copper
            << ",\"crystal\":" << state_.crystal << ",\"tool\":" << state_.tool << ",\"digs\":" << state_.digs
            << ",\"scans\":" << state_.scans << ",\"busy\":" << (state_.job.active ? "true" : "false")
            << ",\"mining\":" << static_cast<int>(catalog_.mining) << ",\"buried\":" << buriedDeposits()

@@ -253,6 +253,21 @@ struct RunBalance {
     int towerHp = 300;
     float towerLevelHp = .5F;
     float towerRepair = .6F;
+    /** Building durability one iron restores when repaired by hand during preparation. */
+    int repairHp = 50;
+    /** The hero: health, damage, reach, seconds between strikes, enemies held at once, seconds before a
+     *  fallen hero returns, seconds between moves during battle and share of health recovered per second
+     * while it holds no enemy. */
+    int heroHp = 260;
+    int heroDamage = 16;
+    float heroRange = 1.3F;
+    float heroInterval = .7F;
+    int heroBlockers = 3;
+    float heroRespawn = 12;
+    float heroMove = 8;
+    float heroRegen = .03F;
+    /** Durability of a fork's barricade in each battle; siege enemies can break it. */
+    int barricadeHp = 240;
     /** Share of maximum hit points an allied unit recovers per second while no enemy is held by it. */
     float unitRegen = .01F;
 };
@@ -301,6 +316,8 @@ struct Catalog {
     std::vector<RouteSpan> bogs;
     /** Barricaded forks, at most one per route. */
     std::vector<ForkDefinition> forks;
+    /** A hero stands on the unit cell nearest 85% of the primary route when the run starts. */
+    bool hero = false;
     /** Mine cart rails sent by hand during a battle. */
     std::vector<RailDefinition> rails;
     /** Gas tanks detonated by hand during a battle. */

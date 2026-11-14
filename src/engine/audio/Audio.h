@@ -12,6 +12,8 @@ using SoundId = std::uint16_t;
 struct AudioSettings {
     float volume = .45F;
     bool muted = false;
+    /** Music level relative to the master volume. */
+    float music = .7F;
 };
 /** Decoded, interleaved PCM; sound identity is independent of its file format. */
 struct AudioClip {
@@ -102,6 +104,12 @@ class AudioMixer {
     bool setMusic(std::unique_ptr<MusicStream> music, float gain);
     /** Read the installed music for diagnostics and tests. */
     const MusicStream *music() const;
+    /** Install an optional battle track at the music gain; it crossfades with the main track. */
+    bool setBattleMusic(std::unique_ptr<MusicStream> music);
+    /** Ask for the battle track while a battle runs; without one the main track keeps playing. */
+    void setBattle(bool battle);
+    /** Read the share of the battle track in the music, from 0 to 1. */
+    float battleBlend() const;
     /** Borrow an output capability whose lifetime must remain inside this mixer owner. */
     AudioOutput output();
     /** Read active population for device diagnostics and bounded-load tests. */
@@ -125,7 +133,10 @@ class AudioMixer {
     std::vector<Voice> voices_;
     double clock_ = 0;
     std::unique_ptr<MusicStream> music_;
+    std::unique_ptr<MusicStream> battleMusic_;
     float musicGain_ = 0;
+    bool battle_ = false;
+    float blend_ = 0;
     std::vector<float> musicBlock_;
 };
 } // namespace thorium::engine

@@ -63,6 +63,15 @@ void FeedbackChannel::collect() {
             state.play.error = false;
         }
     }
+    if (state.play.toastTime <= 0.0F && state.app.navigation.gameplay() && !state.play.hints.hero &&
+        run.hero() && run.state().phase == game::Phase::Battle) {
+        state.play.hints.hero = true;
+        state.play.toast = "왕관을 쓴 영웅이에요! 눌러서 전투 중에도 옮길 수 있고, 쓰러지면 " +
+                           std::to_string(static_cast<int>(run.catalog().balance.heroRespawn)) +
+                           "초 뒤 돌아와요.";
+        state.play.toastTime = 5.0F;
+        state.play.error = false;
+    }
     // The boulder hint stands apart from the chain above, which holds later hints back during preparation.
     if (state.play.toastTime <= 0.0F && state.app.navigation.gameplay() && !state.play.hints.boulder &&
         !run.state().boulders.empty() && run.boulderQuote(run.state().boulders.front()).allowed()) {

@@ -173,8 +173,10 @@ std::string roleSummary(const game::Catalog &catalog, game::EnemyKind kind) {
         return "날아와 길 중간에 " + catalog.enemy(role.minionKind).name + " " +
                std::to_string(role.abilityAmount) + "마리를 떨궈요 · 대공으로 먼저";
     case game::EnemyKind::Boss:
-        return "타워 기절 · " + catalog.enemy(role.minionKind).name + " 소환 · 기지 피해 " +
-               std::to_string(role.leak);
+        return (role.shield > 0 ? "보호막 " + std::to_string(role.shield) + " · " : std::string()) +
+               (role.armor > 3 ? "방어 " + std::to_string(role.armor) + " · " : std::string()) + "타워 " +
+               seconds(role.abilityDuration) + "초 기절 · " + catalog.enemy(role.minionKind).name + " " +
+               std::to_string(role.abilityAmount) + " 소환 · 기지 피해 " + std::to_string(role.leak);
     default:
         return "기본 적";
     }
@@ -385,6 +387,18 @@ void View::enemies(engine::Renderer &g, const game::Run &run, const State &state
         p.y -= hover(role, time, actor->id) * tile;
         if (enemy && actor->kind == game::EnemyKind::Boss) {
             const float pulse = .5F + .5F * std::sin(time * 3);
+            // The zone's golem glows in its biome's colour.
+            const game::StageBiome biome = state.app.campaign
+                                               ? game::stageMetadata(state.play.currentStage).biome
+                                               : game::StageBiome::Meadow;
+            const Color glow = biome == game::StageBiome::Obsidian  ? Color{150, 110, 220}
+                               : biome == game::StageBiome::Tundra  ? Color{150, 220, 255}
+                               : biome == game::StageBiome::Lava    ? Color{255, 120, 50}
+                               : biome == game::StageBiome::Core    ? Color{255, 220, 90}
+                               : biome == game::StageBiome::Crystal ? Color{120, 240, 230}
+                               : biome == game::StageBiome::Swamp   ? Color{150, 210, 90}
+                                                                    : Color{200, 170, 120};
+            g.circle({p.x, p.y - size * .1F}, size * .62F, fade(glow, .12F + .08F * pulse));
             ellipseOutline(g, {p.x, p.y + size * .28F}, size * .52F, size * .18F, std::max(2.0F, tile * .06F),
                            fade({214, 72, 52}, .45F + .35F * pulse));
             if (role.ability == game::EnemyAbility::Stomp && enemy->ability < 1.2F) {

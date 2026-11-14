@@ -328,7 +328,21 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
             graphics.circle(p, tile * .44F, {255, 226, 126, 220});
         const game::Point recoil =
             state.app.preferences.reducedMotion ? game::Point{} : state.play.feedback.recoil(unit.id);
+        if (unit.hero)
+            graphics.circle(p, tile * .4F, {255, 200, 80, 70});
         icon(graphics, run.catalog(), unit.kind, {p.x + recoil.x * tile, p.y + recoil.y * tile}, tile * .62F);
+        if (unit.hero) {
+            // A gold crown above the hero.
+            const float w = tile * .3F, base = p.y - tile * .52F;
+            graphics.polygon({{p.x - w / 2, base},
+                              {p.x - w / 2, base - tile * .14F},
+                              {p.x - w / 4, base - tile * .06F},
+                              {p.x, base - tile * .18F},
+                              {p.x + w / 4, base - tile * .06F},
+                              {p.x + w / 2, base - tile * .14F},
+                              {p.x + w / 2, base}},
+                             {255, 206, 72});
+        }
         const float hit =
             state.app.preferences.reducedMotion ? 0.0F : state.play.feedback.hitIntensity(unit.id, false);
         if (hit > 0)

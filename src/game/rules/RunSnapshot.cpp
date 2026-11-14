@@ -10,7 +10,7 @@ namespace thorium::game {
 namespace {
 /** First token of every snapshot; a different version is rejected rather than migrated. */
 constexpr const char *SnapshotTag = "THORIUM-RUN";
-constexpr int SnapshotVersion = 3;
+constexpr int SnapshotVersion = 4;
 /** Largest count of any stored list; longer lists mark a damaged snapshot. */
 constexpr int MaxItems = 4096;
 
@@ -197,10 +197,11 @@ std::string Run::snapshot() const {
         out << tower.id << tower.kind << tower.position << tower.level << tower.hp << tower.maxHp;
     out << static_cast<int>(state_.units.size());
     for (const Unit &unit : state_.units)
-        out << unit.id << unit.kind << unit.position << unit.hp << unit.maxHp;
+        out << unit.id << unit.kind << unit.position << unit.hp << unit.maxHp << unit.hero;
     writePoints(out, state_.pads);
     writePoints(out, state_.unitCells);
     writePoints(out, state_.boulders);
+    out << state_.heroCell;
     for (std::size_t fork = 0; fork < catalog_.forks.size(); ++fork)
         out << detoured(fork);
     out << nextEntity_ << nextCard_ << nextOffer_ << static_cast<int>(acquisitions_.size());
@@ -316,11 +317,13 @@ Result Run::restore(const std::string &text) {
         unit.position = in.point();
         unit.hp = in.integer(1, amount);
         unit.maxHp = in.integer(unit.hp, amount);
+        unit.hero = in.flag();
         unit.cooldown = 0;
     }
     next.pads = readPoints(in);
     next.unitCells = readPoints(in);
     next.boulders = readPoints(in);
+    next.heroCell = in.point();
     next.detours.assign(catalog_.forks.size(), 0);
     for (int &detour : next.detours)
         detour = in.flag() ? 1 : 0;

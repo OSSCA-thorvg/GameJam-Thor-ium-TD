@@ -354,7 +354,7 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
                                 "통째로 드러내면 얻어요."
                               : "갱도 탐사: 열린 갱도 옆을 한 칸씩 파고, 숫자로 주변 둥지 수를 읽어요.",
                    {x, box.y + 172}, compact ? 10 : 12, theme::text, 0, w);
-            g.text("새 원정부터 적용돼요. 연습 원정은 항상 갱도 탐사예요.", {x, box.y + 214},
+            g.text("새 원정부터 적용돼요. 연습 원정은 항상 암벽 발굴이에요.", {x, box.y + 214},
                    compact ? 10 : 12, theme::muted, 0, w);
         } else if (state.app.settingsTab == 0) {
             g.text("효과음", {x, box.y + 77}, compact ? 20 : 25, theme::gold);
@@ -368,11 +368,14 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
             g.rect({x, box.y + 199, w * audio.volume, 7}, audio.muted ? theme::muted : theme::gold, 3);
             button(g, ui, AudioDown, {x, box.y + 222, half, 38}, "-  작게", audio.volume > 0);
             button(g, ui, AudioUp, {x + half + 10, box.y + 222, half, 38}, "+  크게", audio.volume < 1);
-            button(g, ui, AudioTest, {x, box.y + 276, w, 40}, "효과음 미리 듣기",
+            g.text("음악", {x, box.y + 280}, 14, theme::text);
+            g.text(std::to_string(static_cast<int>(std::lround(audio.music * 100))) + "%",
+                   {x + w, box.y + 279}, 16, theme::gold, 1);
+            const float third = (w - 16) / 3;
+            button(g, ui, MusicDown, {x, box.y + 306, third, 36}, "-", audio.music > 0);
+            button(g, ui, MusicUp, {x + third + 8, box.y + 306, third, 36}, "+", audio.music < 1);
+            button(g, ui, AudioTest, {x + (third + 8) * 2, box.y + 306, third, 36}, "미리 듣기",
                    !audio.muted && audio.volume > 0, true);
-            g.text(audio.muted ? "음소거를 해제하면 미리 들을 수 있어요."
-                               : "설정은 새 원정에서도 유지됩니다.",
-                   {x, box.y + 333}, compact ? 10 : 12, theme::muted, 0, w);
         } else {
             g.text("전투 피드백", {x, box.y + 77}, compact ? 20 : 25, theme::gold);
             g.text("움직임 줄이기", {x, box.y + 124}, compact ? 13 : 16, theme::text);

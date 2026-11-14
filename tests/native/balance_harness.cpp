@@ -175,7 +175,7 @@ float laneReach(const Run &run, Point position, float range) {
     std::vector<bool> threatened(forecast.size(), false);
     for (const Enemy &enemy : run.state().enemies)
         if (enemy.progress > run.routeLength(enemy.route) * .7F)
-            threatened.at(enemy.route) = true;
+            threatened.at(run.laneOf(enemy.route)) = true;
     float score = 0;
     for (const LaneForecast &lane : forecast) {
         const float weight = (lane.count ? std::max(.6F, static_cast<float>(lane.count) / busiest) : .15F) *
@@ -630,7 +630,7 @@ StageResult simulate(Bot &bot, int stage, unsigned seed) {
             row.disabled += tower.disabled > 0 ? .1F : 0;
         std::vector<std::pair<EntityId, std::uint32_t>> lanes;
         for (const Enemy &enemy : run.state().enemies)
-            lanes.push_back({enemy.id, enemy.route});
+            lanes.push_back({enemy.id, run.laneOf(enemy.route)});
         run.advance(.1F);
         ++steps;
         for (const CombatEvent &event : run.takeCombatEvents()) {

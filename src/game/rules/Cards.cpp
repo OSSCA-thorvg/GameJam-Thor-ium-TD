@@ -99,7 +99,7 @@ Run::PlayPlan Run::planPlay(CardId id, Point target) const {
             return plan;
         }
         plan.target = *cell;
-        if (static_cast<int>(state_.units.size()) >= state_.slots) {
+        if (squadSize() >= state_.slots) {
             plan.preview.failure = PlayFailure::SlotsFull;
             return plan;
         }

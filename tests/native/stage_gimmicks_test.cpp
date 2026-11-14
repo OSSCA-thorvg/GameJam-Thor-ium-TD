@@ -573,6 +573,7 @@ void shipped() {
 
     /** An undefended first wave of stage 3 walks through the tunnel and leaks to the last enemy. */
     Run tundra = makeRun(stageCatalog(3));
+    scenario(tundra).units.clear();
     const std::vector<LaneForecast> forecast = tundra.laneForecast();
     require(tundra.startWave().ok, "the tunnel stage starts");
     const int scheduled = tundra.waveSpawnCount();

@@ -38,6 +38,13 @@ Result Run::startWave() {
 
 void Run::finishWave() {
     state_.fields.clear();
+    state_.heroMove = 0;
+    if (state_.heroDown > 0)
+        reviveHero();
+    for (Unit &ally : state_.units)
+        if (ally.hero)
+            ally.hp = ally.maxHp;
+    barricadeHp_.assign(catalog_.forks.size(), catalog_.balance.barricadeHp);
     if (state_.wave >= static_cast<int>(catalog_.waves.size())) {
         state_.phase = Phase::Won;
         return;
@@ -145,7 +152,7 @@ Result Run::upgrade(UpgradeKind kind) {
     case UpgradeKind::Armor:
         state_.armor = true;
         for (Unit &ally : state_.units)
-            if (ally.kind == CardKind::Guard)
+            if (ally.kind == CardKind::Guard && !ally.hero)
                 ally.maxHp = balance.armoredGuardHp;
         return {true,
                 "경비병 최대 체력 " + std::to_string(balance.armoredGuardHp) + " · 현재 체력은 유지돼요"};
@@ -218,6 +225,38 @@ Result Run::awaken(EntityId id) {
     return {false, "각성할 건물을 선택해 주세요"};
 }
 
+PurchaseQuote Run::repairQuote(EntityId id) const {
+    PurchaseQuote result;
+    const Tower *building = tower(id);
+    if (building && building->maxHp > building->hp)
+        result.cost.iron =
+            (building->maxHp - building->hp + catalog_.balance.repairHp - 1) / catalog_.balance.repairHp;
+    if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer) {
+        result.failure = PurchaseFailure::Closed;
+        result.message = "정비 중에 수리할 수 있어요";
+    } else if (!building) {
+        result.failure = PurchaseFailure::InvalidTarget;
+        result.message = "수리할 건물을 선택해 주세요";
+    } else if (building->hp >= building->maxHp) {
+        result.failure = PurchaseFailure::Owned;
+        result.message = "이미 내구도가 가득해요";
+    } else if (!canPay(result.cost)) {
+        result.failure = PurchaseFailure::Shortage;
+        result.message = costLabel(result.cost) + "가 필요해요";
+    } else
+        result.failure = PurchaseFailure::None;
+    return result;
+}
+Result Run::repair(EntityId id) {
+    const PurchaseQuote price = repairQuote(id);
+    if (!price.allowed())
+        return {false, price.message};
+    pay(price.cost);
+    for (Tower &item : state_.towers)
+        if (item.id == id)
+            item.hp = item.maxHp;
+    return {true, "건물을 수리했어요 · " + costLabel(price.cost)};
+}
 PurchaseQuote Run::boulderQuote(Point position) const {
     PurchaseQuote result;
     /** Record one rejection reason and return the finished quote. */
@@ -255,6 +294,8 @@ Result Run::heal(EntityId id) {
         return {false, "정비 중에 치료할 수 있어요"};
     for (Unit &ally : state_.units)
         if (ally.id == id) {
+            if (ally.hero)
+                return {false, "영웅은 웨이브를 막으면 체력이 가득 차요"};
             if (ally.hp == ally.maxHp)
                 return {false, "이미 체력이 가득해요"};
             if (!canPay(catalog_.balance.heal))

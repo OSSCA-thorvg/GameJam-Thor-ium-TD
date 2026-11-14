@@ -13,6 +13,7 @@ struct SaveData {
     bool cachedAnimations = presentation::Preferences{}.cachedAnimations;
     bool excavation = presentation::Preferences{}.excavation;
     float volume = engine::AudioSettings{}.volume;
+    float music = engine::AudioSettings{}.music;
     bool muted = engine::AudioSettings{}.muted;
 };
 

@@ -123,11 +123,19 @@ void AudioMixer::render(float *output, std::size_t frames) {
                                      return voice.cursor >= voice.clip->samples.size() / voice.clip->channels;
                                  }),
                   voices_.end());
-    if (music_) {
-        musicBlock_.resize(frames * Channels);
-        music_->read(musicBlock_.data(), frames, SampleRate);
+    // The battle track fades in and out over about a second, at the main track's gain.
+    const float target = battle_ && battleMusic_ ? 1.0F : 0.0F;
+    const float step = static_cast<float>(frames) / SampleRate;
+    blend_ = target > blend_ ? std::min(target, blend_ + step) : std::max(target, blend_ - step);
+    const float gain = musicGain_ * std::clamp(settings.music, 0.0F, 1.0F);
+    musicBlock_.resize(frames * Channels);
+    for (const std::pair<MusicStream *, float> &track :
+         {std::make_pair(music_.get(), 1 - blend_), std::make_pair(battleMusic_.get(), blend_)}) {
+        if (!track.first || track.second <= 0)
+            continue;
+        track.first->read(musicBlock_.data(), frames, SampleRate);
         for (std::size_t sample = 0; sample < frames * Channels; ++sample)
-            output[sample] += musicBlock_[sample] * musicGain_;
+            output[sample] += musicBlock_[sample] * gain * track.second;
     }
     const float volume = std::clamp(settings.volume, 0.0F, 1.0F);
     for (std::size_t sample = 0; sample < frames * Channels; ++sample)
@@ -146,6 +154,18 @@ bool AudioMixer::setMusic(std::unique_ptr<MusicStream> music, float gain) {
 }
 const MusicStream *AudioMixer::music() const {
     return music_.get();
+}
+bool AudioMixer::setBattleMusic(std::unique_ptr<MusicStream> music) {
+    if (!music || !music->loaded())
+        return false;
+    battleMusic_ = std::move(music);
+    return true;
+}
+void AudioMixer::setBattle(bool battle) {
+    battle_ = battle;
+}
+float AudioMixer::battleBlend() const {
+    return blend_;
 }
 std::size_t AudioMixer::activeVoices() const {
     return voices_.size();

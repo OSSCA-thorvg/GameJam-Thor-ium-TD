@@ -588,6 +588,20 @@ void View::machines(engine::Renderer &g, const game::Run &run, const State &stat
     const game::RunBalance &balance = run.catalog().balance;
     const bool battle = run.state().phase == game::Phase::Battle;
     const float time = state.app.preferences.reducedMotion ? 0 : state.play.visualTime;
+    // During battle an allied unit inside a ready gas tank's blast carries a red warning mark.
+    if (battle)
+        for (const game::Unit &unit : run.state().units)
+            for (std::size_t index = 0; index < run.catalog().tanks.size(); ++index)
+                if (run.tankReady(index) &&
+                    game::distance(unit.position, run.catalog().tanks[index].position) <=
+                        balance.tankRadius) {
+                    const ScreenPoint p = screenPoint(unit.position);
+                    const ScreenPoint mark{p.x + tile * .32F, p.y - tile * .42F};
+                    g.circle(mark, tile * .15F, {200, 40, 30, 230});
+                    g.text("!", {mark.x, mark.y - tile * .13F}, std::max(9.0F, tile * .24F), {255, 240, 220},
+                           .5F);
+                    break;
+                }
     // Barricades: timber crossbars on the closed branch; between waves a pulse marks both branch mouths as
     // tappable.
     const bool planning = run.state().phase == game::Phase::Prep || run.state().phase == game::Phase::Ready;
@@ -599,6 +613,24 @@ void View::machines(engine::Renderer &g, const game::Run &run, const State &stat
         const float across = tile * .42F;
         const ScreenPoint side{-dy * across, dx * across};
         g.circle(p, tile * .5F, {20, 16, 14, 90});
+        const int durability = run.barricadeHp(fork);
+        if (durability <= 0) {
+            // A broken barricade leaves splintered planks on the closed branch.
+            for (int plank = 0; plank < 3; ++plank) {
+                const float angle = plank * 2.1F + .4F;
+                const ScreenPoint at{p.x + std::cos(angle) * tile * .22F,
+                                     p.y + std::sin(angle) * tile * .22F};
+                g.line({{at.x - tile * .14F, at.y - tile * .04F}, {at.x + tile * .14F, at.y + tile * .04F}},
+                       std::max(2.0F, tile * .09F), {110, 80, 50});
+            }
+            continue;
+        }
+        if (durability < balance.barricadeHp) {
+            const float share = static_cast<float>(durability) / static_cast<float>(balance.barricadeHp);
+            g.rect({p.x - tile * .32F, p.y + tile * .42F, tile * .64F, tile * .09F}, {40, 30, 30, 210}, 2);
+            g.rect({p.x - tile * .32F, p.y + tile * .42F, tile * .64F * share, tile * .09F}, {240, 180, 90},
+                   2);
+        }
         for (float offset : {-.16F, .16F}) {
             const ScreenPoint shift{dx * tile * offset, dy * tile * offset};
             g.line({{p.x + shift.x - side.x, p.y + shift.y - side.y},
@@ -1047,9 +1079,23 @@ void View::minimap(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
     }
     for (const game::Tower &tower : run.state().towers)
         g.circle(layout.minimapScreen(tower.position), std::max(1.6F, box.w / width * .5F), theme::green);
+    // Enemy dots by role: flyers pale blue, a hidden stalker faint violet, the boss large, the rest red.
     const float dot = std::max(1.4F, box.w / width * .4F) * (wave > 0 ? 1.5F : 1.0F);
-    for (const game::Enemy &enemy : run.state().enemies)
-        g.circle(layout.minimapScreen(enemy.position), dot, {255, 86, 70});
+    for (const game::Enemy &enemy : run.state().enemies) {
+        const game::EnemyDefinition &role = run.catalog().enemy(enemy.kind);
+        const ScreenPoint at = layout.minimapScreen(enemy.position);
+        if (enemy.kind == game::EnemyKind::Boss) {
+            g.circle(at, dot * 2.4F, {60, 20, 16, 220});
+            g.circle(at, dot * 1.8F, {255, 120, 60});
+        } else if (role.flying)
+            g.polygon(
+                {{at.x, at.y - dot * 1.4F}, {at.x + dot * 1.3F, at.y + dot}, {at.x - dot * 1.3F, at.y + dot}},
+                {150, 210, 255});
+        else if (role.stealth > 0 && !run.revealed(enemy))
+            g.circle(at, dot, {170, 130, 220, 120});
+        else
+            g.circle(at, dot, {255, 86, 70});
+    }
     for (const game::LaneForecast &lane : forecast) {
         if (!lane.count)
             continue;

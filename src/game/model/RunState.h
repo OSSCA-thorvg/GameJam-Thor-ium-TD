@@ -53,6 +53,11 @@ struct RunState {
     std::vector<Enemy> enemies;
     std::vector<GroundField> fields;
     std::vector<Point> route;
+    /** Seconds until a fallen hero returns at heroCell, zero while it stands; seconds until it may move again
+     *  during battle. */
+    float heroDown = 0;
+    float heroMove = 0;
+    Point heroCell{};
     /** Per catalog fork, 1 while enemies take its detour and the barricade closes the authored branch. */
     std::vector<int> detours;
     std::vector<Point> pads;

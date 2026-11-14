@@ -144,7 +144,10 @@ void GameplayController::act(const GameInput &input) {
             return;
         }
         const game::Point target = layout.surfacePoint(input.position, true);
-        if (state.play.selectedUnit && state.play.movingUnit && run.state().phase == game::Phase::Prep) {
+        const game::Unit *mover = run.unit(state.play.selectedUnit);
+        if (mover && state.play.movingUnit &&
+            (run.state().phase == game::Phase::Prep ||
+             (mover->hero && run.state().phase == game::Phase::Battle))) {
             const game::Result result = run.moveUnit(state.play.selectedUnit, target);
             feedback.notify(result);
             if (result.ok)
@@ -237,6 +240,9 @@ void GameplayController::act(const GameInput &input) {
                             Sound::None);
         break;
     }
+    case Repair:
+        feedback.notify(run.repair(state.play.selectedTower), Sound::Upgrade);
+        break;
     case ClearBoulder: {
         if (!state.play.selectedBoulder)
             break;
@@ -404,12 +410,17 @@ void GameplayController::act(const GameInput &input) {
         state.play.movingUnit = false;
         state.play.modal = presentation::Modal::None;
         break;
-    case MoveUnit:
-        if (run.state().phase == game::Phase::Prep && run.unit(state.play.selectedUnit)) {
+    case MoveUnit: {
+        const game::Unit *selected = run.unit(state.play.selectedUnit);
+        const bool charge = selected && selected->hero && run.state().phase == game::Phase::Battle &&
+                            run.state().heroMove <= 0;
+        if (selected && (run.state().phase == game::Phase::Prep || charge)) {
             state.play.movingUnit = true;
-            feedback.notify({true, "이동할 배치 칸을 선택해 주세요. 점유 칸이면 자리를 교환해요"});
+            feedback.notify({true, charge ? "영웅이 달려갈 배치 칸을 선택해 주세요"
+                                          : "이동할 배치 칸을 선택해 주세요. 점유 칸이면 자리를 교환해요"});
         }
         break;
+    }
     case ClearSelection:
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;

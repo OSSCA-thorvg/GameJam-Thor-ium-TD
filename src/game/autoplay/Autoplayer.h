@@ -569,6 +569,9 @@ inline void prepare(Run &run, Ledger *ledger = nullptr) {
         mine(run, ledger);
     buy(run, ledger, Sink::Drill, UpgradeKind::Drill);
     clearBoulders(run);
+    for (const Tower &tower : std::vector<Tower>(run.state().towers))
+        if (tower.hp * 2 < tower.maxHp)
+            run.repair(tower.id);
     awaken(run, ledger);
     buy(run, ledger, Sink::Supply, UpgradeKind::Supply);
     for (const Unit &unit : std::vector<Unit>(run.state().units))

@@ -202,9 +202,47 @@ void campaignWaves(Catalog &content, int stage, int count) {
         role.shield = static_cast<int>(std::lround(role.shield * curve::Toughness[index]));
         role.speed *= curve::Haste[index];
     }
-    content.enemies[static_cast<std::size_t>(EnemyKind::Boss)].hp =
-        curve::BossBase + std::min(stage, curve::RampStages) * curve::BossPerStage +
-        std::max(0, stage - curve::RampStages) * curve::BossPastCore;
+    EnemyDefinition &boss = content.enemies[static_cast<std::size_t>(EnemyKind::Boss)];
+    boss.hp = curve::BossBase + std::min(stage, curve::RampStages) * curve::BossPerStage +
+              std::max(0, stage - curve::RampStages) * curve::BossPastCore;
+    // Each zone's golem has its own name: obsidian adds a shield, frost a wider and longer stun, lava armour
+    // and runners, the core armoured guards and the swamp a crowd of orelings.
+    switch (stage) {
+    case 2:
+        boss.name = "흑요석 골렘";
+        boss.shield = 200;
+        boss.shieldCap = 8;
+        break;
+    case 3:
+        boss.name = "동토 골렘";
+        boss.abilityRadius = 3;
+        boss.abilityDuration = 2.5F;
+        boss.minionKind = EnemyKind::Burrower;
+        break;
+    case 4:
+        boss.name = "용암 골렘";
+        boss.armor = 5;
+        boss.abilityInterval = 6;
+        boss.minionKind = EnemyKind::Runner;
+        boss.abilityAmount = 3;
+        break;
+    case 5:
+        boss.name = "토르륨 골렘";
+        boss.abilityRadius = 2.8F;
+        boss.abilityInterval = 8;
+        boss.minionKind = EnemyKind::Armored;
+        break;
+    case 6:
+        boss.name = "수정 골렘";
+        break;
+    case 7:
+        boss.name = "늪 골렘";
+        boss.minionKind = EnemyKind::Normal;
+        boss.abilityAmount = 3;
+        break;
+    default:
+        break;
+    }
     for (int wave = 1; wave <= count; ++wave) {
         if (stage == 1 && wave <= 2) {
             content.waves.push_back(introduction[static_cast<std::size_t>(wave - 1)]);
@@ -634,31 +672,39 @@ Catalog makeStage(int stage) {
     }
     if (stage > 1)
         content.unitCells.clear();
-    // From stage 2 the first entrance forks at the top of its long western descent: the detour runs three
-    // tiles further west and two pads reach only it.
+    // From stage 2 every stage has one barricaded fork with its own trade: a long western detour (2), a
+    // shortcut past the tunnel that starts closed (3), a bypass of two lava vents (4), a western detour
+    // around a tunnel (5) or a bog (7), and a bypass of the mine cart rail (6).
     struct Fork {
+        std::uint32_t route;
         Point split;
         Point merge;
-        std::array<Point, 2> pads;
+        std::vector<Point> detour;
+        std::vector<Point> pads;
     };
-    constexpr std::array<Fork, TotalStages> forks{{{},
-                                                   {{5, 8}, {5, 14}, {{{1, 10}, {1, 12}}}},
-                                                   {{6, 8}, {6, 17}, {{{2, 10}, {2, 14}}}},
-                                                   {{4, 7}, {4, 13}, {{{0, 9}, {0, 11}}}},
-                                                   {{4, 10}, {4, 20}, {{{0, 13}, {0, 17}}}},
-                                                   {{6, 11}, {6, 19}, {{{2, 13}, {2, 17}}}},
-                                                   {{5, 10}, {5, 21}, {{{1, 13}, {1, 18}}}}}};
+    const std::array<Fork, TotalStages> forks{{
+        {},
+        {0, {5, 8}, {5, 14}, {{2, 8}, {2, 14}}, {{1, 10}, {1, 12}}},
+        {0, {12, 8}, {17, 14}, {{12, 14}}, {}},
+        {1, {26, 5}, {34, 9}, {{34, 5}}, {{36, 7}}},
+        {0, {4, 10}, {4, 20}, {{1, 10}, {1, 20}}, {{0, 13}, {0, 17}}},
+        {0, {18, 16}, {33, 13}, {{33, 16}}, {}},
+        {0, {5, 10}, {5, 21}, {{2, 10}, {2, 21}}, {{1, 13}, {1, 18}}},
+    }};
     if (stage >= 2) {
         const Fork &fork = forks[static_cast<std::size_t>(stage - 1)];
-        const float west = fork.split.x - 3;
-        content.forks = {{0, fork.split, fork.merge, {{west, fork.split.y}, {west, fork.merge.y}}}};
+        content.forks = {{fork.route, fork.split, fork.merge, fork.detour}};
         content.pads.insert(content.pads.end(), fork.pads.begin(), fork.pads.end());
-        laneUnitCells(content, {fork.split, {west, fork.split.y}, {west, fork.merge.y}, fork.merge});
+        std::vector<Point> branch{fork.split};
+        branch.insert(branch.end(), fork.detour.begin(), fork.detour.end());
+        branch.push_back(fork.merge);
+        laneUnitCells(content, branch);
     }
     laneUnitCells(content, content.route);
     for (const EntranceRoute &entrance : content.additionalRoutes)
         laneUnitCells(content, entrance.points);
     clearTunnelCells(content);
+    content.hero = true;
     /** Campaign recruitment and slot prices; the practice board keeps the default balance. */
     content.balance.recruit = {0, 0, 0, curve::RecruitGold};
     content.balance.slots = {0, 0, 0, curve::SlotGold};

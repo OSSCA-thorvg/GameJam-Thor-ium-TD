@@ -305,6 +305,17 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             }
             g.text("-" + std::to_string(event.amount), {to.x, to.y - tile * (.7F + t * .35F)},
                    layout.compact ? 11 : 14, fade({255, 170, 120}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Breach) {
+            for (int plank = 0; plank < 6; ++plank) {
+                const float angle = plank * 1.047F + .3F;
+                const float reach = tile * (.2F + t * .9F);
+                const engine::ScreenPoint at{to.x + std::cos(angle) * reach,
+                                             to.y + std::sin(angle) * reach - tile * t * .3F};
+                g.line({{at.x - tile * .12F, at.y}, {at.x + tile * .12F, at.y + tile * .04F}},
+                       std::max(2.0F, tile * .08F), fade({150, 104, 58}, 1 - t));
+            }
+            g.text("바리케이드 파괴!", {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
+                   fade({255, 150, 120}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Airdrop) {
             for (int drop = 0; drop < event.amount; ++drop) {
                 const float spread = (static_cast<float>(drop) - (event.amount - 1) / 2.0F) * tile * .35F;

@@ -39,6 +39,7 @@ void Feedback::consume(const std::vector<game::CombatEvent> &events) {
         } else if (event.type == game::CombatEventKind::Stomp ||
                    event.type == game::CombatEventKind::Disable ||
                    event.type == game::CombatEventKind::Wreck ||
+                   event.type == game::CombatEventKind::Breach ||
                    (event.type == game::CombatEventKind::Defeated && event.enemy &&
                     event.enemyKind == game::EnemyKind::Boss)) {
             screenShake = std::max(screenShake, 0.3F);
@@ -73,6 +74,7 @@ void Feedback::consume(const std::vector<game::CombatEvent> &events) {
             : event.type == game::CombatEventKind::Detonation                                            ? .8F
             : event.type == game::CombatEventKind::Wreck    ? 1.0F
             : event.type == game::CombatEventKind::Airdrop  ? 1.0F
+            : event.type == game::CombatEventKind::Breach   ? 1.2F
             : event.type == game::CombatEventKind::Cart     ? 1.0F
             : event.type == game::CombatEventKind::Sabotage ? 1.0F
             : bossDefeat                                    ? 1.2F

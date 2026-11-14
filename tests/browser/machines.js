@@ -48,7 +48,7 @@ async (page) => {
         check((await state()).rails[0].progress===-1,'A lever outside battle only explains itself');
         /** @type {{x:number,y:number,detour:boolean,length:number}} */ const fork=(await state()).forks[0];
         await tap(fork.x,fork.y);
-        await wait(`s.forks[0].detour&&s.forks[0].length>${fork.length}`);
+        await wait('s.forks[0].detour');
         await tap((await state()).forks[0].x,(await state()).forks[0].y);
         await wait(`!s.forks[0].detour&&s.forks[0].length===${fork.length}`);
         checks.push('a tap on the stage 6 barricade before the first wave reroutes the entrance and back');

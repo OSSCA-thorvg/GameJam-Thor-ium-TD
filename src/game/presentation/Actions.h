@@ -83,8 +83,13 @@ enum Action : engine::WidgetId {
     ToggleIntro,
     /** Fold or unfold the overview inset on the battlefield. */
     ToggleMinimap,
+    /** Inspector command that repairs the selected building. */
+    Repair,
+    /** Settings steps of the music level. */
+    MusicDown,
+    MusicUp,
     /** Last control of the contiguous range decoded as a plain command. */
-    LastControl = ToggleMinimap,
+    LastControl = MusicUp,
     GuideBackdrop = 901,
     CardBase = 1000,
     DeckBase = 2000,

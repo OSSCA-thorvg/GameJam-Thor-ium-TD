@@ -118,6 +118,11 @@ FlowResult AppFlow::act(presentation::Action action) {
         audio.settings.volume = std::clamp(
             (std::round(audio.settings.volume * 20) + (action == AudioUp ? 1 : -1)) / 20, 0.0F, 1.0F);
         break;
+    case MusicDown:
+    case MusicUp:
+        audio.settings.music = std::clamp(
+            (std::round(audio.settings.music * 10) + (action == MusicUp ? 1 : -1)) / 10, 0.0F, 1.0F);
+        break;
     case AudioTest:
         sound.play(Sound::Reward);
         break;

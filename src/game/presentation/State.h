@@ -39,6 +39,8 @@ struct InGameHints {
     bool firstGold = false;
     /** Shown once the wallet first covers clearing a boulder. */
     bool boulder = false;
+    /** Shown in the first battle with a hero on the field. */
+    bool hero = false;
 };
 /** Disposable run interaction and animation state; contains no gameplay authority. */
 struct PlayState {

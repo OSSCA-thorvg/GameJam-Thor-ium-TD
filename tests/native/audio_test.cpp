@@ -139,7 +139,27 @@ void musicContracts(const std::string &fixtures) {
             "muted output carries no music");
 
     Soundscape none(mixer, fixtures);
-    require(!none.music, "a directory without bgm.mp3 adds no music");
+    require(!none.music && !none.battleMusic, "a directory without bgm.mp3 adds no music");
+
+    AudioMixer scenes;
+    std::unique_ptr<MusicStream> calm = std::make_unique<MusicStream>();
+    std::unique_ptr<MusicStream> battle = std::make_unique<MusicStream>();
+    require(calm->open(fixtures + "/card-use.mp3", error) &&
+                battle->open(fixtures + "/card-use.mp3", error) && scenes.setMusic(std::move(calm), .4F) &&
+                scenes.setBattleMusic(std::move(battle)),
+            "a battle track installs beside the main music");
+    std::vector<float> block(1024);
+    scenes.setBattle(true);
+    for (int step = 0; step < 120; ++step)
+        scenes.render(block.data(), 512);
+    require(scenes.battleBlend() == 1, "a battle fades fully into the battle track");
+    scenes.setBattle(false);
+    scenes.render(block.data(), 512);
+    require(scenes.battleBlend() > 0 && scenes.battleBlend() < 1, "leaving battle fades back gradually");
+    scenes.settings.music = 0;
+    scenes.render(block.data(), 512);
+    require(std::all_of(block.begin(), block.end(), [](float value) { return value == 0; }),
+            "a zero music level silences both tracks");
 }
 /** Check one-shot game routing, card arrival, pause cancellation and mass-hit suppression. */
 void routingContracts() {

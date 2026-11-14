@@ -20,7 +20,7 @@ std::string serialize(const SaveData &data) {
        << ",\"damageNumbers\":" << (data.damageNumbers ? "true" : "false")
        << ",\"cachedAnimations\":" << (data.cachedAnimations ? "true" : "false")
        << ",\"excavation\":" << (data.excavation ? "true" : "false") << ",\"volume\":" << data.volume
-       << ",\"muted\":" << (data.muted ? "true" : "false") << "}";
+       << ",\"music\":" << data.music << ",\"muted\":" << (data.muted ? "true" : "false") << "}";
     return ss.str();
 }
 
@@ -69,10 +69,12 @@ SaveData deserialize(const std::string &json) {
     findBool("cachedAnimations", data.cachedAnimations);
     findBool("excavation", data.excavation);
     findFloat("volume", data.volume);
+    findFloat("music", data.music);
     findBool("muted", data.muted);
 
     data.highestUnlockedStage = std::clamp(data.highestUnlockedStage, 1, game::TotalStages);
     data.volume = std::clamp(data.volume, 0.0F, 1.0F);
+    data.music = std::clamp(data.music, 0.0F, 1.0F);
     return data;
 }
 

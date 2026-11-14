@@ -516,8 +516,15 @@ void forks() {
     require(std::abs(run.routeLength() - 14) < .01F && distance(run.routePoint(9), {12, 4}) < .01F,
             "enemies now follow the detour");
     require(distance(run.barricade(0), {8, 4}) < .01F, "the barricade closes the authored branch");
-    require(run.bogs().size() == 1 && std::abs(run.bogs()[0].enter - 12.5F) < .01F,
+    std::vector<RouteSpan> primary;
+    for (const RouteSpan &span : run.bogs())
+        if (span.route == 0)
+            primary.push_back(span);
+    require(primary.size() == 1 && std::abs(primary[0].enter - 12.5F) < .01F,
             "a bog after the fork shifts and one inside its closed stretch lapses");
+    require(std::count_if(run.bogs().begin(), run.bogs().end(),
+                          [](const RouteSpan &span) { return span.route == 1; }) == 2,
+            "the closed authored branch keeps both bogs on its own route");
     const std::string text = run.snapshot();
     Run copy = makeRun(content);
     require(copy.restore(text).ok && copy.detoured(0) && copy.routeLength() == run.routeLength(),
@@ -568,6 +575,90 @@ void carriers() {
     require(drops == 1, "an empty carrier drops nothing more");
     require(stageCatalog(4).introductionWave(EnemyKind::Carrier) == 9, "carriers arrive in stage 4");
 }
+/** A siege enemy at a fork breaks its barricade; enemies short of the split then take the shorter branch. */
+void breaches() {
+    Catalog content = defaultCatalog();
+    content.forks = {{0, {8, 3}, {14, 5}, {{12, 3}, {12, 5}}}};
+    for (EnemyDefinition &definition : content.enemies)
+        definition.speed = 0;
+    Run run = battle(content);
+    const EnemyDefinition &wrecker = role(run, EnemyKind::Wrecker);
+    const int durability = run.catalog().balance.barricadeHp;
+    require(run.barricadeHp(0) == durability && run.routeLength(1) < run.routeLength(0),
+            "a full barricade closes the shorter detour, kept as route 1");
+    scenario(run).enemies.push_back(fixture(run, 730, EnemyKind::Wrecker, 4));
+    scenario(run).enemies.push_back(fixture(run, 731, EnemyKind::Normal, 1));
+    scenario(run).enemies.push_back(fixture(run, 732, EnemyKind::Normal, 7));
+    run.advance(.1F);
+    require(enemy(run, 730).sabotage == Run::BarricadeBase,
+            "a wrecker beside the split locks onto the barricade");
+    int breaches = 0;
+    for (int step = 0; step < 600 && run.barricadeHp(0) > 0; ++step) {
+        run.advance(.1F);
+        breaches += count(run.takeCombatEvents(), CombatEventKind::Breach);
+    }
+    require(run.barricadeHp(0) == 0 && breaches == 1, "strikes break the barricade once");
+    require(enemy(run, 731).route == 1 && run.laneOf(1) == 0,
+            "an enemy short of the split takes the shortcut");
+    require(enemy(run, 732).route == 0 && distance(enemy(run, 732).position, run.routePoint(7, 0)) < .01F,
+            "an enemy past the split keeps its branch and position");
+    require(enemy(run, 730).sabotage == 0, "the wrecker walks on");
+    (void)wrecker;
+}
+/** A damaged building is repaired to full during preparation for one iron per repairHp missing. */
+void repairs() {
+    Run run = makeRun(defaultCatalog());
+    Tower damaged = building(run, 540, CardKind::Gun, {6, 4});
+    damaged.hp = 30;
+    scenario(run).towers.push_back(damaged);
+    require(run.repairQuote(540).failure == PurchaseFailure::Closed, "repairs wait for preparation");
+    require(run.startWave().ok, "fixture battle starts");
+    for (int step = 0; step < 3000 && run.state().phase == Phase::Battle; ++step)
+        run.advance(.1F);
+    require(run.state().phase == Phase::Prep, "the fixture reaches preparation");
+    const int left = run.tower(540)->hp;
+    const int missing = run.tower(540)->maxHp - left;
+    const int iron = (missing + run.catalog().balance.repairHp - 1) / run.catalog().balance.repairHp;
+    require(missing > 0 && run.repairQuote(540).cost.iron == iron, "the price covers the missing durability");
+    scenario(run).iron = iron - 1;
+    require(!run.repair(540).ok && run.tower(540)->hp == left, "a short wallet repairs nothing");
+    scenario(run).iron = iron;
+    require(run.repair(540).ok && run.tower(540)->hp == run.tower(540)->maxHp && run.state().iron == 0,
+            "a repair restores full durability for its price");
+    require(run.repairQuote(540).failure == PurchaseFailure::Owned, "a full building needs no repair");
+}
+/** The stage hero takes no slot, moves during battle on a cooldown and returns after it falls. */
+void heroes() {
+    Run run = makeRun(stageCatalog(2));
+    const RunBalance &balance = run.catalog().balance;
+    const Unit *hero = run.hero();
+    require(hero && hero->hp == balance.heroHp && run.squadSize() == 0 &&
+                distance(hero->position, run.state().heroCell) < .01F,
+            "a campaign run starts with a slot-free hero");
+    require(!makeRun(defaultCatalog()).hero(), "the practice board has no hero");
+    const EntityId id = hero->id;
+    require(!run.dismiss(id).ok && !run.heal(id).ok, "the hero cannot be dismissed or paid to heal");
+    require(run.startWave().ok, "the hero's battle starts");
+    Point other = run.state().unitCells.front();
+    for (Point cell : run.state().unitCells)
+        if (distance(cell, hero->position) > 2) {
+            other = cell;
+            break;
+        }
+    require(run.moveUnit(id, other).ok && distance(run.unit(id)->position, other) < .01F,
+            "the hero moves during battle");
+    require(!run.moveUnit(id, run.state().heroCell).ok && run.state().heroMove > 0, "the next move waits");
+    for (Unit &ally : scenario(run).units)
+        if (ally.hero)
+            ally.hp = 0;
+    run.advance(.1F);
+    require(!run.hero() && run.state().heroDown > balance.heroRespawn - .2F,
+            "a fallen hero leaves the field");
+    for (int step = 0; step < static_cast<int>(balance.heroRespawn * 10) + 5; ++step)
+        run.advance(.1F);
+    require(run.hero() && run.hero()->hp == balance.heroHp && run.state().heroDown == 0,
+            "the hero returns at full health");
+}
 } // namespace
 
 int main() {
@@ -583,6 +674,9 @@ int main() {
     sieges();
     forks();
     carriers();
+    breaches();
+    repairs();
+    heroes();
     std::cout << "machines and roles: " << checks << " checks passed\n";
     return 0;
 }

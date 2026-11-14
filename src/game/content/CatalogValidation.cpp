@@ -172,6 +172,17 @@ void validateGimmicks(Validator &validator, const Catalog &catalog) {
     validator.number(balance.towerLevelHp, 0, 10, "balance.towerLevelHp");
     validator.number(balance.towerRepair, 0, 1, "balance.towerRepair");
     validator.number(balance.unitRegen, 0, 1, "balance.unitRegen");
+    validator.integer(balance.repairHp, 1, CatalogLimits::MaxAmount, "balance.repairHp");
+    validator.integer(balance.barricadeHp, 1, CatalogLimits::MaxAmount, "balance.barricadeHp");
+    validator.integer(balance.heroHp, 1, CatalogLimits::MaxAmount, "balance.heroHp");
+    validator.integer(balance.heroDamage, 0, CatalogLimits::MaxDamage, "balance.heroDamage");
+    validator.number(balance.heroRange, 0, 100, "balance.heroRange", true);
+    validator.number(balance.heroInterval, 0, 1000, "balance.heroInterval", true);
+    validator.integer(balance.heroBlockers, 0, 100, "balance.heroBlockers");
+    validator.number(balance.heroRespawn, 0, 1000, "balance.heroRespawn");
+    validator.number(balance.heroMove, 0, 1000, "balance.heroMove");
+    validator.number(balance.heroRegen, 0, 1, "balance.heroRegen");
+    validator.check(!catalog.hero || !catalog.unitCells.empty(), "hero", "a hero needs a unit cell");
     /** Check whether a point is one of the given placement tiles. */
     const auto among = [](const std::vector<Point> &points, Point point) -> bool {
         return std::any_of(points.begin(), points.end(),

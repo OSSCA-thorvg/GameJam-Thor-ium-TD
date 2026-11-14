@@ -152,6 +152,8 @@ struct Unit {
     float cooldown = 0.0F;
     /** Fraction of one hit point recovered but not yet applied. */
     float mending = 0.0F;
+    /** The stage's hero: free of slots, movable during battle and back after a delay when it falls. */
+    bool hero = false;
 };
 /** One enemy progressing along the current route in logical tile units. */
 struct Enemy {
@@ -217,7 +219,9 @@ enum class CombatEventKind {
     /** A building is destroyed: subject is the building, from and to are its position. */
     Wreck,
     /** A carrier drops its cargo: subject is the carrier, from is where it dropped, amount is the cargo. */
-    Airdrop
+    Airdrop,
+    /** A barricade breaks: subject is the fork's catalog index, from and to are the barricade. */
+    Breach
 };
 /** One immutable combat result, retained even when its subject was removed this tick. */
 struct CombatEvent {

@@ -231,11 +231,11 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         const std::array<std::string, 2> labels{
             {"거점 " + std::to_string(run.state().baseHp) + " / " +
                  std::to_string(run.catalog().balance.baseHp),
-             "부대 " + std::to_string(run.state().units.size()) + " / " + std::to_string(run.state().slots)}};
+             "부대 " + std::to_string(run.squadSize()) + " / " + std::to_string(run.state().slots)}};
         const std::array<Color, 2> colors{{theme::green, theme::gold}};
         const std::array<float, 2> values{
             {static_cast<float>(run.state().baseHp) / run.catalog().balance.baseHp,
-             static_cast<float>(run.state().units.size()) / run.state().slots}};
+             static_cast<float>(run.squadSize()) / run.state().slots}};
         for (int index = 0; index < (layout.denseMine ? 0 : 2); ++index) {
             g.text(labels[index], {24.0F + index * step, 57.0F}, 11, colors[index]);
             meter(g, {24.0F + index * step, 74.0F, width, 5.0F}, values[index], colors[index],
@@ -271,11 +271,10 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
         // Bold squadron shield
         drawShield(g, {unitSectionX + 16, 38}, 14.0F, theme::blue);
         g.text("출격 부대", {unitSectionX + 38, 21}, 11, theme::muted);
-        g.text(std::to_string(run.state().units.size()) + " / " + std::to_string(run.state().slots) + " 슬롯",
+        g.text(std::to_string(run.squadSize()) + " / " + std::to_string(run.state().slots) + " 슬롯",
                {unitSectionX + 38, 36}, 18, theme::text);
-        meter(g, {unitSectionX, 60, 150.0F, 7.0F},
-              static_cast<float>(run.state().units.size()) / run.state().slots, theme::gold,
-              run.state().slots);
+        meter(g, {unitSectionX, 60, 150.0F, 7.0F}, static_cast<float>(run.squadSize()) / run.state().slots,
+              theme::gold, run.state().slots);
 
         // Chunky arcade system buttons
         button(g, ui, AudioMute, {baseSectionX, 79, 78, 26}, audio.muted ? "소리 OFF" : "소리 ON");
@@ -358,7 +357,8 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
     const float titleY = area.y + 12;
     icon(g, run.catalog(), kind, {compact ? x + 20 : x + w / 2, compact ? titleY + 17 : titleY + 71},
          compact ? 32 : 76);
-    g.text(run.catalog().card(kind).name, {compact ? x + 49 : x, titleY}, compact ? 17 : 20, theme::text);
+    g.text(unit && unit->hero ? std::string("영웅 · 돌격대장") : run.catalog().card(kind).name,
+           {compact ? x + 49 : x, titleY}, compact ? 17 : 20, unit && unit->hero ? theme::gold : theme::text);
     if (tower) {
         const bool awakened = tower->level > game::CardMaxLevel;
         g.text(awakened
@@ -398,7 +398,20 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
     }
     float y = area.y + (dense ? 47.0F : compact ? 94.0F : 191.0F);
     const float buttonHeight = dense ? 32.0F : 40.0F;
-    if (prep && unit) {
+    if (unit && unit->hero && !prep && run.state().phase == game::Phase::Battle) {
+        // The hero moves during battle on a cooldown.
+        const float wait = run.state().heroMove;
+        button(g, ui, MoveUnit, {x, y, w, buttonHeight},
+               state.play.movingUnit ? "이동 칸 선택 중"
+               : wait > 0            ? "돌격 " + std::to_string(static_cast<int>(std::ceil(wait))) + "초"
+                                     : "돌격 이동",
+               wait <= 0, state.play.movingUnit);
+        y += buttonHeight + 8;
+    } else if (prep && unit && unit->hero) {
+        button(g, ui, MoveUnit, {x, y, w, buttonHeight},
+               state.play.movingUnit ? "이동 칸 선택 중" : "위치 이동", true, state.play.movingUnit);
+        y += buttonHeight + 8;
+    } else if (prep && unit) {
         const float half = (w - 8) / 2;
         button(g, ui, MoveUnit, {x, y, half, buttonHeight},
                state.play.movingUnit ? "이동 칸 선택 중" : "위치 이동", true, state.play.movingUnit);
@@ -412,11 +425,20 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
                                   : price.failure == game::PurchaseFailure::Owned
                                       ? "최고 각성 단계"
                                       : "Lv" + std::to_string(game::CardMaxLevel) + "부터 각성 가능";
-        button(g, ui, Awaken, {x, y, w, buttonHeight}, label, price.open(), price.allowed());
+        const game::PurchaseQuote repair = run.repairQuote(tower->id);
+        if (repair.failure == game::PurchaseFailure::Owned)
+            button(g, ui, Awaken, {x, y, w, buttonHeight}, label, price.open(), price.allowed());
+        else {
+            const float half = (w - 8) / 2;
+            button(g, ui, Awaken, {x, y, half, buttonHeight}, label, price.open(), price.allowed());
+            button(g, ui, Repair, {x + half + 8, y, half, buttonHeight},
+                   "수리 · " + game::costLabel(repair.cost), repair.open(), repair.allowed());
+        }
         y += buttonHeight + 8;
     }
     const float half = (w - 8) / 2;
-    button(g, ui, Dismiss, {x, y, half, buttonHeight}, tower ? "건물 철거" : "부대 퇴각", true, false, true);
+    button(g, ui, Dismiss, {x, y, half, buttonHeight}, tower ? "건물 철거" : "부대 퇴각",
+           !(unit && unit->hero), false, true);
     button(g, ui, ClearSelection, {x + half + 8, y, half, buttonHeight}, "선택 해제");
     if (!compact) {
         g.text("철수 비용 환급 없음", {x, y + 62}, 11, theme::muted);
@@ -557,7 +579,7 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
                            std::to_string(run.catalog().balance.baseHp),
                        {x + w - 14, hubBox.y + 36}, 11, theme::green, 1);
                 g.text("출격 부대", {x + 14, hubBox.y + 56}, 11, theme::muted);
-                g.text(std::to_string(run.state().units.size()) + " / " + std::to_string(run.state().slots),
+                g.text(std::to_string(run.squadSize()) + " / " + std::to_string(run.state().slots),
                        {x + w - 14, hubBox.y + 56}, 11, theme::text, 1);
                 g.line({{x + 12, hubBox.y + 76}, {x + w - 12, hubBox.y + 76}}, 1, {36, 56, 68});
                 g.text("확대 + · 빈 전장 끌어 이동", {x + w / 2, hubBox.y + 86}, 11, theme::text, 0.5F);

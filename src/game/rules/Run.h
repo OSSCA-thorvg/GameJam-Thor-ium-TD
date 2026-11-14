@@ -123,6 +123,16 @@ class Run {
     std::vector<Point> forkBranch(std::size_t fork, bool detour) const;
     /** Read where a fork's barricade stands: one tile into the closed branch. */
     Point barricade(std::size_t fork) const;
+    /** Target identity of a fork's barricade for siege enemies, above every entity identity. */
+    static constexpr EntityId BarricadeBase = 0xFFFF0000U;
+    /** Read a barricade's durability in this battle; zero once it is broken. */
+    int barricadeHp(std::size_t fork) const;
+    /** Read the units that take battlefield slots: every unit but the hero. */
+    int squadSize() const;
+    /** Read the hero, or nullptr while it is fallen or the stage has none. */
+    const Unit *hero() const;
+    /** Read the entrance a route belongs to: a route past the entrances is a fork's other branch. */
+    std::uint32_t laneOf(std::uint32_t route) const;
     /** Read the exact current or next scheduled entrance pressure before committing a wave. */
     std::vector<LaneForecast> laneForecast() const;
     /** Read seconds until the next not-yet-spawned scheduled enemy of a kind, or -1 when none remains. */
@@ -179,6 +189,11 @@ class Run {
     float padDamage(Point position) const;
     /** Price and check clearing the boulder at a position, without paying or changing any state. */
     PurchaseQuote boulderQuote(Point position) const;
+    /** Quote restoring a damaged building to full durability during preparation: one iron per
+     *  RunBalance::repairHp missing, rounded up. */
+    PurchaseQuote repairQuote(EntityId tower) const;
+    /** Pay a repair quote and restore the building. */
+    Result repair(EntityId tower);
     /** Pay in preparation to clear the boulder at a position; its pad then accepts buildings. */
     Result clearBoulder(Point position);
     /** Read seconds until a vent's next eruption during a battle, or -1 outside battle and for an unknown
@@ -278,7 +293,8 @@ class Run {
     /** Tunnel and bog spans in progress along the current routes. */
     std::vector<RouteSpan> tunnels_;
     std::vector<RouteSpan> bogs_;
-    /** Current paths of every entrance, each through the open branch of its fork. */
+    /** Current paths of every entrance, each through the open branch of its fork, followed by one path per
+     *  fork through its closed branch. */
     std::vector<std::vector<Point>> routes_;
     /** Rebuild the current paths, then the tunnel and bog spans along them, after the primary route is
      *  created or extended at its entrance or a barricade moves. Spans after a detoured fork shift by the
@@ -294,8 +310,17 @@ class Run {
     std::vector<CartRun> carts_;
     /** Gas tanks already detonated in this battle. */
     std::vector<bool> tanksSpent_;
-    /** Reset carts and tanks for a new battle. */
+    /** Note a fallen hero before units are removed: it returns after RunBalance::heroRespawn seconds. */
+    void markFallenHero();
+    /** Bring a fallen hero back at its cell, or the nearest free unit cell. */
+    void reviveHero();
+    /** Durability of each fork's barricade in this battle. */
+    std::vector<int> barricadeHp_;
+    /** Reset carts, tanks and barricades for a new battle. */
     void resetMachines();
+    /** Break a barricade: enemies that have not reached its split, and later arrivals, take the shorter
+     *  branch for the rest of the battle. */
+    void breach(std::size_t fork);
 };
 /** Separate a failed validation report from ownership of a playable run. */
 struct RunCreation {
