@@ -127,10 +127,22 @@ class Run {
     static constexpr EntityId BarricadeBase = 0xFFFF0000U;
     /** Read a barricade's durability in this battle; zero once it is broken. */
     int barricadeHp(std::size_t fork) const;
+    /** Maximum health of a non-hero unit of a kind at a level, counting the guard's armour upgrade. */
+    int unitHealth(CardKind kind, int level) const;
+    /** Damage multiplier of a unit's level, the same as a building's. */
+    float unitFactor(const Unit &unit) const;
     /** Read the cell a unit holds: its home, or its position before it first acts. */
     static Point homeOf(const Unit &unit) {
         return unit.home ? *unit.home : unit.position;
     }
+    /** Draw new recruitment candidates during preparation for RunBalance::rerollShards shards. */
+    Result rerollRecruitment();
+    /** Train the hero one level during preparation for heroTrainShards shards per current level. */
+    Result trainHero();
+    /** Read the shard price of the next hero training, or zero at the maximum level. */
+    int heroTrainCost() const;
+    /** Maximum health of the hero at its training level. */
+    int heroHealth() const;
     /** Read the units that take battlefield slots: every unit but the hero. */
     int squadSize() const;
     /** Read the hero, or nullptr while it is fallen or the stage has none. */
@@ -226,6 +238,7 @@ class Run {
         CardKind kind = CardKind::Gun;
         int handPosition = -1;
         int towerIndex = -1;
+        int unitIndex = -1;
     };
     /** Resolve card, action, cost and every precondition through one read-only path. */
     PlayPlan planPlay(CardId card, Point target) const;
@@ -314,6 +327,9 @@ class Run {
     std::vector<CartRun> carts_;
     /** Gas tanks already detonated in this battle. */
     std::vector<bool> tanksSpent_;
+    /** Candidates of a recruitment offer: two of the units and two buildings rotated by `turn`, or the units
+     *  alone when no building is recruitable. */
+    std::vector<CardKind> recruitmentDraw(int turn) const;
     /** Note a fallen hero before units are removed: it returns after RunBalance::heroRespawn seconds. */
     void markFallenHero();
     /** Bring a fallen hero back at its cell, or the nearest free unit cell. */

@@ -186,6 +186,10 @@ void validateGimmicks(Validator &validator, const Catalog &catalog) {
     validator.integer(balance.spoilsPerShard, 1, CatalogLimits::MaxAmount, "balance.spoilsPerShard");
     validator.integer(balance.bossShards, 0, CatalogLimits::MaxAmount, "balance.bossShards");
     validator.integer(balance.recruitShards, 0, CatalogLimits::MaxAmount, "balance.recruitShards");
+    validator.integer(balance.rerollShards, 1, CatalogLimits::MaxAmount, "balance.rerollShards");
+    validator.integer(balance.heroTrainShards, 1, CatalogLimits::MaxAmount, "balance.heroTrainShards");
+    validator.number(balance.heroLevelBonus, 0, 10, "balance.heroLevelBonus");
+    validator.integer(balance.heroMaxLevel, 1, 10, "balance.heroMaxLevel");
     validator.number(balance.unitSway, 0, 1, "balance.unitSway");
     validator.number(balance.unitSpeed, 0, 100, "balance.unitSpeed");
     validator.number(balance.heroSpeed, 0, 100, "balance.heroSpeed");

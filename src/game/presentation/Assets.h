@@ -17,6 +17,7 @@ inline engine::RenderAssets renderAssets() {
     engine::RenderAssets result{root + "/fonts/NotoSansKR.ttf", {}, {}};
     for (const char *creature : Creatures)
         result.animations.emplace(creature, root + "/animations/" + creature + ".json");
+    result.animations.emplace(ThorvgSplash, root + "/animations/" + ThorvgSplash + ".json");
     for (const char *picture : Pictures)
         result.pictures.emplace(picture, root + "/art/" + picture + ".svg");
     return result;

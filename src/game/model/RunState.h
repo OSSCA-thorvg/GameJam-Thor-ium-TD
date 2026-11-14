@@ -56,6 +56,9 @@ struct RunState {
     /** Battle shards earned from defeated enemies, and spoils gathered toward the next shard. */
     int shards = 0;
     int spoils = 0;
+    /** Recruitment rerolls bought so far, and the hero's training level. */
+    int rerolls = 0;
+    int heroLevel = 1;
     /** Seconds until a fallen hero returns at heroCell, zero while it stands; seconds until it may move again
      *  during battle. */
     float heroDown = 0;

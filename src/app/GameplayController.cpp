@@ -25,7 +25,8 @@ void GameplayController::act(const GameInput &input) {
     if (action == ConfirmDescend && modal != Modal::MineDescent)
         return;
     if (modal == Modal::Recruit && input.kind != InputKind::Candidate &&
-        !(input.kind == InputKind::Control && (action == PayGold || action == PayShards)))
+        !(input.kind == InputKind::Control &&
+          (action == PayGold || action == PayShards || action == RerollOffer)))
         return;
     if (modal == Modal::Replacement && input.kind != InputKind::Deck)
         return;
@@ -241,6 +242,16 @@ void GameplayController::act(const GameInput &input) {
                             Sound::None);
         break;
     }
+    case RerollOffer: {
+        const game::Result result = run.rerollRecruitment();
+        feedback.notify(result, Sound::CardDraw);
+        if (result.ok && run.state().recruitmentOffer)
+            state.play.selectedOffer = run.state().recruitmentOffer->id;
+        break;
+    }
+    case TrainHero:
+        feedback.notify(run.trainHero(), Sound::Upgrade);
+        break;
     case PayGold:
     case PayShards:
         state.play.payShards = action == PayShards;

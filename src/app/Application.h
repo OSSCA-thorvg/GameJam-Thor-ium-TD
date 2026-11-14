@@ -81,6 +81,12 @@ class Application {
     /** Store the campaign expedition between waves so a reload can continue it, and remove the stored copy
      * once the expedition ends. Checks at most twice a second unless the phase changed or `force` is set. */
     void syncRunSave(float elapsed, bool force = false);
+    /** Play the ThorVG copyright animation before the title; input is ignored until it can be skipped. */
+    void startSplash();
+    /** Read whether the copyright animation still covers the title. */
+    bool splashActive() const {
+        return splashActive_;
+    }
     /** Open a measurement-only late battle in place of the title and disable saving for this session. */
     bool startBenchmark(const BenchRequest &request);
     /** Read the active bench request, if this session opened one. */
@@ -119,6 +125,12 @@ class Application {
     TutorialDirector tutorial;
     MapCamera camera;
     MineScroll mineScroll;
+    bool splashActive_ = false;
+    float splashTime_ = 0;
+    /** Consume input aimed at the title while the copyright animation plays; true when it was consumed. */
+    bool swallowSplashInput();
+    /** Draw one frame of the copyright animation and end it when its last frame has been shown. */
+    bool splashFrame(int width, int height, float density, float elapsed);
     /** Invalidate timing only after an app transition replaced the run. */
     void applyFlow(FlowResult result);
 };

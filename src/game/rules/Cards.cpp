@@ -99,15 +99,28 @@ Run::PlayPlan Run::planPlay(CardId id, Point target) const {
             return plan;
         }
         plan.target = *cell;
-        if (squadSize() >= state_.slots) {
-            plan.preview.failure = PlayFailure::SlotsFull;
-            return plan;
-        }
-        for (const Unit &unit : state_.units)
-            if (distance(homeOf(unit), plan.target) < .15F) {
+        // A card played onto a unit of its own kind raises that unit's level instead of summoning.
+        for (std::size_t index = 0; index < state_.units.size(); ++index) {
+            const Unit &unit = state_.units[index];
+            if (distance(homeOf(unit), plan.target) >= .15F)
+                continue;
+            if (unit.hero || unit.kind != plan.kind) {
                 plan.preview.failure = PlayFailure::OccupiedCell;
                 return plan;
             }
+            plan.unitIndex = static_cast<int>(index);
+            plan.preview.action = PlayAction::Upgrade;
+            plan.preview.cost = unit.level == 1 ? 2 : 3;
+            if (unit.level >= CardMaxLevel) {
+                plan.preview.failure = PlayFailure::MaximumLevel;
+                return plan;
+            }
+            break;
+        }
+        if (plan.unitIndex < 0 && squadSize() >= state_.slots) {
+            plan.preview.failure = PlayFailure::SlotsFull;
+            return plan;
+        }
     } else {
         plan.preview.action = PlayAction::Cast;
         if (target.x < 0 || target.x > catalog_.width - 1 || target.y < 0 || target.y > catalog_.height - 1) {
@@ -173,8 +186,15 @@ Result Run::play(CardId id, Point target) {
         return {false, plan.preview.message()};
     target = plan.target;
     const CardKind kind = plan.kind;
-    if (plan.preview.action == PlayAction::Install || plan.preview.action == PlayAction::Upgrade ||
-        plan.preview.action == PlayAction::Replace) {
+    if (plan.unitIndex >= 0) {
+        Unit &existing = state_.units[static_cast<std::size_t>(plan.unitIndex)];
+        ++existing.level;
+        const int maximum = unitHealth(existing.kind, existing.level);
+        existing.hp += maximum - existing.maxHp;
+        existing.maxHp = maximum;
+        emit({CombatEventKind::Placement, existing.id, target, target, kind, existing.level, false});
+    } else if (plan.preview.action == PlayAction::Install || plan.preview.action == PlayAction::Upgrade ||
+               plan.preview.action == PlayAction::Replace) {
         if (plan.preview.action == PlayAction::Install) {
             state_.towers.push_back({nextEntity_++, kind, target});
             state_.towers.back().maxHp = catalog_.towerHealth(1);
@@ -198,8 +218,7 @@ Result Run::play(CardId id, Point target) {
                                                                          : state_.towers[plan.towerIndex];
         emit({CombatEventKind::Placement, placed.id, target, target, kind, placed.level, false});
     } else if (plan.preview.action == PlayAction::Summon) {
-        const int hp = kind == CardKind::Guard && state_.armor ? catalog_.balance.armoredGuardHp
-                                                               : catalog_.card(kind).hp;
+        const int hp = unitHealth(kind, 1);
         state_.units.push_back({nextEntity_++, kind, target, hp, hp});
         emit({CombatEventKind::Placement, state_.units.back().id, target, target, kind, 1, false});
     } else if (kind == CardKind::Tar) {

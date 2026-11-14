@@ -459,10 +459,12 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
         g.text("THOR-IUM TD", {box.x + box.w / 2, box.y + 102}, compact ? 25 : 34, theme::text, .5F);
         g.text("OSSCA · ThorVG GameJam", {box.x + box.w / 2, box.y + 145}, compact ? 12 : 16, theme::gold,
                .5F);
-        const std::array<const char *, 4> credits{{"벡터 그래픽  /  ThorVG", "창 · 입력 · 오디오  /  SDL3",
-                                                   "폰트  /  Noto Sans KR", "MP3 디코딩  /  dr_mp3"}};
-        for (int index = 0; index < 4; ++index) {
-            const float y = box.y + 201 + index * 35;
+        const std::array<const char *, 7> credits{{"벡터 그래픽 · 스플래시  /  ThorVG",
+                                                   "창 · 입력 · 오디오  /  SDL3", "폰트  /  Noto Sans KR",
+                                                   "MP3 디코딩  /  dr_mp3", "배경음악  /  AI 생성 (Flow Music)",
+                                                   "기획 · 개발  /  @hd1534", "소스 라이선스  /  MIT"}};
+        for (int index = 0; index < 7; ++index) {
+            const float y = box.y + 190 + index * (compact ? 26.0F : 33.0F);
             g.line({{x, y - 10}, {x + w, y - 10}}, 1, {86, 111, 113, 90});
             g.text(credits[index], {x, y}, compact ? 12 : 16, theme::muted, 0, w);
         }

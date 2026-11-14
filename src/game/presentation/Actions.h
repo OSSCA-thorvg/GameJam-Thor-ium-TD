@@ -91,8 +91,12 @@ enum Action : engine::WidgetId {
     /** Recruitment payment in gold or in battle shards. */
     PayGold,
     PayShards,
+    /** Draw new recruitment candidates for shards. */
+    RerollOffer,
+    /** Inspector command that trains the hero for shards. */
+    TrainHero,
     /** Last control of the contiguous range decoded as a plain command. */
-    LastControl = PayShards,
+    LastControl = TrainHero,
     GuideBackdrop = 901,
     CardBase = 1000,
     DeckBase = 2000,

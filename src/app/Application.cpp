@@ -137,12 +137,44 @@ Application::Application(game::Run initialRun)
     audio.settings.music = saved.music;
     audio.settings.muted = saved.muted;
 }
+bool Application::swallowSplashInput() {
+    constexpr float SkippableAfter = 3.0F;
+    if (!splashActive_)
+        return false;
+    if (splashTime_ >= SkippableAfter)
+        splashActive_ = false;
+    return true;
+}
+void Application::startSplash() {
+    splashActive_ = graphics.animationAssets().count(presentation::assets::ThorvgSplash) > 0;
+    splashTime_ = 0;
+}
+bool Application::splashFrame(int width, int height, float density, float elapsed) {
+    const engine::AnimationInfo &info = graphics.animationAssets().at(presentation::assets::ThorvgSplash);
+    splashTime_ += elapsed;
+    if (splashTime_ >= info.duration) {
+        splashActive_ = false;
+        return true;
+    }
+    if (!graphics.begin(width, height, std::min(density, engine::Renderer::MaxDensity)))
+        return false;
+    graphics.rect({0, 0, static_cast<float>(width), static_cast<float>(height)}, {255, 255, 255});
+    const float scale = std::min(width / info.width, height / info.height);
+    const engine::Rect bounds{(width - info.width * scale) / 2, (height - info.height * scale) / 2,
+                              info.width * scale, info.height * scale};
+    const float frame = std::min(splashTime_ / info.duration * info.frames, info.frames - 1.0F);
+    graphics.animation({presentation::assets::ThorvgSplash, frame, {0, info.frames}}, 0, bounds,
+                       engine::AnimationBackend::Vector);
+    return graphics.finish();
+}
 bool Application::frame(int width, int height, float density, float elapsed) {
     using engine::FrameClock;
     using engine::FrameStage;
     frameTimings_ = {};
     FrameClock::time_point stage = FrameClock::now();
     elapsed = std::isfinite(elapsed) ? std::clamp(elapsed, 0.0F, 0.1F) : 0.0F;
+    if (splashActive_)
+        return splashFrame(width, height, density, elapsed);
     state.play.toastTime = std::max(0.0F, state.play.toastTime - elapsed);
     const game::Phase before = run.state().phase;
     const bool stopAudio = !flow.allowsSimulation() || !tutorial.allowsSimulation();
@@ -229,6 +261,8 @@ bool Application::frame(int width, int height, float density, float elapsed) {
     return rendered;
 }
 void Application::pointer(engine::Pointer event) {
+    if (swallowSplashInput())
+        return;
     const std::optional<engine::Interaction> interaction = ui.pointer(event);
     const bool cameraDrag = camera.pointer(event);
     const bool mineDrag = mineScroll.pointer(event);
@@ -236,6 +270,8 @@ void Application::pointer(engine::Pointer event) {
         act(*interaction);
 }
 void Application::wheel(engine::ScreenPoint point, float steps) {
+    if (splashActive_)
+        return;
     if (!mineScroll.wheel(steps))
         camera.wheel(point, steps);
 }
@@ -249,6 +285,8 @@ void Application::applyFlow(FlowResult result) {
     }
 }
 void Application::act(engine::Interaction interaction) {
+    if (splashActive_)
+        return;
     const std::optional<GameInput> input = decodeInput(interaction);
     if (!input)
         return;
@@ -304,6 +342,8 @@ void Application::act(engine::Interaction interaction) {
     tutorial.observe();
 }
 void Application::key(int key, bool shift) {
+    if (swallowSplashInput())
+        return;
     if (key == '+' || key == '-' || key == '0') {
         act({engine::Interaction::Kind::Click,
              key == '+'   ? presentation::ZoomIn
@@ -406,6 +446,7 @@ std::string Application::debugState() const {
     std::string result = run.debugState();
     result.pop_back();
     result += ",\"paused\":" + std::string(state.play.paused ? "true" : "false") +
+              ",\"splash\":" + (splashActive_ ? "true" : "false") +
               ",\"screen\":" + std::to_string(static_cast<int>(state.app.navigation.current())) +
               ",\"hasRun\":" + (state.app.navigation.hasRun() ? "true" : "false") +
               ",\"reducedMotion\":" + (state.app.preferences.reducedMotion ? "true" : "false") +

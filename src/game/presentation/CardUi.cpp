@@ -120,6 +120,9 @@ void View::cardOfferOverlay(engine::Renderer &g, engine::Ui &ui, const game::Run
         return;
     }
     g.text("카드 모집", {x, box.y + 20}, 25, theme::gold, 0, w);
+    const int reroll = run.catalog().balance.rerollShards;
+    button(g, ui, RerollOffer, {x + w - 140, box.y + 18, 140, 32},
+           "다시 뽑기 · 조각 " + std::to_string(reroll), run.state().shards >= reroll);
     g.text(std::to_string(active->candidates.size()) + "종 중 하나 선택 · 기본 성능 · 길게 눌러 상세",
            {x, box.y + 61}, 11, theme::muted, 0, w);
     const float gap = 10;

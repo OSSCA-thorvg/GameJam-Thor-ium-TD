@@ -747,6 +747,57 @@ void spoils() {
                 !campaign.state().recruitmentOffer,
             "shards buy a building card into the deck");
 }
+/** A unit card played onto a unit of its kind raises it; shards reroll recruitment and train the hero. */
+void stacking() {
+    Run run = makeRun(defaultCatalog());
+    require(run.startWave().ok, "the stacking battle starts");
+    scenario(run).energy = 10;
+    require(run.play(2, {8, 4}).ok, "summon a guard");
+    const Unit first = run.state().units.front();
+    scenario(run).hand = {5, 0, 2, 3};
+    const PlayPreview raise = run.previewPlay(6, {8, 4});
+    require(raise.allowed() && raise.action == PlayAction::Upgrade && raise.cost == 2,
+            "a second guard card previews a level up at the building price");
+    require(run.play(6, {8, 4}).ok && run.state().units.size() == 1,
+            "the copy joins the guard instead of summoning");
+    const Unit &raised = run.state().units.front();
+    const float bonus = 1 + run.catalog().balance.levelBonus;
+    require(raised.id == first.id && raised.level == 2 &&
+                raised.maxHp ==
+                    static_cast<int>(std::lround(run.catalog().card(CardKind::Guard).hp * bonus)) &&
+                raised.hp == first.hp + raised.maxHp - first.maxHp,
+            "the guard keeps its identity and gains the level's health");
+    require(std::abs(run.unitFactor(raised) - bonus) < .001F, "its strikes grow by the level bonus");
+
+    Run campaign = makeRun(stageCatalog(2));
+    require(campaign.startWave().ok, "the campaign battle starts");
+    for (int step = 0; step < 6000 && campaign.state().phase == Phase::Battle; ++step) {
+        scenario(campaign).enemies.clear();
+        campaign.advance(.1F);
+    }
+    const RunBalance &balance = campaign.catalog().balance;
+    const std::vector<CardKind> before = campaign.state().recruitmentOffer->candidates;
+    scenario(campaign).shards = balance.rerollShards - 1;
+    require(!campaign.rerollRecruitment().ok, "a reroll needs its shards");
+    scenario(campaign).shards = balance.rerollShards;
+    require(campaign.rerollRecruitment().ok && campaign.state().shards == 0 &&
+                campaign.state().recruitmentOffer->candidates != before &&
+                campaign.state().recruitmentOffer->candidates.size() == 4,
+            "a reroll draws different candidates for its shards");
+    const int health = campaign.hero()->maxHp;
+    scenario(campaign).shards = campaign.heroTrainCost();
+    require(campaign.trainHero().ok && campaign.state().heroLevel == 2 &&
+                campaign.hero()->maxHp ==
+                    static_cast<int>(std::lround(health * (1 + balance.heroLevelBonus))) &&
+                campaign.hero()->hp == campaign.hero()->maxHp && campaign.state().shards == 0,
+            "training raises the hero's level and health for its shards");
+    require(campaign.heroTrainCost() == balance.heroTrainShards * 2, "the next training costs more");
+    const std::string text = campaign.snapshot();
+    Run copy = makeRun(stageCatalog(2));
+    require(copy.restore(text).ok && copy.state().heroLevel == 2 &&
+                copy.hero()->maxHp == campaign.hero()->maxHp,
+            "a snapshot keeps the hero's training");
+}
 } // namespace
 
 int main() {
@@ -767,6 +818,7 @@ int main() {
     heroes();
     roaming();
     spoils();
+    stacking();
     std::cout << "machines and roles: " << checks << " checks passed\n";
     return 0;
 }

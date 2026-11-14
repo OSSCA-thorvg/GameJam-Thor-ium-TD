@@ -357,7 +357,9 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
     const float titleY = area.y + 12;
     icon(g, run.catalog(), kind, {compact ? x + 20 : x + w / 2, compact ? titleY + 17 : titleY + 71},
          compact ? 32 : 76);
-    g.text(unit && unit->hero ? std::string("영웅 · 돌격대장") : run.catalog().card(kind).name,
+    g.text(unit && unit->hero ? "영웅 · 돌격대장 Lv" + std::to_string(run.state().heroLevel)
+           : unit             ? run.catalog().card(kind).name + " Lv" + std::to_string(unit->level)
+                              : run.catalog().card(kind).name,
            {compact ? x + 49 : x, titleY}, compact ? 17 : 20, unit && unit->hero ? theme::gold : theme::text);
     if (tower) {
         const bool awakened = tower->level > game::CardMaxLevel;
@@ -408,8 +410,16 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
                wait <= 0, state.play.movingUnit);
         y += buttonHeight + 8;
     } else if (prep && unit && unit->hero) {
-        button(g, ui, MoveUnit, {x, y, w, buttonHeight},
+        // The hero moves for free and trains for shards.
+        const float half = (w - 8) / 2;
+        const int train = run.heroTrainCost();
+        button(g, ui, MoveUnit, {x, y, half, buttonHeight},
                state.play.movingUnit ? "이동 칸 선택 중" : "위치 이동", true, state.play.movingUnit);
+        button(g, ui, TrainHero, {x + half + 8, y, half, buttonHeight},
+               train ? "단련 Lv" + std::to_string(run.state().heroLevel + 1) + " · 조각 " +
+                           std::to_string(train)
+                     : "최고 단련",
+               train > 0 && run.state().shards >= train, train > 0);
         y += buttonHeight + 8;
     } else if (prep && unit) {
         const float half = (w - 8) / 2;

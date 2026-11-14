@@ -351,6 +351,14 @@ void Run::resetMachines() {
     tanksSpent_.assign(catalog_.tanks.size(), false);
     barricadeHp_.assign(catalog_.forks.size(), catalog_.balance.barricadeHp);
 }
+int Run::unitHealth(CardKind kind, int level) const {
+    const int base =
+        kind == CardKind::Guard && state_.armor ? catalog_.balance.armoredGuardHp : catalog_.card(kind).hp;
+    return static_cast<int>(std::lround(base * (1 + catalog_.balance.levelBonus * (level - 1))));
+}
+float Run::unitFactor(const Unit &unit) const {
+    return 1.0F + (unit.level - 1) * catalog_.balance.levelBonus;
+}
 int Run::squadSize() const {
     return static_cast<int>(
         std::count_if(state_.units.begin(), state_.units.end(), [](const Unit &ally) { return !ally.hero; }));
@@ -385,8 +393,7 @@ void Run::reviveHero() {
                 cell = candidate;
             }
     }
-    state_.units.push_back(
-        {nextEntity_++, CardKind::Guard, cell, catalog_.balance.heroHp, catalog_.balance.heroHp});
+    state_.units.push_back({nextEntity_++, CardKind::Guard, cell, heroHealth(), heroHealth()});
     state_.units.back().hero = true;
     emit({CombatEventKind::Placement, state_.units.back().id, cell, cell, CardKind::Guard, 1, false});
 }
@@ -998,19 +1005,22 @@ void Run::advanceBattle(float delta) {
                 targetFor(ally.position, ally.hero ? balance.heroRange : catalog_.card(ally.kind).range,
                           ally.id, ally.kind);
             if (target && ally.hero) {
-                hit(*target, balance.heroDamage, false, ally.kind, ally.position);
+                const float trained = 1 + balance.heroLevelBonus * (state_.heroLevel - 1);
+                hit(*target, static_cast<int>(std::lround(balance.heroDamage * trained)), false, ally.kind,
+                    ally.position);
                 ally.cooldown = balance.heroInterval;
                 emit({CombatEventKind::Attack, ally.id, ally.position, target->position, ally.kind, 0, false,
                       0});
             } else if (target) {
                 const CardDefinition &definition = catalog_.card(ally.kind);
+                const int damage = static_cast<int>(std::lround(definition.damage * unitFactor(ally)));
                 if (ally.kind == CardKind::Demolition) {
                     for (const Enemy &enemy : state_.enemies)
                         if (reaches(enemy, ally.kind) &&
                             distance(enemy.position, target->position) <= definition.splash)
-                            hit(enemy, definition.damage, false, ally.kind, ally.position);
+                            hit(enemy, damage, false, ally.kind, ally.position);
                 } else
-                    hit(*target, definition.damage, false, ally.kind, ally.position);
+                    hit(*target, damage, false, ally.kind, ally.position);
                 ally.cooldown = definition.interval;
                 emit({CombatEventKind::Attack, ally.id, ally.position, target->position, ally.kind, 0, false,
                       definition.splash});

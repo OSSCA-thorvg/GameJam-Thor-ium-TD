@@ -117,6 +117,23 @@ std::string benchQuery(int argc, char *argv[]) {
 #endif
 }
 
+/** Decide whether the ThorVG copyright animation plays first: always, except `nosplash` in the page URL or a
+ * `--no-splash` argument, and except in an automated browser unless the URL says `splash`. */
+bool splashEnabled(int argc, char *argv[]) {
+#ifdef __EMSCRIPTEN__
+    static_cast<void>(argc);
+    static_cast<void>(argv);
+    return emscripten_run_script_int(
+               "(function(){var q=location.search;if(q.indexOf('nosplash')>=0)return 0;"
+               "return q.indexOf('splash')>=0||!navigator.webdriver?1:0;})()") != 0;
+#else
+    for (int index = 1; index < argc; ++index)
+        if (std::string(argv[index]) == "--no-splash")
+            return false;
+    return true;
+#endif
+}
+
 /** Initialize the SDL adapter and the same engine/game application on each target. */
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     std::unique_ptr<Desktop> state = std::make_unique<Desktop>();
@@ -129,7 +146,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
         SDL_Log("SDL init: %s", SDL_GetError());
         return SDL_APP_FAILURE;
     }
-    state->window = SDL_CreateWindow("Thor-ium TD · First Playable", 1200, 800,
+    state->window = SDL_CreateWindow("Thor-ium TD", 1200, 800,
                                      SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                                          (state->smoke ? SDL_WINDOW_HIDDEN : 0));
     if (!state->window) {
@@ -158,6 +175,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
             return SDL_APP_FAILURE;
         }
     }
+    if (!state->smoke && !state->app->benchmark() && splashEnabled(argc, argv))
+        state->app->startSplash();
     if (!state->audio.open())
         SDL_Log("Audio unavailable: %s", state->audio.error.c_str());
     for (const std::string &error : state->app->audioAssetErrors())

@@ -600,9 +600,10 @@ void cardChargeContracts() {
     smallSquad.balance.initialSlots = 1;
     game::Run full = game::makeRun(smallSquad);
     full.startWave();
-    require(full.play(2, {8, 4}).ok && full.exchange(1).ok &&
-                presentation::cardCharge(full, 6, 3, full.playAvailability(6).failure).mode ==
-                    presentation::CardChargeMode::Blocked,
+    require(full.play(2, {8, 4}).ok && full.exchange(1).ok, "fill the one-unit squad");
+    game::scenario(full).units.front().level = game::CardMaxLevel;
+    require(presentation::cardCharge(full, 6, 3, full.playAvailability(6).failure).mode ==
+                presentation::CardChargeMode::Blocked,
             "full unit slots remain a placement block even when energy is also insufficient");
 }
 /** Exercise descent confirmation and scaled placement through the actual responsive application view. */

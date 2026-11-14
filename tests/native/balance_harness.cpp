@@ -366,6 +366,9 @@ class AverageBot : public Bot {
             const CardId replaced = duplicate(run);
             // Shards pay when they suffice, gold otherwise.
             const bool shards = offer.shards > 0 && run.state().shards >= offer.shards;
+            if (!shards && run.heroTrainCost() > 0 && run.state().shards >= run.heroTrainCost() &&
+                chance(.5F))
+                run.trainHero();
             if (shards ? run.acceptOffer(offer.id, candidate, replaced, true).ok
                        : autoplay::charge(run, &ledger, autoplay::Sink::Recruit,
                                           [&run, &offer, candidate, replaced]() -> Result {

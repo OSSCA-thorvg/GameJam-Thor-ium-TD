@@ -268,12 +268,16 @@ inline void playCard(Run &run) {
                 }
             }
         } else if (run.catalog().isUnit(card.kind)) {
+            // A free cell comes first; a copy raises an existing unit only once the squad is full.
+            const bool full = run.squadSize() >= run.state().slots;
             for (Point cell : run.state().unitCells) {
-                if (!run.previewPlay(card.id, cell).allowed() || run.ventThreatens(cell))
+                const PlayPreview preview = run.previewPlay(card.id, cell);
+                if (!preview.allowed() || run.ventThreatens(cell) ||
+                    (preview.action == PlayAction::Upgrade && !full))
                     continue;
                 const float value =
                     coverage(run, cell, card.kind, definition, definition.damage / definition.interval) *
-                    .35F / definition.cost;
+                    .35F / static_cast<float>(preview.cost);
                 if (value > score) {
                     score = value;
                     best = card.id;

@@ -56,24 +56,71 @@ void Run::finishWave() {
     state_.scans = prepScanBudget();
     state_.hires = 0;
     state_.supplied = false;
-    // With recruitable buildings each preparation offers two of the three units and two buildings, both
-    // rotating by wave; payment is gold or shards.
-    std::vector<CardKind> candidates(catalog_.recruitmentCandidates.begin(),
-                                     catalog_.recruitmentCandidates.end());
-    const std::vector<CardKind> &buildings = catalog_.recruitmentBuildings;
-    if (!buildings.empty()) {
-        const std::size_t wave = static_cast<std::size_t>(state_.wave);
-        candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(wave % candidates.size()));
-        candidates.push_back(buildings[wave % buildings.size()]);
-        candidates.push_back(buildings[(wave + buildings.size() / 2 + 1) % buildings.size()]);
-        if (candidates[2] == candidates[3])
-            candidates[3] = buildings[(wave + 1) % buildings.size()];
-    }
+    const std::vector<CardKind> candidates = recruitmentDraw(state_.wave);
     state_.recruitmentOffer = CardOffer{nextOffer_++, OfferSource::Recruitment, candidates,
                                         catalog_.balance.recruit, catalog_.balance.recruitShards};
     state_.expansionPending = state_.wave == catalog_.balance.expansionWave;
 }
 
+std::vector<CardKind> Run::recruitmentDraw(int turn) const {
+    // Two of the three units and two buildings, both rotating with the turn.
+    std::vector<CardKind> candidates(catalog_.recruitmentCandidates.begin(),
+                                     catalog_.recruitmentCandidates.end());
+    const std::vector<CardKind> &buildings = catalog_.recruitmentBuildings;
+    if (buildings.empty())
+        return candidates;
+    const std::size_t step = static_cast<std::size_t>(std::max(0, turn));
+    candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(step % candidates.size()));
+    candidates.push_back(buildings[step % buildings.size()]);
+    candidates.push_back(buildings[(step + buildings.size() / 2 + 1) % buildings.size()]);
+    if (candidates[2] == candidates[3])
+        candidates[3] = buildings[(step + 1) % buildings.size()];
+    return candidates;
+}
+Result Run::rerollRecruitment() {
+    const int price = catalog_.balance.rerollShards;
+    if (state_.phase != Phase::Prep || !state_.recruitmentOffer)
+        return {false, "정비 중 모집이 남아 있을 때 다시 뽑을 수 있어요"};
+    if (state_.shards < price)
+        return {false, "조각 " + std::to_string(price) + "개가 필요해요"};
+    state_.shards -= price;
+    ++state_.rerolls;
+    const std::vector<CardKind> previous = state_.recruitmentOffer->candidates;
+    std::vector<CardKind> next = recruitmentDraw(state_.wave + state_.rerolls * 5);
+    for (int shift = 1; next == previous && shift < 12; ++shift)
+        next = recruitmentDraw(state_.wave + state_.rerolls * 5 + shift);
+    state_.recruitmentOffer->candidates = next;
+    state_.recruitmentOffer->id = nextOffer_++;
+    return {true, "모집 후보를 새로 뽑았어요 · 조각 " + std::to_string(price)};
+}
+int Run::heroHealth() const {
+    return static_cast<int>(std::lround(catalog_.balance.heroHp *
+                                        (1 + catalog_.balance.heroLevelBonus * (state_.heroLevel - 1))));
+}
+int Run::heroTrainCost() const {
+    return state_.heroLevel >= catalog_.balance.heroMaxLevel
+               ? 0
+               : catalog_.balance.heroTrainShards * state_.heroLevel;
+}
+Result Run::trainHero() {
+    const int price = heroTrainCost();
+    if (state_.phase != Phase::Prep || !catalog_.hero)
+        return {false, "정비 중에 영웅을 단련할 수 있어요"};
+    if (price == 0)
+        return {false, "영웅이 최고 단계예요"};
+    if (state_.shards < price)
+        return {false, "조각 " + std::to_string(price) + "개가 필요해요"};
+    state_.shards -= price;
+    ++state_.heroLevel;
+    for (Unit &ally : state_.units)
+        if (ally.hero) {
+            ally.maxHp = heroHealth();
+            ally.hp = ally.maxHp;
+        }
+    return {true, "영웅 단련 Lv" + std::to_string(state_.heroLevel) + " · 체력과 공격력 +" +
+                      std::to_string(static_cast<int>(std::lround(catalog_.balance.heroLevelBonus * 100))) +
+                      "%"};
+}
 int Run::nextBattleEnergy() const {
     const RunBalance &balance = catalog_.balance;
     return std::min(balance.energyCap, balance.initialEnergy + state_.bonusEnergy +
@@ -166,7 +213,7 @@ Result Run::upgrade(UpgradeKind kind) {
         state_.armor = true;
         for (Unit &ally : state_.units)
             if (ally.kind == CardKind::Guard && !ally.hero)
-                ally.maxHp = balance.armoredGuardHp;
+                ally.maxHp = unitHealth(ally.kind, ally.level);
         return {true,
                 "경비병 최대 체력 " + std::to_string(balance.armoredGuardHp) + " · 현재 체력은 유지돼요"};
     case UpgradeKind::Slots:

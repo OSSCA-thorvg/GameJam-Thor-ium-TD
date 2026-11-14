@@ -58,7 +58,8 @@ void actionContracts() {
             "free unit cells preview an independent summon");
     require(run.play(2, {8, 4}).ok && run.state().units.size() == 1 && run.state().energy == 7,
             "summoning uses the same three-energy decision");
-    rejects(run, 6, {8, 4}, PlayFailure::OccupiedCell);
+    require(run.previewPlay(6, {8, 4}).action == PlayAction::Upgrade && run.previewPlay(6, {8, 4}).cost == 2,
+            "a second guard card previews raising the guard at the building upgrade price");
     scenario(run).slots = 1;
     rejects(run, 6, {8, 6}, PlayFailure::SlotsFull);
     const PlayPreview spell = run.previewPlay(4, {6.25F, 4.25F});
@@ -122,8 +123,14 @@ void revalidationContracts() {
     Run occupied;
     occupied.startWave();
     require(occupied.previewPlay(2, {8, 4}).allowed(), "preview a free unit cell");
-    scenario(occupied).units.push_back({900, CardKind::Guard, {8, 4}, 120, 120});
+    scenario(occupied).units.push_back({900, CardKind::Shooter, {8, 4}, 70, 70});
     rejects(occupied, 2, {8, 4}, PlayFailure::OccupiedCell);
+    scenario(occupied).units.back().kind = CardKind::Guard;
+    require(occupied.previewPlay(2, {8, 4}).action == PlayAction::Upgrade &&
+                occupied.previewPlay(2, {8, 4}).allowed(),
+            "a guard card played onto a guard raises its level");
+    scenario(occupied).units.back().level = CardMaxLevel;
+    rejects(occupied, 2, {8, 4}, PlayFailure::MaximumLevel);
     Catalog quiet = defaultCatalog();
     quiet.waves = {{}, {}, {}};
     Run transition = makeRun(quiet);
@@ -184,7 +191,9 @@ void canonicalPlacementContracts() {
     require(units.play(2, {7.86F, 4}).ok && distance(units.state().units.front().position, {8, 4}) == 0,
             "summons also store the authored cell center");
     require(units.exchange(1).ok, "cycle another public card to draw a second unit copy");
-    rejects(units, 6, {8.14F, 4}, PlayFailure::OccupiedCell);
+    require(units.play(6, {8.14F, 4}).ok && units.state().units.size() == 1 &&
+                units.state().units.front().level == 2,
+            "cell tolerance resolves a second copy onto the guard as a level up");
     require(units.state().units.size() == 1, "cell tolerance cannot bypass unit occupancy");
 
     Catalog quiet = content;

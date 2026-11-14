@@ -320,6 +320,30 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
                  p.y + tile * .42F},
                 tile * .045F, level < game::CardMaxLevel ? gold : Color{190, 150, 255});
     }
+    // While a unit card is held, a unit of its kind shows the same gold upgrade ring and tag.
+    const bool placingUnit = selected && run.catalog().isUnit(selected->kind);
+    if (placingUnit)
+        for (const game::Unit &unit : run.state().units) {
+            const ScreenPoint p = screenPoint(game::Run::homeOf(unit));
+            const game::PlayPreview preview = run.previewPlay(selected->id, game::Run::homeOf(unit));
+            const bool maxed = preview.failure == game::PlayFailure::MaximumLevel;
+            if (!inWorld(p, tile * 2) || (preview.action != game::PlayAction::Upgrade && !maxed))
+                continue;
+            const Color accent = maxed ? Color{160, 160, 160} : theme::gold;
+            const float pulse = state.app.preferences.reducedMotion
+                                    ? 1.0F
+                                    : .65F + .35F * std::sin(state.play.visualTime * 5.0F);
+            drawRing(graphics, p, tile * .46F, std::max(2.0F, tile * .08F),
+                     {accent.r, accent.g, accent.b,
+                      static_cast<std::uint8_t>((preview.allowed() || maxed ? 235.0F : 120.0F) * pulse)});
+            const std::string tag = maxed ? "최대" : "강화 Lv" + std::to_string(unit.level + 1);
+            const float size = std::clamp(tile * .3F, 10.0F, 13.0F);
+            const float width = size * (maxed ? 2.6F : 4.6F);
+            const engine::Rect plate{p.x - width / 2, p.y - tile * .62F - size * 1.4F, width, size * 1.4F};
+            graphics.rect(plate, {16, 24, 30, 225}, size * .4F);
+            graphics.rect({plate.x, plate.y + plate.h - 2, plate.w, 2}, accent, 1);
+            graphics.text(tag, {p.x, plate.y + size * .18F}, size, accent, .5F);
+        }
     // While a building card is held, a building it can stack onto shows a gold upgrade ring and one it would
     // replace an orange ring, each with a tag; the ring dims while the energy is short and a maxed building
     // shows grey.
@@ -382,6 +406,12 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
         graphics.rect({p.x - tile * .25F, p.y - tile * .47F, tile * .5F, tile * .07F}, {95, 118, 108}, 2);
         graphics.rect({p.x - tile * .25F, p.y - tile * .47F, tile * .5F * unit.hp / unit.maxHp, tile * .07F},
                       mint, 2);
+        // Level pips under a raised unit, as under a building.
+        for (int level = 0; level < unit.level && unit.level > 1; ++level)
+            graphics.circle(
+                {p.x + (static_cast<float>(level) - static_cast<float>(unit.level - 1) / 2) * tile * .12F,
+                 p.y + tile * .38F},
+                tile * .045F, {255, 214, 110});
     }
     enemies(graphics, run, state);
     combatFeedback(graphics, state);

@@ -279,6 +279,12 @@ struct RunBalance {
     int spoilsPerShard = 8;
     int bossShards = 5;
     int recruitShards = 12;
+    /** Shards for drawing new recruitment candidates; shards per hero level for training the hero, its health
+     *  and damage growing by heroLevelBonus per level up to heroMaxLevel. */
+    int rerollShards = 3;
+    int heroTrainShards = 6;
+    float heroLevelBonus = .25F;
+    int heroMaxLevel = 5;
     /** Durability of a fork's barricade in each battle; siege enemies can break it. */
     int barricadeHp = 240;
     /** Share of maximum hit points an allied unit recovers per second while no enemy is held by it. */

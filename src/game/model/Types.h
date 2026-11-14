@@ -157,6 +157,8 @@ struct Unit {
     float mending = 0.0F;
     /** The stage's hero: free of slots, movable during battle and back after a delay when it falls. */
     bool hero = false;
+    /** Card level: a unit card played onto a unit of its kind raises it, like a building. */
+    int level = 1;
     /** The cell the unit holds and returns to while roaming; empty until it first acts, when its position at
      *  that moment becomes its home. */
     std::optional<Point> home;
