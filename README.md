@@ -8,18 +8,13 @@
 
 - **플레이 (GitHub Pages):** <https://ossca-thorvg.github.io/GameJam-Thor-ium-TD/>
 - 설치 없이 브라우저에서 실행됩니다. 데스크톱 마우스·키보드와 모바일 터치를 지원합니다.
-- 처음이라면 메인 화면의 **연습 원정**(약 4분)부터 해 보세요.
-- 게임을 열면 ThorVG 스플래시(Powered by ThorVG, 공식 Lottie)가 먼저 재생됩니다. 3초 뒤부터 클릭·키로 건너뛸 수 있습니다.
+- 처음이라면 메인 화면의 **연습 원정**(3~4분)부터 해 보세요.
 
 ## 스크린샷
 
-| 지상 방어 (5구역 후반 공세) | 지하 채굴 (정비) |
-| --- | --- |
-| ![전투](docs/images/screenshot-battle.png) | ![채굴](docs/images/screenshot-mining.png) |
-
-| 출격 준비 (1구역) | ThorVG 스플래시 |
-| --- | --- |
-| ![출격 준비](docs/images/screenshot-prep.png) | ![스플래시](docs/images/screenshot-splash.png) |
+| 지상 방어 (5구역 후반 공세) | 지하 채굴 (정비) | 출격 준비 (1구역) |
+| --- | --- | --- |
+| ![전투](docs/images/screenshot-battle.png) | ![채굴](docs/images/screenshot-mining.png) | ![출격 준비](docs/images/screenshot-prep.png) |
 
 ## 게임 방법
 
@@ -52,7 +47,7 @@ SDL3 + C++17 코드를 WebAssembly로 빌드하고 ThorVG(`SwCanvas`, 소프트�
 
 | 기능 | 쓰는 곳 | 코드 |
 | --- | --- | --- |
-| Lottie (`LottieAnimation`, 마커 구간) | 적 16종의 대기·이동·공격·사망 클립, 시작 시 ThorVG 스플래시 | [Renderer.cpp](src/engine/render/Renderer.cpp), [AnimationRendering.cpp](src/engine/render/AnimationRendering.cpp), [Animation.cpp](src/engine/animation/Animation.cpp) |
+| Lottie (`LottieAnimation`, 마커 구간) | 적 16종의 대기·이동·공격·사망 클립, 시작 화면의 ThorVG 스플래시 | [Renderer.cpp](src/engine/render/Renderer.cpp), [AnimationRendering.cpp](src/engine/render/AnimationRendering.cpp), [Animation.cpp](src/engine/animation/Animation.cpp) |
 | Lottie 프레임 굽기·공유 | 같은 클립의 프레임을 한 번만 래스터화해 수백 마리가 공유 | [AnimationFrameBaker.cpp](src/engine/render/AnimationFrameBaker.cpp), [AnimationCache.cpp](src/engine/render/AnimationCache.cpp) |
 | `Shape` · `Scene` | 지형·타워·유닛·사거리·HUD 전부 | [Renderer.cpp](src/engine/render/Renderer.cpp), [Battlefield.cpp](src/game/presentation/Battlefield.cpp) |
 | `LinearGradient` · `RadialGradient` | 패널·지층 음영, 보스 오라와 용암 분출구의 빛무리 | [Renderer.cpp](src/engine/render/Renderer.cpp) |
@@ -60,7 +55,7 @@ SDL3 + C++17 코드를 WebAssembly로 빌드하고 ThorVG(`SwCanvas`, 소프트�
 | `Picture` (SVG) | 채굴 화면의 광석·도구·유물 그림 | [content/art/ore-gold.svg](content/art/ore-gold.svg) 외 |
 | `Text` + TTF 로더 | 한글 UI 텍스트 (Noto Sans KR 부분 집합) | [Renderer.cpp](src/engine/render/Renderer.cpp) |
 | 클립 레이어 · 불투명도 | 패널·스크롤 영역 | [Renderer.cpp](src/engine/render/Renderer.cpp) |
-| 보관 레이어 · 배경 캐시 | 정지한 지형·배경을 다시 그리지 않고 재사용 (프레임 예산 문서 참고) | [frame-budget.md](docs/frame-budget.md) |
+| 보관 레이어 · 배경 캐시 | 정지한 지형·배경을 다시 그리지 않고 재사용 | [frame-budget.md](docs/frame-budget.md) |
 
 적 Lottie 16개는 [tools/make_assets.py](tools/make_assets.py)가 만든 자체 제작 파일입니다.
 
@@ -76,8 +71,6 @@ python3 tools/build.py web
 python3 -m http.server 8317 --bind 127.0.0.1 --directory dist
 ~~~
 
-- 네이티브 인자: `--no-splash` 스플래시 생략.
-- 웹 주소 인자: `?nosplash` 스플래시 생략. 자동화 브라우저(Playwright 등)에서는 기본으로 생략하고 `?splash`로 켭니다.
 - 문서 검사: `python3 -m unittest discover -s tests -p 'test_*.py' -v`
 - `main` 브랜치에 푸시하면 [GitHub Actions](.github/workflows/deploy-pages.yml)가 네이티브 테스트·WASM 빌드·브라우저 E2E를 통과시킨 뒤 Pages에 배포합니다.
 
@@ -85,9 +78,7 @@ python3 -m http.server 8317 --bind 127.0.0.1 --directory dist
 
 | 역할 | 담당 |
 | --- | --- |
-| 기획 · 개발 · 아트 · 사운드 | [@hd1534](https://github.com/hd1534) |
-
-등록 이슈: [OSSCA-thorvg/site #198](https://github.com/OSSCA-thorvg/site/issues/198). 구현과 문서 작성에 AI 코딩 도구(Claude Code)를 활용했고, 기획 판단과 검수는 팀원이 맡았습니다.
+| 기획 · 개발 | [@hd1534](https://github.com/hd1534) |
 
 ## Credits
 
@@ -98,7 +89,7 @@ python3 -m http.server 8317 --bind 127.0.0.1 --directory dist
 | SDL 3.4.18 | [libsdl-org/SDL](https://github.com/libsdl-org/SDL), zlib |
 | Noto Sans KR | [Google Fonts](https://github.com/google/fonts/tree/main/ofl/notosanskr), SIL OFL 1.1 |
 | dr_mp3 | [mackron/dr_libs](https://github.com/mackron/dr_libs), 퍼블릭 도메인 또는 MIT-0 |
-| 배경음악 `content/audio/bgm.mp3` | Google Flow Music(AI 음악 생성)으로 이 게임을 위해 생성 |
+| 배경음악 `content/audio/bgm.mp3` | Google Flow Music(AI 음악 생성)으로 이 게임을 위해 생성. Google 약관은 생성물의 소유권을 주장하지 않는다고 하며, 재사용은 Flow Music 약관과 생성 당시 플랜을 따름. MIT 적용 대상 아님 |
 | 효과음 | 실행 중 합성하는 자체 제작 음 |
 | 적 Lottie · 타워·유닛·UI 그림 · 광석 SVG | 자체 제작 (생성 스크립트: [make_assets.py](tools/make_assets.py), [make_art.py](tools/make_art.py)) |
 
