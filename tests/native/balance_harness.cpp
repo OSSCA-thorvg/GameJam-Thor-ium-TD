@@ -336,7 +336,7 @@ class AverageBot : public Bot {
             {UpgradeKind::Coil, autoplay::Sink::Coil},
             {UpgradeKind::Slots, autoplay::Sink::Slots},
             {UpgradeKind::Drill, autoplay::Sink::Drill}};
-        std::shuffle(crafts.begin(), crafts.end(), random_);
+        shuffle(crafts);
         for (const auto &craft : crafts)
             autoplay::buy(run, &ledger, craft.second, craft.first);
         // A boulder is cleared in about half of the preparations that can afford one, without weighing its
@@ -348,7 +348,7 @@ class AverageBot : public Bot {
         std::vector<EntityId> towers;
         for (const Tower &tower : run.state().towers)
             towers.push_back(tower.id);
-        std::shuffle(towers.begin(), towers.end(), random_);
+        shuffle(towers);
         for (EntityId id : towers)
             if (run.awakenQuote(id).allowed() && chance(.7F))
                 autoplay::charge(run, &ledger, autoplay::Sink::Awaken,
@@ -376,8 +376,14 @@ class AverageBot : public Bot {
     std::mt19937 random_;
     int wave_ = -1;
     float next_ = 0;
+    /** Standard distributions and std::shuffle differ between standard libraries, so the bot draws from the
+     *  engine's raw output, which is the same everywhere. */
     float uniform(float low, float high) {
-        return std::uniform_real_distribution<float>(low, high)(random_);
+        return low + (high - low) * static_cast<float>(random_() >> 8) / 16777216.0F;
+    }
+    template <typename T> void shuffle(std::vector<T> &values) {
+        for (std::size_t index = values.size(); index > 1; --index)
+            std::swap(values[index - 1], values[static_cast<std::size_t>(random_() % index)]);
     }
     bool chance(float probability) {
         return uniform(0, 1) < probability;

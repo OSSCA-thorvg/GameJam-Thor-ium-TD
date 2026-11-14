@@ -148,7 +148,7 @@ constexpr std::array<float, TotalStages> Toughness{{1, 1.3F, 1.35F, 1.5F, 1.3F, 
 constexpr std::array<float, TotalStages> Haste{{1, 1.06F, 1.06F, 1.08F, 1.04F, 1.04F, 1.05F}};
 /** Health and shield multiplier added to non-boss enemies by the last wave of each stage, rising linearly
  *  over its second half. */
-constexpr std::array<float, TotalStages> LateVigor{{.5F, .4F, .55F, .62F, .78F, .8F, .74F}};
+constexpr std::array<float, TotalStages> LateVigor{{.5F, .4F, .55F, .62F, .84F, .8F, .74F}};
 /** Elites in the first wave after the middle of a stage, and added by its last wave. */
 constexpr float EliteBase = 2;
 constexpr float EliteRamp = 4;

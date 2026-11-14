@@ -2,6 +2,8 @@ project('thorium-td', 'cpp', version: '0.1.0', default_options: ['cpp_std=c++17'
 
 content_dir = host_machine.system() == 'emscripten' ? '/content' : meson.project_source_root() / 'content'
 add_project_arguments('-DTHORIUM_CONTENT_DIR="' + content_dir + '"', language: 'cpp')
+# Fused multiply-add changes float results between targets; keeping it off makes simulations match everywhere.
+add_project_arguments(meson.get_compiler('cpp').get_supported_arguments('-ffp-contract=off'), language: 'cpp')
 
 thorvg_dep = subproject('thorvg', default_options: [
   'default_library=static', 'static=true', 'engines=cpu', 'loaders=lottie,ttf,svg',
