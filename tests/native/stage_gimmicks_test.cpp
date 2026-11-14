@@ -106,7 +106,7 @@ void boulders() {
     const CardId gun = cardInHand(run, CardKind::Gun);
     const PlayPreview blocked = run.previewPlay(gun, rock);
     require(blocked.failure == PlayFailure::PadBlocked && blocked.action == PlayAction::Install &&
-                std::string(blocked.message()).find("바위") != std::string::npos,
+                blocked.message().key == "rules.cards.preview.pad_blocked",
             "a building aimed at a boulder is refused with its own message");
     rejected(run, [&run, gun, rock] { return run.play(gun, rock); }, "a blocked pad rejects placement");
     require(run.previewPlay(gun, {5, 5}).failure == PlayFailure::BuildingPadRequired,
@@ -117,7 +117,7 @@ void boulders() {
     enterPreparation(run, 1);
     const PurchaseQuote shortage = run.boulderQuote(rock);
     require(shortage.failure == PurchaseFailure::Shortage && shortage.open() && shortage.cost.iron == 3 &&
-                shortage.message == "철3가 필요해요",
+                shortage.message == Message("rules.progression.cost", {{"cost", "#cost/3/0/0/0"}}),
             "an empty wallet is quoted the full price");
     rejected(run, [&run, rock] { return run.clearBoulder(rock); }, "a short wallet keeps the boulder");
     scenario(run).iron = 5;

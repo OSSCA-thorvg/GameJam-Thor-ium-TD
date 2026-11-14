@@ -69,7 +69,7 @@ Run battle(const Catalog &content) {
 void flyers() {
     Run run = battle(board());
     const EnemyDefinition &bat = role(run, EnemyKind::Flyer);
-    require(bat.flying && bat.hp == 24 && bat.name == "동굴박쥐", "the cave bat is a flying role");
+    require(bat.flying && bat.hp == 24 && bat.name == "bat", "the cave bat is a flying role");
     require(run.catalog().card(CardKind::Cannon).ground && run.catalog().card(CardKind::Guard).ground &&
                 run.catalog().card(CardKind::Demolition).ground &&
                 !run.catalog().card(CardKind::Gun).ground && !run.catalog().card(CardKind::Shooter).ground &&
@@ -445,7 +445,7 @@ void sieges() {
     Run run = battle(board());
     const EnemyDefinition &wrecker = role(run, EnemyKind::Wrecker);
     const int durability = run.catalog().towerHealth(1);
-    require(wrecker.ability == EnemyAbility::Siege && wrecker.abilityAmount > 0 && wrecker.name == "망치병",
+    require(wrecker.ability == EnemyAbility::Siege && wrecker.abilityAmount > 0 && wrecker.name == "wrecker",
             "the wrecker strikes buildings");
     require(durability == run.catalog().balance.towerHp && run.catalog().towerHealth(2) > durability,
             "durability grows with the building's level");

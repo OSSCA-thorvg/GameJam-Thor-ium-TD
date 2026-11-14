@@ -26,7 +26,7 @@ struct PurchaseQuote {
     /** Price of this purchase now, also reported for rejected purchases with a known price. */
     ResourceCost cost;
     /** Text returned by the command when rejected; empty when allowed. */
-    std::string message;
+    Message message;
     /** Read whether the same purchase could be committed against the current snapshot. */
     bool allowed() const {
         return failure == PurchaseFailure::None;

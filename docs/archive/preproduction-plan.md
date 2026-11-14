@@ -10,7 +10,7 @@
 4. 선택 결과를 [결정 기록](decisions.md)과 [프로토타입](prototype-plan.md)에 반영합니다.
 5. 첫 실제 변경의 파일·의존성·테스트 범위를 확인하고 구현을 승인합니다.
 
-조사의 근거는 [Rubiks·엔진 비교](architecture-research.md), 전체 게임 아이디어는 [통합 기획](game-design.md), 후속 사용자 제작은 [유저 콘텐츠 계획](user-content-plan.md)에 있습니다.
+조사의 근거는 [Rubiks·엔진 비교](architecture-research.md), 전체 게임 아이디어는 [통합 기획](game-design.md), 후속 사용자 제작은 [유저 콘텐츠 계획](../user-content-plan.md)에 있습니다.
 
 ## 게임의 중심과 지켜야 할 방향
 
@@ -119,4 +119,4 @@ P0-수치에서 반드시 증명할 것은 다음과 같습니다.
 
 현재 문서는 프로젝트 루트에서 `python3 -m unittest discover -s tests -p 'test_*.py' -v`로 검사합니다. 게임 구현 단계의 회귀 사례와 성능 실험은 [검증 계획](validation-plan.md)을 따릅니다.
 
-행사 일정·등록 상태는 [등록 및 제출](registration.md)에 확인 당시 기준으로 남아 있습니다. 이번 작업은 게임·아키텍처 조사이며 행사 공지와 원격 이슈를 재확인하거나 수정한 작업은 아닙니다.
+행사 일정·등록 상태는 [등록 및 제출](../registration.md)에 확인 당시 기준으로 남아 있습니다. 이번 작업은 게임·아키텍처 조사이며 행사 공지와 원격 이슈를 재확인하거나 수정한 작업은 아닙니다.

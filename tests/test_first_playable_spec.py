@@ -44,7 +44,7 @@ class FirstPlayableSpecTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Read semantic sections so unrelated tables cannot silently become content data."""
-        self.content: str = read_document('docs/first-playable-spec.md')
+        self.content: str = read_document('docs/archive/first-playable-spec.md')
         all_rows: list[list[str]] = table_rows(self.content)
         self.metrics: dict[str, Fraction] = {
             row[0]: Fraction(row[1]) for row in all_rows
@@ -150,7 +150,7 @@ class FirstPlayableSpecTests(unittest.TestCase):
             '에너지 회복 간격', '광부 1칸 이동 시간', '일반 타일 굴착 시간', '단단한 암반 굴착 시간',
         })
         self.assertTrue(all((period * tick_rate).denominator == 1 for period in periods))
-        economy: str = read_document('docs/first-board-economy.md')
+        economy: str = read_document('docs/archive/first-board-economy.md')
         extra: re.Match[str] | None = re.search(r'다음 웨이브 일반 적 \+(\d+)', economy)
         self.assertIsNotNone(extra)
         if extra is not None:
@@ -203,7 +203,7 @@ class FirstPlayableSpecTests(unittest.TestCase):
 
     def test_level_equipment_and_healing_arithmetic(self) -> None:
         """Check proposed integer rounding and compatibility with the existing economy effects."""
-        economy: str = read_document('docs/first-board-economy.md')
+        economy: str = read_document('docs/archive/first-board-economy.md')
         armor: re.Match[str] | None = re.search(r'최대 HP \+(\d+)%', economy)
         coil: re.Match[str] | None = re.search(r'전격탑 피해 \+(\d+)%', economy)
         heal: re.Match[str] | None = re.search(r'최대 HP (\d+)%까지', economy)

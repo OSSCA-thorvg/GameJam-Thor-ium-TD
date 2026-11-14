@@ -19,7 +19,7 @@ bool AppFlow::restart(int stageIndex) {
     if (state.app.campaign) {
         game::RunCreation created = game::Run::create(expeditionContent(stage, state.app));
         if (!created.run) {
-            feedback.notify({false, created.validation.summary()});
+            feedback.notify({false, game::Message("app.content.invalid", {{"detail", created.validation.summary()}})});
             return false;
         }
         run = std::move(*created.run);

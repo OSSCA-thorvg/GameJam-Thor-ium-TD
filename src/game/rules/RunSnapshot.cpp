@@ -213,9 +213,9 @@ std::string Run::snapshot() const {
 }
 
 Result Run::restore(const std::string &text) {
-    const Result rejected{false, "저장된 원정을 이어갈 수 없어 새로 시작해요"};
+    const Result rejected{false, Message("rules.snapshot.rejected")};
     if (state_.phase != Phase::Ready || state_.wave != 0)
-        return {false, "새로 만든 원정에만 저장된 진행을 불러올 수 있어요"};
+        return {false, Message("rules.snapshot.not_fresh")};
     Reader in(text);
     in.expect(SnapshotTag);
     if (in.integer() != SnapshotVersion || in.choice<MiningMode>(2) != catalog_.mining ||
@@ -424,7 +424,7 @@ Result Run::restore(const std::string &text) {
     combatEvents_.clear();
     resolveTunnels();
     return {true, state_.phase == Phase::Ready
-                      ? std::string("첫 웨이브 전부터 이어서 해요")
-                      : std::to_string(state_.wave) + "웨이브 뒤 정비부터 이어서 해요"};
+                      ? Message("rules.snapshot.resumed.start")
+                      : Message("rules.snapshot.resumed.prep", {{"wave", std::to_string(state_.wave)}})};
 }
 } // namespace thorium::game

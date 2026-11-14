@@ -1,5 +1,6 @@
 #include "Actions.h"
 #include "MineArt.h"
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -265,8 +266,8 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
             if (column + 1 >= columns || !inside(cell + 1))
                 g.line({{box.x + tile, box.y}, {box.x + tile, box.y + tile}}, w, edge);
         }
-        const std::string note = "광맥 " + std::to_string(bare) + "/" + std::to_string(vein.cells.size()) +
-                                 "칸 드러남 · 모두 드러나면 획득";
+        const std::string note = tr("excavation.vein", {{"bare", std::to_string(bare)},
+                                                        {"total", std::to_string(vein.cells.size())}});
         const float size = std::max(10.0F, tile * .24F);
         const float width = labelWidth(note, size) + 14;
         const float noteX = std::clamp(left, view.x + 4, view.x + view.w - width - 4);
@@ -342,18 +343,21 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
         if (!still && cue.collected && t < .35F)
             g.circle(c, tile * (.3F + t * 1.6F), alpha(accent, .3F * (1 - t / .35F)));
         if (cue.special == game::MineSpecial::Relic)
-            label(g, std::string("유물 · ") + relicName(cue.relic), {x, y}, size, alpha(accent, fade));
+            label(g, tr("excavation.cue.relic", {{"relic", relicName(cue.relic)}}), {x, y}, size,
+                  alpha(accent, fade));
         else if (cue.special == game::MineSpecial::Fossil)
-            label(g, run.catalog().card(cue.card).name + " 카드 화석", {x, y}, size, alpha(accent, fade));
+            label(g, tr("excavation.cue.fossil", {{"card", cardName(cue.card)}}), {x, y}, size,
+                  alpha(accent, fade));
         else if (cue.special == game::MineSpecial::Energy)
-            label(g, "다음 전투 에너지 +" + std::to_string(cue.amount), {x, y}, size, alpha(accent, fade));
+            label(g, tr("mine.next.energy", {{"amount", std::to_string(cue.amount)}}), {x, y}, size,
+                  alpha(accent, fade));
         else if (cue.special == game::MineSpecial::Unstable)
-            label(g, "붕괴!", {x, y}, size, alpha(accent, fade));
+            label(g, tr("mine.cue.collapse"), {x, y}, size, alpha(accent, fade));
         else if (cue.amount > 0)
-            label(g, "+" + std::to_string(cue.amount) + " " + mineOreName(cue.ore), {x, y}, size,
-                  alpha(mineOreColor(cue.ore), fade));
+            label(g, tr("mine.cue.ore", {{"amount", std::to_string(cue.amount)}, {"ore", oreName(cue.ore)}}),
+                  {x, y}, size, alpha(mineOreColor(cue.ore), fade));
         if (cue.extra > 0)
-            label(g, "둥지 각성 · 다음 웨이브 +" + std::to_string(cue.extra), {x, y + size * 1.25F},
+            label(g, tr("excavation.cue.nest", {{"count", std::to_string(cue.extra)}}), {x, y + size * 1.25F},
                   size * .86F, alpha({255, 120, 96, 255}, fade));
     }
     // Tile information after a long press or a resting pointer: rock, tool needed and what shows through.
@@ -362,36 +366,42 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
         const game::Deposit *deposit =
             cell.deposit ? &live.deposits[static_cast<std::size_t>(cell.deposit - 1)] : nullptr;
         const bool known = cell.info || cell.cover == 0;
-        std::string title = cell.cover == 0 ? "드러난 곳" : "암석 " + std::to_string(cell.cover) + "겹";
+        std::string title = cell.cover == 0
+                                ? tr("excavation.info.bare")
+                                : tr("excavation.info.rock", {{"layers", std::to_string(cell.cover)}});
         if (cell.cover > 0 && cell.grade > 1)
-            title += cell.grade > live.tool ? " · 단단함 (T2 곡괭이 필요)" : " · 단단함";
+            title = tr(cell.grade > live.tool ? "excavation.info.hard.tool" : "excavation.info.hard",
+                       {{"title", title}});
         std::string detail;
         Color accent{226, 210, 180};
         if (!known)
-            detail = "내부 미확인 · 암석을 한 겹만 남기거나 스캔하면 확인 가능";
+            detail = tr("excavation.info.unknown");
         else if (!deposit || deposit->collected)
-            detail = deposit ? "이미 채굴을 마친 자리입니다" : "묻혀 있는 광물이 없습니다";
+            detail = tr(deposit ? "excavation.info.mined" : "excavation.info.empty");
         else {
             accent = depositColor(*deposit);
             int bare = 0;
             for (int other : deposit->cells)
                 bare += live.mine[static_cast<std::size_t>(other)].cover == 0 ? 1 : 0;
-            const std::string progress = bare ? " · " + std::to_string(bare) + "/" +
-                                                    std::to_string(deposit->cells.size()) + "칸 드러남"
-                                              : "";
+            bool progress = true;
             if (deposit->special == game::MineSpecial::Relic)
-                detail = std::string("보물 상자 · ") + relicName(deposit->relic) + progress;
+                detail = tr("excavation.info.relic", {{"relic", relicName(deposit->relic)}});
             else if (deposit->special == game::MineSpecial::Fossil)
-                detail = "카드 화석 · " + run.catalog().card(deposit->card).name + progress;
-            else if (deposit->special == game::MineSpecial::Energy)
-                detail = "에너지 수정 · 다음 전투 에너지 +" + std::to_string(deposit->amount);
-            else if (deposit->special == game::MineSpecial::Unstable)
-                detail = "붕괴 암반 · 드러나면 주변 8칸이 한 겹씩 무너집니다";
-            else if (deposit->nest)
-                detail = std::string("둥지 · 전부 드러나거나 발파가 닿으면 다음 웨이브 +") +
-                         std::to_string(run.nestReinforcements()) + progress;
+                detail = tr("excavation.info.fossil", {{"card", cardName(deposit->card)}});
+            else if (deposit->special == game::MineSpecial::Energy) {
+                detail = tr("excavation.info.energy", {{"amount", std::to_string(deposit->amount)}});
+                progress = false;
+            } else if (deposit->special == game::MineSpecial::Unstable) {
+                detail = tr("excavation.info.unstable");
+                progress = false;
+            } else if (deposit->nest)
+                detail = tr("excavation.info.nest", {{"count", std::to_string(run.nestReinforcements())}});
             else
-                detail = std::string(mineOreName(deposit->ore)) + " 광맥 · 전부 드러내면 획득" + progress;
+                detail = tr("excavation.info.ore", {{"ore", oreName(deposit->ore)}});
+            if (progress && bare)
+                detail = tr("excavation.info.progress", {{"detail", detail},
+                                                         {"bare", std::to_string(bare)},
+                                                         {"total", std::to_string(deposit->cells.size())}});
         }
         const float size = layout.compact ? 11.0F : 12.0F;
         const float width =
@@ -427,7 +437,7 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
     const float nameW = narrow ? 34.0F : layout.compact ? 92.0F : 128.0F;
     g.rect({layout.world.x + 8, headerY, nameW, 24}, {22, 18, 18, 220}, 6);
     g.rect({layout.world.x + 8, headerY, 3, 24}, theme::gold, 1);
-    g.text(narrow ? code : code + " · " + definition.name, {layout.world.x + 17, headerY + 5},
+    g.text(narrow ? code : code + " · " + mineLayerName(definition), {layout.world.x + 17, headerY + 5},
            layout.compact ? 11 : 12, {240, 224, 190}, 0, nameW - 14);
     float x = layout.world.x + 14 + nameW;
     const float toolW = narrow ? 54.0F : 90.0F;
@@ -442,13 +452,14 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
                selected ? Color{92, 66, 30} : Color{30, 50, 58}, 6);
         g.picture(blast ? "tool-blast" : "tool-pick", {box.x + 4, box.y + 3, 20, 20});
         const std::string cost = "×" + std::to_string(run.strikeCost(option));
-        g.text(narrow ? cost : std::string(blast ? "발파 " : "곡괭이 ") + cost, {box.x + 27, box.y + 6},
-               layout.compact ? 10 : 11, selected ? Color{255, 236, 190} : Color{196, 214, 212}, 0,
-               box.w - 30);
+        g.text(narrow ? cost : tr(blast ? "excavation.tool.blast" : "excavation.tool.pick", {{"cost", cost}}),
+               {box.x + 27, box.y + 6}, layout.compact ? 10 : 11,
+               selected ? Color{255, 236, 190} : Color{196, 214, 212}, 0, box.w - 30);
         x += toolW + 5;
     }
     // Remaining digs stand out beside the tools, red once they run out.
-    const std::string digs = (narrow ? "굴착 " : "남은 굴착 ") + std::to_string(live.digs);
+    const std::string digs =
+        tr(narrow ? "excavation.digs.short" : "excavation.digs", {{"count", std::to_string(live.digs)}});
     const float digsW = labelWidth(digs, 13) + 18;
     if (x + digsW <= limit) {
         const bool empty = live.digs <= 0;
@@ -458,7 +469,9 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
                .5F);
         x += digsW + 5;
     }
-    const std::string buried = (narrow ? "" : "매장물 ") + std::to_string(run.buriedDeposits());
+    const std::string buried =
+        narrow ? std::to_string(run.buriedDeposits())
+               : tr("excavation.buried", {{"count", std::to_string(run.buriedDeposits())}});
     const float buriedW = labelWidth(buried, 11) + 16;
     if (x + buriedW <= limit) {
         g.rect({x, headerY, buriedW, 24}, {22, 18, 18, 220}, 6);
@@ -471,11 +484,12 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
         const int pick = balance.pickPower + live.tool - 1, side = live.tool >= 3 ? 2 : 1;
         const int blast = balance.blastPower + (live.tool >= 2 ? 1 : 0);
         const std::string caption =
-            state.play.scan    ? "스캔 · 3×3 영역의 암석 내부를 투시합니다 (암석 유지)"
-            : state.play.blast ? "발파 · 굴착 " + std::to_string(run.strikeCost(game::StrikeTool::Blast)) +
-                                     "회 소모 · 3×3 영역 " + std::to_string(blast) + "겹 제거 (닿은 둥지 각성)"
-                               : "곡괭이 · 굴착 1회 · 타격 칸 " + std::to_string(pick) + "겹, 상하좌우 " +
-                                     std::to_string(side) + "겹 제거 (광맥 전체 노출 시 획득)";
+            state.play.scan    ? tr("excavation.caption.scan")
+            : state.play.blast ? tr("excavation.caption.blast",
+                                    {{"cost", std::to_string(run.strikeCost(game::StrikeTool::Blast))},
+                                     {"layers", std::to_string(blast)}})
+                               : tr("excavation.caption.pick",
+                                    {{"center", std::to_string(pick)}, {"side", std::to_string(side)}});
         const float size = layout.compact ? 10.0F : 11.0F;
         const float width = std::min(view.w - 12, labelWidth(caption, size) + 18);
         const Rect plate{view.x + 6, view.y + view.h - size * 2 - 6, width, size * 2};

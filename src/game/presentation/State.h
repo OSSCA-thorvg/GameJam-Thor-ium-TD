@@ -2,6 +2,7 @@
 #include "ActorAnimator.h"
 #include "Feedback.h"
 #include "Shell.h"
+#include "Text.h"
 #include "TutorialGuide.h"
 #include "engine/view/Camera2D.h"
 #include <optional>
@@ -73,7 +74,7 @@ struct PlayState {
     Modal modal = Modal::None;
     game::OfferId selectedOffer = 0;
     game::CardKind candidate = game::CardKind::Guard;
-    std::string toast = "카드를 끌어다 전장에 배치하세요";
+    std::string toast = tr("hud.toast.drag");
     float toastTime = 6.0F;
     bool error = false;
     float visualTime = 0.0F;

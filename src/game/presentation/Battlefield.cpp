@@ -1,4 +1,5 @@
 #include "TerrainArt.h"
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -903,9 +904,9 @@ std::vector<LaneMarker> View::laneMarkers(const game::Run &run) const {
         const int opens = lane.route ? run.catalog().additionalRoutes[lane.route - 1].opensAtWave : 1;
         marker.closed = previewWave < opens;
         marker.active = lane.count > 0;
-        marker.label = laneLetter(lane.route) + (marker.closed ? " · " + std::to_string(opens) + "W"
-                                                 : lane.count  ? " +" + std::to_string(lane.count)
-                                                               : " · 대기");
+        marker.label = marker.closed ? laneLetter(lane.route) + " · " + std::to_string(opens) + "W"
+                       : lane.count  ? laneLetter(lane.route) + " +" + std::to_string(lane.count)
+                                     : tr("battle.lane.waiting", {{"lane", laneLetter(lane.route)}});
         const ScreenPoint entry = screenPoint(run.route(lane.route).front());
         const float inset = std::max(8.0F, tile * .3F);
         marker.visible = entry.x > world.x + inset && entry.x < world.x + world.w - inset &&
@@ -1060,7 +1061,7 @@ void View::minimap(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
         g.rect(toggle, {12, 24, 30, 225}, 6);
         g.rect({toggle.x + 9, toggle.y + 9, 14, 12}, alpha(palette(biomeFor(state)).bottom, .8F), 2);
         g.circle({toggle.x + 19, toggle.y + 13}, 2, theme::gold);
-        g.text("지도", {toggle.x + 28, toggle.y + 8}, 11, theme::text);
+        g.text(tr("battle.minimap"), {toggle.x + 28, toggle.y + 8}, 11, theme::text);
         if (interactive)
             ui.add(ToggleMinimap, toggle, true, false, false);
         return;
@@ -1121,7 +1122,7 @@ void View::minimap(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
     g.endClip();
     if (toggle.w > 0) {
         g.rect(toggle, {12, 24, 30, 215}, 4);
-        g.text("접기", {toggle.x + toggle.w / 2, toggle.y + 5}, 10, theme::text, .5F);
+        g.text(tr("battle.minimap.fold"), {toggle.x + toggle.w / 2, toggle.y + 5}, 10, theme::text, .5F);
     }
     if (interactive) {
         ui.add(MinimapFocus, box, true, false, false);

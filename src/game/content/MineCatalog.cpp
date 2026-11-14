@@ -13,6 +13,7 @@ using MineMap = std::array<std::string_view, CampaignMineHeight>;
 
 /** Authored contents of one campaign layer besides its tiles. */
 struct LayerSpecials {
+    /** Language-independent id, looked up as `minelayer.<id>.name`. */
     std::string_view name;
     Relic relic;
     CardKind fossil;
@@ -140,9 +141,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "X.m.u.n",
            "#G#E#G#",
        }}}},
-     {{{"표층 갱도", Relic::Charm, CardKind::Flame},
-       {"심층 광맥", Relic::Lens, CardKind::Flame},
-       {"수정 동굴", Relic::Battery, CardKind::Lightning}}}},
+     {{{"surface_shaft", Relic::Charm, CardKind::Flame},
+       {"deep_vein", Relic::Lens, CardKind::Flame},
+       {"crystal_cave", Relic::Battery, CardKind::Lightning}}}},
     // 흑요석 지대: glassy hard ridges and crystal pockets, a narrow entry between black glass.
     {{{{{
            ".#ooo#.",
@@ -183,9 +184,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "X.n.u.n",
            "#G#E#G#",
        }}}},
-     {{{"유리 균열", Relic::Lens, CardKind::Tar},
-       {"흑요석 맥", Relic::Ward, CardKind::Tar},
-       {"화산 유리굴", Relic::Charm, CardKind::Flame}}}},
+     {{{"glass_rift", Relic::Lens, CardKind::Tar},
+       {"obsidian_vein", Relic::Ward, CardKind::Tar},
+       {"volcanic_glass_cave", Relic::Charm, CardKind::Flame}}}},
     // 동토 갱도: iron-rich frozen galleries with copper veins and ice-locked crystal.
     {{{{{
            "..ooo..",
@@ -226,9 +227,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "X.m.u.n",
            "#G#X#G#",
        }}}},
-     {{{"서리 갱도", Relic::Ward, CardKind::Sniper},
-       {"빙맥 회랑", Relic::Battery, CardKind::Sniper},
-       {"얼음 수정굴", Relic::Lens, CardKind::Lightning}}}},
+     {{{"frost_shaft", Relic::Ward, CardKind::Sniper},
+       {"ice_vein_corridor", Relic::Battery, CardKind::Sniper},
+       {"ice_crystal_cave", Relic::Lens, CardKind::Lightning}}}},
     // 용암 심층: basalt crust full of unstable rock, copper and gold seams and energy veins.
     {{{{{
            ".#ooo#.",
@@ -269,9 +270,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "X.n.E.n",
            "#G#X#G#",
        }}}},
-     {{{"현무암 갱도", Relic::Battery, CardKind::Frost},
-       {"용암 균열", Relic::Charm, CardKind::Frost},
-       {"마그마 공동", Relic::Ward, CardKind::Sniper}}}},
+     {{{"basalt_shaft", Relic::Battery, CardKind::Frost},
+       {"lava_rift", Relic::Charm, CardKind::Frost},
+       {"magma_chamber", Relic::Ward, CardKind::Sniper}}}},
     // 토르륨 핵: luminous crystal, many energy veins and the densest nests.
     {{{{{
            "..ooo..",
@@ -312,9 +313,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "E.n.E.n",
            "#G#X#G#",
        }}}},
-     {{{"토르륨 외피", Relic::Charm, CardKind::Lightning},
-       {"공명 광맥", Relic::Ward, CardKind::Lightning},
-       {"토르륨 심핵", Relic::Battery, CardKind::Flame}}}},
+     {{{"thorium_crust", Relic::Charm, CardKind::Lightning},
+       {"resonant_vein", Relic::Ward, CardKind::Lightning},
+       {"thorium_heart", Relic::Battery, CardKind::Flame}}}},
     // 수정 공명굴: crystal clusters in every band, copper seams and few nests near the surface.
     {{{{{
            "..ooo..",
@@ -355,9 +356,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "E.n.E.n",
            "#X#G#X#",
        }}}},
-     {{{"수정 동굴 입구", Relic::Lens, CardKind::Lightning},
-       {"공명 맥동층", Relic::Charm, CardKind::Sniper},
-       {"수정 심장부", Relic::Battery, CardKind::Lightning}}}},
+     {{{"crystal_cave_mouth", Relic::Lens, CardKind::Lightning},
+       {"pulse_stratum", Relic::Charm, CardKind::Sniper},
+       {"crystal_heart", Relic::Battery, CardKind::Lightning}}}},
     // 산성 늪지: soft peat with iron and gold, unstable mud and nests packed under the surface.
     {{{{{
            "..ooo..",
@@ -398,9 +399,9 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
            "E.n.E.n",
            "#G#X#G#",
        }}}},
-     {{{"이탄 습지층", Relic::Ward, CardKind::Tar},
-       {"부식 수렁", Relic::Charm, CardKind::Frost},
-       {"산성 저수층", Relic::Battery, CardKind::Flame}}}},
+     {{{"peat_bed", Relic::Ward, CardKind::Tar},
+       {"corrosive_mire", Relic::Charm, CardKind::Frost},
+       {"acid_reservoir", Relic::Battery, CardKind::Flame}}}},
 }};
 /** Wave after which B2 and B3 open; short early stages open their deeper layers sooner. */
 constexpr std::array<std::array<int, 2>, TotalStages> layerGates{

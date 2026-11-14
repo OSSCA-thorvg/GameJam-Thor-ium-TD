@@ -112,14 +112,14 @@ Point Run::barricade(std::size_t fork) const {
 }
 Result Run::switchFork(std::size_t fork) {
     if (fork >= catalog_.forks.size())
-        return {false, "갈림길이 없어요"};
+        return {false, Message("rules.combat.fork.missing")};
     if (state_.phase != Phase::Prep && state_.phase != Phase::Ready)
-        return {false, "바리케이드는 정비 중에만 옮길 수 있어요"};
+        return {false, Message("rules.combat.fork.closed")};
     state_.detours.resize(catalog_.forks.size(), 0);
     state_.detours[fork] = state_.detours[fork] ? 0 : 1;
     resolveTunnels();
-    return {true, state_.detours[fork] ? "바리케이드로 원래 길을 막았어요 · 적이 우회로로 와요"
-                                       : "바리케이드로 우회로를 막았어요 · 적이 원래 길로 와요"};
+    return {true,
+            state_.detours[fork] ? Message("rules.combat.fork.detour") : Message("rules.combat.fork.main")};
 }
 float Run::routeLength(std::uint32_t lane) const {
     return pathLength(route(lane));
@@ -281,33 +281,33 @@ float Run::cartProgress(std::size_t rail) const {
 }
 Result Run::launchCart(std::size_t rail) {
     if (state_.phase != Phase::Battle)
-        return {false, "광차는 전투 중에만 보낼 수 있어요"};
+        return {false, Message("rules.combat.cart.closed")};
     if (rail >= carts_.size())
-        return {false, "광차 선로가 없어요"};
+        return {false, Message("rules.combat.cart.missing")};
     CartRun &cart = carts_[rail];
     if (cart.travelled >= 0)
-        return {false, "광차가 달리는 중이에요"};
+        return {false, Message("rules.combat.cart.running")};
     if (cart.cooldown > .0001F) {
         const int seconds = static_cast<int>(std::ceil(cart.cooldown));
-        return {false, "광차가 돌아오는 중이에요 · " + std::to_string(seconds) + "초"};
+        return {false, Message("rules.combat.cart.cooldown", {{"seconds", std::to_string(seconds)}})};
     }
     cart.travelled = 0;
     cart.struck.clear();
     const RailDefinition &track = catalog_.rails[rail];
     emit({CombatEventKind::Cart, static_cast<EntityId>(rail), track.from, track.to, CardKind::Gun, 0, false,
           catalog_.balance.cartWidth});
-    return {true, "광차 출발!"};
+    return {true, Message("rules.combat.cart.launched")};
 }
 bool Run::tankReady(std::size_t tank) const {
     return state_.phase == Phase::Battle && tank < tanksSpent_.size() && !tanksSpent_[tank];
 }
 Result Run::detonateTank(std::size_t tank) {
     if (state_.phase != Phase::Battle)
-        return {false, "가스통은 전투 중에만 터뜨릴 수 있어요"};
+        return {false, Message("rules.combat.tank.closed")};
     if (tank >= tanksSpent_.size())
-        return {false, "가스통이 없어요"};
+        return {false, Message("rules.combat.tank.missing")};
     if (tanksSpent_[tank])
-        return {false, "이번 전투에서 이미 터뜨렸어요 · 다음 웨이브에 다시 채워져요"};
+        return {false, Message("rules.combat.tank.spent")};
     tanksSpent_[tank] = true;
     const TankDefinition &definition = catalog_.tanks[tank];
     const RunBalance &balance = catalog_.balance;
@@ -344,7 +344,7 @@ Result Run::detonateTank(std::size_t tank) {
         if (enemy.blocker && !unit(enemy.blocker))
             enemy.blocker = 0;
     removeDefeated();
-    return {true, "가스통 폭발!"};
+    return {true, Message("rules.combat.tank.detonated")};
 }
 void Run::resetMachines() {
     carts_.assign(catalog_.rails.size(), CartRun{catalog_.balance.cartFirst, -1, {}});
@@ -1155,13 +1155,13 @@ Result Run::moveUnit(EntityId id, Point target) {
             selected = &ally;
     const bool charge = selected && selected->hero && state_.phase == Phase::Battle;
     if (charge && state_.heroMove > 0)
-        return {false, "영웅은 " + std::to_string(static_cast<int>(std::ceil(state_.heroMove))) +
-                           "초 뒤 다시 움직여요"};
+        return {false, Message("rules.combat.move.hero_cooldown",
+                               {{"seconds", std::to_string(static_cast<int>(std::ceil(state_.heroMove)))}})};
     if ((state_.phase != Phase::Prep && !charge) || !cell)
-        return {false, "정비 중 배치 칸으로 옮겨 주세요"};
+        return {false, Message("rules.combat.move.invalid")};
     target = *cell;
     if (!selected)
-        return {false, "유닛을 선택해 주세요"};
+        return {false, Message("rules.combat.move.no_unit")};
     if (charge) {
         // The hero runs to its new cell rather than appearing there.
         state_.heroMove = catalog_.balance.heroMove;
@@ -1172,7 +1172,7 @@ Result Run::moveUnit(EntityId id, Point target) {
             if (ally.id != id && distance(homeOf(ally), target) < 0.15F)
                 ally.home = homeOf(*selected);
         selected->home = target;
-        return {true, "영웅이 달려가요"};
+        return {true, Message("rules.combat.move.hero_charge")};
     }
     for (Unit &ally : state_.units)
         if (ally.id != id && distance(homeOf(ally), target) < 0.15F) {
@@ -1181,17 +1181,17 @@ Result Run::moveUnit(EntityId id, Point target) {
         }
     selected->position = target;
     selected->home = target;
-    return {true, "체력과 슬롯을 유지하며 무료로 이동했어요"};
+    return {true, Message("rules.combat.move.done")};
 }
 
 Result Run::dismiss(EntityId id) {
     if (state_.phase != Phase::Battle && state_.phase != Phase::Prep)
-        return {false, "전투 또는 정비 중에 철수할 수 있어요"};
+        return {false, Message("rules.combat.dismiss.closed")};
     const bool building = tower(id) != nullptr;
     if (!building && !unit(id))
-        return {false, "이미 철수했거나 존재하지 않는 대상이에요"};
+        return {false, Message("rules.combat.dismiss.missing")};
     if (!building && unit(id)->hero)
-        return {false, "영웅은 철수하지 않아요"};
+        return {false, Message("rules.combat.dismiss.hero")};
     state_.units.erase(std::remove_if(state_.units.begin(), state_.units.end(),
                                       [id](const Unit &ally) { return ally.id == id; }),
                        state_.units.end());
@@ -1201,7 +1201,6 @@ Result Run::dismiss(EntityId id) {
     for (Enemy &enemy : state_.enemies)
         if (enemy.blocker == id)
             enemy.blocker = 0;
-    return {true, building ? "건물을 철거했어요. 사용한 비용은 반환되지 않아요"
-                           : "유닛을 철수했어요. 슬롯은 돌아오고 비용은 반환되지 않아요"};
+    return {true, building ? Message("rules.combat.dismiss.building") : Message("rules.combat.dismiss.unit")};
 }
 } // namespace thorium::game

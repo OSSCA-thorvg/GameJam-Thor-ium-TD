@@ -504,7 +504,7 @@ CatalogValidation validateCatalog(const Catalog &catalog) {
     for (std::size_t index = 0; index < catalog.additionalRoutes.size(); ++index) {
         const EntranceRoute &entrance = catalog.additionalRoutes[index];
         const std::string path = "additionalRoutes[" + std::to_string(index) + "]";
-        validator.check(!entrance.name.empty(), path + ".name", "entrance needs a visible name");
+        validator.check(!entrance.name.empty(), path + ".name", "entrance needs an id");
         validator.route(entrance.points, path + ".points");
         validator.integer(entrance.opensAtWave, 1, static_cast<int>(catalog.waves.size()),
                           path + ".opensAtWave");
@@ -635,7 +635,7 @@ CatalogValidation validateCatalog(const Catalog &catalog) {
     for (std::size_t index = 0; index < catalog.deeperMines.size(); ++index) {
         const MineLayerDefinition &layer = catalog.deeperMines[index];
         const std::string path = "deeperMines[" + std::to_string(index) + "]";
-        validator.check(!layer.name.empty(), path + ".name", "layer needs a visible name");
+        validator.check(!layer.name.empty(), path + ".name", "layer needs an id");
         validator.integer(layer.opensAfterWave, 1, static_cast<int>(catalog.waves.size()) - 1,
                           path + ".opensAfterWave");
         if (index)

@@ -49,7 +49,12 @@ try {
             const source = await readFile(new URL(`./${file}`, import.meta.url), 'utf8');
             /** @type {(page: import('playwright').Page) => Promise<unknown>} */
             const scenario = new Function(`return (${source});`)();
-            process.stdout.write(JSON.stringify({file, result: await scenario(page)}, null, 2) + '\n');
+            /** @type {unknown} */ const result = await scenario(page);
+            /** @type {string[]} */ const missing = await page.evaluate(() =>
+                typeof Module !== 'undefined' && Module.calledRun && typeof Module._thorium_debug_state === 'function'
+                    ? JSON.parse(Module.UTF8ToString(Module._thorium_debug_state())).missingText ?? [] : []).catch(() => []);
+            if (missing.length) throw new Error(`Text keys missing from the string tables: ${missing.join(', ')}`);
+            process.stdout.write(JSON.stringify({file, result}, null, 2) + '\n');
         } catch (error) {
             await captureFailure(page, file, error);
             throw new Error(`Browser scenario failed: ${file}`, {cause:error});

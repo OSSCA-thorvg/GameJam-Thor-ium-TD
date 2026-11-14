@@ -13,8 +13,7 @@ struct PlacementPreview {
     /** Attack/effect radius in world tiles of the card that would be committed, including the target pad's
      *  trait for a building. */
     float range = 0;
-    /** Name and bonus of the target pad's trait for a building, such as "고지 사거리 +20%"; empty
-     *  otherwise. */
+    /** Localized name and bonus of the target pad's trait for a building; empty otherwise. */
     std::string terrain;
 };
 } // namespace thorium::presentation

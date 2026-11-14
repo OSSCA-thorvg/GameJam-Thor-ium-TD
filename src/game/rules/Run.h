@@ -276,9 +276,9 @@ class Run {
     void collapse(int origin);
     /** Remove rock layers from one wall tile; thin rock shows its contents and bare rock counts as dug. */
     void strip(int cell, int power);
-    /** Collect every fully exposed deposit, running cave-ins until nothing changes, and describe the gains.
-     */
-    std::string settleWall();
+    /** Collect every fully exposed deposit, running cave-ins until nothing changes, and describe the gains
+     *  as message values, one per gain. */
+    std::vector<std::string> settleWall();
     /** Execute movement, blocking, simultaneous attacks, and terminal ordering. */
     void advanceBattle(float delta);
     /** Create a live enemy with authored health, shield, ability timer and elite modifier at a route

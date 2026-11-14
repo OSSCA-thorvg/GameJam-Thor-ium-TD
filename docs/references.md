@@ -17,9 +17,9 @@
 
 ## 채굴과 방어
 
-[명일방주 참고 조사](arknights-reference.md)에는 유닛의 저지 수, 생존연산의 자원 확보·거점 방어, 통합전략의 모집권과 편성 예산을 정리했습니다. 세부 적용안은 검토 단계입니다.
+[명일방주 참고 조사](archive/arknights-reference.md)에는 유닛의 저지 수, 생존연산의 자원 확보·거점 방어, 통합전략의 모집권과 편성 예산을 정리했습니다. 세부 적용안은 검토 단계입니다.
 
-광물별 제작·도구 등급의 추가 사례와 적용 해석은 [채굴·제작 조사](mining-and-crafting-research.md)에 정리했습니다. Minecraft·Terraria·Core Keeper·SteamWorld Dig 2·A Game About Digging A Hole·Deep Rock Galactic: Survivor와 Factorio의 게임 내 지원 공격 사례를 포함합니다.
+광물별 제작·도구 등급의 추가 사례와 적용 해석은 [채굴·제작 조사](archive/mining-and-crafting-research.md)에 정리했습니다. Minecraft·Terraria·Core Keeper·SteamWorld Dig 2·A Game About Digging A Hole·Deep Rock Galactic: Survivor와 Factorio의 게임 내 지원 공격 사례를 포함합니다.
 
 | 자료 | 확인한 구성 | 참고할 점 |
 | --- | --- | --- |
@@ -29,7 +29,7 @@
 
 ## 기술과 행사
 
-2026-11-03의 실제 코드·공식 엔진 비교는 [Rubiks·엔진 조사](architecture-research.md)에 출처와 관찰·해석을 구분해 기록했습니다. Unity·Unreal·Godot의 범용 개체·에디터 체계를 도입하는 근거로 사용하지 않고 상태·수명·시간·좌표의 원리를 비교합니다.
+2026-11-03의 실제 코드·공식 엔진 비교는 [Rubiks·엔진 조사](archive/architecture-research.md)에 출처와 관찰·해석을 구분해 기록했습니다. Unity·Unreal·Godot의 범용 개체·에디터 체계를 도입하는 근거로 사용하지 않고 상태·수명·시간·좌표의 원리를 비교합니다.
 
 - [ThorVG](https://github.com/thorvg/thorvg): 도형·장면·Lottie와 렌더링 백엔드의 공식 프로젝트 설명.
 - [ThorVG C++ API](https://github.com/thorvg/thorvg/blob/main/inc/thorvg.h): 프레임·구간 제어와 그래픽 객체 API.

@@ -1,4 +1,5 @@
 #include "FeedbackChannel.h"
+#include "game/presentation/Text.h"
 
 namespace thorium {
 FeedbackChannel::FeedbackChannel(game::Run &run, presentation::State &state, presentation::Soundscape &sound)
@@ -26,7 +27,7 @@ void FeedbackChannel::collect() {
         auto &hints = state.play.hints;
         if (!hints.nestExcavated && run.state().nextExtra > 0) {
             hints.nestExcavated = true;
-            state.play.toast = "적 둥지 각성! 다음 공세에 추가 적이 침투합니다.";
+            state.play.toast = presentation::tr("toast.nestAwakened");
             state.play.toastTime = 5.0F;
             state.play.error = true;
         } else if (!hints.towerUpgrade) {
@@ -36,7 +37,7 @@ void FeedbackChannel::collect() {
                     for (const auto &tower : run.state().towers) {
                         if (tower.kind == handCard.kind) {
                             hints.towerUpgrade = true;
-                            state.play.toast = "기존 타워 위에 같은 카드를 놓으면 할인된 비용으로 강화돼요!";
+                            state.play.toast = presentation::tr("toast.towerUpgrade");
                             state.play.toastTime = 5.0F;
                             state.play.error = false;
                             break;
@@ -50,7 +51,7 @@ void FeedbackChannel::collect() {
             for (const auto &unit : run.state().units) {
                 if (unit.hp < unit.maxHp) {
                     hints.woundedUnit = true;
-                    state.play.toast = "부상당한 아군을 누르면 철과 구리로 즉시 치료할 수 있어요.";
+                    state.play.toast = presentation::tr("toast.woundedUnit");
                     state.play.toastTime = 5.0F;
                     state.play.error = false;
                     break;
@@ -58,7 +59,7 @@ void FeedbackChannel::collect() {
             }
         } else if (!hints.firstGold && run.state().gold >= 4) {
             hints.firstGold = true;
-            state.play.toast = "금을 획득했습니다! 새 카드를 모집하거나 부대 슬롯을 늘릴 수 있어요.";
+            state.play.toast = presentation::tr("toast.firstGold");
             state.play.toastTime = 5.0F;
             state.play.error = false;
         }
@@ -66,9 +67,8 @@ void FeedbackChannel::collect() {
     if (state.play.toastTime <= 0.0F && state.app.navigation.gameplay() && !state.play.hints.hero &&
         run.hero() && run.state().phase == game::Phase::Battle) {
         state.play.hints.hero = true;
-        state.play.toast = "왕관을 쓴 영웅이에요! 눌러서 전투 중에도 옮길 수 있고, 쓰러지면 " +
-                           std::to_string(static_cast<int>(run.catalog().balance.heroRespawn)) +
-                           "초 뒤 돌아와요.";
+        state.play.toast = presentation::tr(
+            "toast.hero", {{"seconds", std::to_string(static_cast<int>(run.catalog().balance.heroRespawn))}});
         state.play.toastTime = 5.0F;
         state.play.error = false;
     }
@@ -76,15 +76,14 @@ void FeedbackChannel::collect() {
     if (state.play.toastTime <= 0.0F && state.app.navigation.gameplay() && !state.play.hints.boulder &&
         !run.state().boulders.empty() && run.boulderQuote(run.state().boulders.front()).allowed()) {
         state.play.hints.boulder = true;
-        state.play.toast = run.catalog().rails.empty()
-                               ? "철이 모였어요! 지상 화면에서 낙석 바위를 누르면 치울 수 있어요."
-                               : "철이 모였어요! 지상 화면에서 수정 군집을 누르면 치울 수 있어요.";
+        state.play.toast =
+            presentation::tr(run.catalog().rails.empty() ? "toast.boulder" : "toast.crystalCluster");
         state.play.toastTime = 5.0F;
         state.play.error = false;
     }
 }
 void FeedbackChannel::notify(const game::Result &result, presentation::Sound success) {
-    state.play.toast = result.message;
+    state.play.toast = presentation::tr(result.message);
     state.play.toastTime = 5.0F;
     state.play.error = !result.ok;
     collect();

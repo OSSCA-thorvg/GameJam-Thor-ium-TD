@@ -60,28 +60,28 @@ python3 -m http.server 8317 --bind 127.0.0.1 --directory dist
 
 카드 사용과 에너지 1 교환 모두 같은 전환을 사용합니다. 정비 후에는 현재 손패를 다시 나눠 주며 모집·확장 보상으로 얻은 카드의 등장도 보입니다. 잘못된 배치는 붉은 테두리·흔들림·오류 문구로 알리고 성공 전환이나 비용을 만들지 않습니다. 에너지 사용량은 HUD에 짧게 표시합니다.
 
-전투에는 발사 반동·섬광·사격선, 피격 순간의 눌림·빛·피해 숫자, 범위 공격의 충격파, 처치 파편, 거점 피해의 붉은 경계 표시를 추가했습니다. 같은 화면 갱신에서 한 대상이 받은 피해 숫자는 합쳐 표시합니다. 전투 결과가 먼저 확정된 뒤 연출하며, 이펙트 종료가 피해·처치·웨이브 진행을 결정하지 않습니다. 후속 요청으로 [사운드 시스템](audio-system.md)을 추가했습니다. 전역 히트스톱은 아직 적용하지 않았습니다.
+전투에는 발사 반동·섬광·사격선, 피격 순간의 눌림·빛·피해 숫자, 범위 공격의 충격파, 처치 파편, 거점 피해의 붉은 경계 표시를 추가했습니다. 같은 화면 갱신에서 한 대상이 받은 피해 숫자는 합쳐 표시합니다. 전투 결과가 먼저 확정된 뒤 연출하며, 이펙트 종료가 피해·처치·웨이브 진행을 결정하지 않습니다. 후속 요청으로 [사운드 시스템](../audio-system.md)을 추가했습니다. 전역 히트스톱은 아직 적용하지 않았습니다.
 
-규칙은 [Types.h](../src/game/model/Types.h)의 `CombatEvent`로 확정 사실만 내보내고, [Feedback.h](../src/game/presentation/Feedback.h)·[Feedback.cpp](../src/game/presentation/Feedback.cpp)가 손패 스냅샷과 연출 시간을 소유합니다. 이벤트는 한 번 소비하며 미소비 대기는 256개, 동시 연출은 128개로 제한합니다. 일시정지·확인 창에서는 전투 연출도 정지하고 손패 전환은 실제 시간으로 완료됩니다. 저장·전투 상태에 연출 시간을 넣지 않았습니다.
+규칙은 [Types.h](../../src/game/model/Types.h)의 `CombatEvent`로 확정 사실만 내보내고, [Feedback.h](../../src/game/presentation/Feedback.h)·[Feedback.cpp](../../src/game/presentation/Feedback.cpp)가 손패 스냅샷과 연출 시간을 소유합니다. 이벤트는 한 번 소비하며 미소비 대기는 256개, 동시 연출은 128개로 제한합니다. 일시정지·확인 창에서는 전투 연출도 정지하고 손패 전환은 실제 시간으로 완료됩니다. 저장·전투 상태에 연출 시간을 넣지 않았습니다.
 
 ## Lottie 개체 상태
 
-[Lottie·개체 애니메이션](animation-system.md)을 추가했습니다. 적은 독립 플레이어로 대기·이동·공격·사망을 전환합니다. 공격·사망은 원본 마커 구간을 한 번 재생하며, 처치된 적은 게임에서 즉시 제거하고 시각용 사망 연출만 유지합니다. 게임의 배속·일시정지·메뉴 정지를 따르고 새 원정에서 개체 재생을 초기화합니다.
+[Lottie·개체 애니메이션](../animation-system.md)을 추가했습니다. 적은 독립 플레이어로 대기·이동·공격·사망을 전환합니다. 공격·사망은 원본 마커 구간을 한 번 재생하며, 처치된 적은 게임에서 즉시 제거하고 시각용 사망 연출만 유지합니다. 게임의 배속·일시정지·메뉴 정지를 따르고 새 원정에서 개체 재생을 초기화합니다.
 
 ## 실제 코드 경계
 
-아키텍처 검토 후 상태 소유권·콘텐츠·컨트롤러를 분리했습니다. 최신 파일 배치·의존성과 검증은 [현재 구현 아키텍처](current-architecture.md)에 있습니다.
+아키텍처 검토 후 상태 소유권·콘텐츠·컨트롤러를 분리했습니다. 최신 파일 배치·의존성과 검증은 [현재 구현 아키텍처](../current-architecture.md)에 있습니다.
 
 | 파일 | 책임 |
 | --- | --- |
-| [Run.h](../src/game/rules/Run.h), [Run.cpp](../src/game/rules/Run.cpp) | 판 상태 단독 소유·명령 API·고정 갱신 분기. 전투/카드/채굴/진행은 같은 소유자의 별도 구현 파일 |
-| [Ui.h](../src/engine/ui/Ui.h), [Ui.cpp](../src/engine/ui/Ui.cpp) | 일반 사각형·히트 등록·포인터 캡처·취소·키보드 포커스 |
-| [Renderer.h](../src/engine/render/Renderer.h), [Renderer.cpp](../src/engine/render/Renderer.cpp) | ThorVG 캔버스·그리기·한글 폰트·텍스트 캐시·독립 Lottie 인스턴스 |
-| [View.h](../src/game/presentation/View.h), [View.cpp](../src/game/presentation/View.cpp) | 반응형 좌표·전장·지하·개체 벡터 외형 |
-| [GameUi.cpp](../src/game/presentation/GameUi.cpp), [Theme.h](../src/game/presentation/Theme.h) | 게임 전용 HUD·손패·선택창·정비·모집·확인창과 테마 |
-| [Feedback.cpp](../src/game/presentation/Feedback.cpp), [CombatFeedback.cpp](../src/game/presentation/CombatFeedback.cpp) | 카드 전환·전투 사실 소비·연출 수명·피격/처치/설치 표현 |
-| [Application.cpp](../src/app/Application.cpp) | 수명 조합·고정 60Hz 갱신·렌더링, AppFlow/GameplayController에 입력 위임 |
-| [main.cpp](../src/platform/sdl/main.cpp) | SDL 이벤트 정규화·창·DPI·웹 viewport·텍스처 출력·실행 콜백 |
+| [Run.h](../../src/game/rules/Run.h), [Run.cpp](../../src/game/rules/Run.cpp) | 판 상태 단독 소유·명령 API·고정 갱신 분기. 전투/카드/채굴/진행은 같은 소유자의 별도 구현 파일 |
+| [Ui.h](../../src/engine/ui/Ui.h), [Ui.cpp](../../src/engine/ui/Ui.cpp) | 일반 사각형·히트 등록·포인터 캡처·취소·키보드 포커스 |
+| [Renderer.h](../../src/engine/render/Renderer.h), [Renderer.cpp](../../src/engine/render/Renderer.cpp) | ThorVG 캔버스·그리기·한글 폰트·텍스트 캐시·독립 Lottie 인스턴스 |
+| [View.h](../../src/game/presentation/View.h), [View.cpp](../../src/game/presentation/View.cpp) | 반응형 좌표·전장·지하·개체 벡터 외형 |
+| [GameUi.cpp](../../src/game/presentation/GameUi.cpp), [Theme.h](../../src/game/presentation/Theme.h) | 게임 전용 HUD·손패·선택창·정비·모집·확인창과 테마 |
+| [Feedback.cpp](../../src/game/presentation/Feedback.cpp), [CombatFeedback.cpp](../../src/game/presentation/CombatFeedback.cpp) | 카드 전환·전투 사실 소비·연출 수명·피격/처치/설치 표현 |
+| [Application.cpp](../../src/app/Application.cpp) | 수명 조합·고정 60Hz 갱신·렌더링, AppFlow/GameplayController에 입력 위임 |
+| [main.cpp](../../src/platform/sdl/main.cpp) | SDL 이벤트 정규화·창·DPI·웹 viewport·텍스처 출력·실행 콜백 |
 
 폴더마다 빈 매니저나 라이브러리를 만들지 않았습니다. 현재 범용 UI 기반은 히트 테스트·캡처·포커스부터 시작하며, 자동 레이아웃·스크롤·텍스트 편집기·접근성 트리는 아직 만들지 않았습니다. 버튼의 게임별 외형과 화면 배치는 게임 표현에 둡니다. 에셋과 시간의 별도 서비스 추출은 실제 공유 요구가 생길 때 진행합니다.
 
@@ -98,11 +98,11 @@ meson test -C build/native --print-errorlogs
 
 2026-11-04 결과는 문서 검사 29개 통과, 규칙·입력 168항목 통과, 오디오 51항목 통과, SDL dummy 렌더링·오디오 출력 통과입니다. macOS 실제 디스플레이 드라이버에서도 `--smoke-test`로 숨김 창의 4프레임 렌더링과 정상 종료를 별도로 확인했습니다. 일반 터미널의 Playwright 실행과 연결된 브라우저 도구 양쪽에서 아래 실제 입력 시나리오가 통과했습니다. 화면 프로세스 생성이 제한된 터미널 환경에서는 브라우저·디스플레이 권한이 있는 실행 환경이 필요합니다.
 
-초기 화면·설정·원정 계속하기는 [메인·설정 흐름](front-end.md)에 정리했습니다.
+초기 화면·설정·원정 계속하기는 [메인·설정 흐름](../front-end.md)에 정리했습니다.
 
-효과음 파일명·합성음 대체·음량 설정과 테스트는 [사운드 시스템](audio-system.md)에 정리했습니다.
+효과음 파일명·합성음 대체·음량 설정과 테스트는 [사운드 시스템](../audio-system.md)에 정리했습니다.
 
-실제 브라우저 입력 시나리오는 [playable.js](../tests/browser/playable.js), [withdrawal.js](../tests/browser/withdrawal.js), [feedback.js](../tests/browser/feedback.js)에 있습니다. 철수의 확인·취소·전투 정지·비용과 손패 유지, 정비 이동, 모바일 재탭 취소·철수도 확인합니다. 1200×900·980×739·390×844·320×568에서 활성 입력 영역의 화면 경계와 겹침을 검사합니다. 같은 종류 카드의 ID 교체·입력 잠금·수동 교환·실패 표시·실제 피격·일시정지 중 연출 시간도 검사합니다. WASM의 읽기 전용 공개 상태·UI 좌표만 사용하며 게임 상태를 직접 바꾸는 테스트 export는 없습니다. 서버가 실행 중인 상태에서 선택적으로 다음 명령을 사용합니다.
+실제 브라우저 입력 시나리오는 [playable.js](../../tests/browser/playable.js), [withdrawal.js](../../tests/browser/withdrawal.js), [feedback.js](../../tests/browser/feedback.js)에 있습니다. 철수의 확인·취소·전투 정지·비용과 손패 유지, 정비 이동, 모바일 재탭 취소·철수도 확인합니다. 1200×900·980×739·390×844·320×568에서 활성 입력 영역의 화면 경계와 겹침을 검사합니다. 같은 종류 카드의 ID 교체·입력 잠금·수동 교환·실패 표시·실제 피격·일시정지 중 연출 시간도 검사합니다. WASM의 읽기 전용 공개 상태·UI 좌표만 사용하며 게임 상태를 직접 바꾸는 테스트 export는 없습니다. 서버가 실행 중인 상태에서 선택적으로 다음 명령을 사용합니다.
 
 ~~~sh
 npm ci
@@ -119,4 +119,4 @@ npm run test:browser
 - 카드 순환 속도·유닛 치료/철수 가치·생존 체력 유지의 부담.
 - UI 자동 배치·스크롤, 더 다양한 적·외형·타격감.
 
-도감 저장·심층 코어·토륨/핵무기·룬·유저 몬스터 에디터·공식 제출용 ThorVG 스플래시·설치 패키지는 아직 포함하지 않았습니다. 원본 에셋·폰트·라이선스는 [서드파티 안내](../THIRD_PARTY.md)를 확인합니다.
+도감 저장·심층 코어·토륨/핵무기·룬·유저 몬스터 에디터·공식 제출용 ThorVG 스플래시·설치 패키지는 아직 포함하지 않았습니다. 원본 에셋·폰트·라이선스는 [서드파티 안내](../../THIRD_PARTY.md)를 확인합니다.

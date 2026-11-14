@@ -1,3 +1,4 @@
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -138,47 +139,54 @@ std::string roleSummary(const game::Catalog &catalog, game::EnemyKind kind) {
     const game::EnemyDefinition &role = catalog.enemy(kind);
     switch (kind) {
     case game::EnemyKind::Runner:
-        return "이동 속도가 빠르지만 체력이 낮습니다";
+        return tr("enemyinfo.role.runner");
     case game::EnemyKind::Armored:
-        return "방어력 " + std::to_string(role.armor) + " · 전격 공격은 방어력을 무시합니다";
+        return tr("enemyinfo.role.armored", {{"armor", std::to_string(role.armor)}});
     case game::EnemyKind::Swarm:
-        return "작고 빠른 무리 · 범위 공격으로 제압하세요";
+        return tr("enemyinfo.role.swarm");
     case game::EnemyKind::Shielded:
-        return "방패가 1회당 최대 " + std::to_string(role.shieldCap) + " 피해만 흡수 · 연사로 파쇄하세요";
+        return tr("enemyinfo.role.shielded", {{"cap", std::to_string(role.shieldCap)}});
     case game::EnemyKind::Healer:
-        return seconds(role.abilityInterval) + "초마다 주변 적 체력 +" + std::to_string(role.abilityAmount) +
-               " 회복 · 우선 처치 권장";
+        return tr("enemyinfo.role.healer", {{"interval", seconds(role.abilityInterval)},
+                                            {"amount", std::to_string(role.abilityAmount)}});
     case game::EnemyKind::Splitter:
-        return "처치 시 " + catalog.enemy(role.minionKind).name + " " + std::to_string(role.splitCount) +
-               "마리로 분열합니다";
+        return tr("enemyinfo.role.splitter", {{"enemy", enemyName(catalog.enemy(role.minionKind))},
+                                              {"count", std::to_string(role.splitCount)}});
     case game::EnemyKind::Burrower:
-        return "땅속으로 잠복해 저지와 공격을 피하며 빠르게 전진";
+        return tr("enemyinfo.role.burrower");
     case game::EnemyKind::Sapper:
-        return "타워 옆 " + seconds(role.abilityWindup) + "초 폭약 설치 후 " + seconds(role.abilityDuration) +
-               "초 마비 · 설치 중 저지·처치";
+        return tr("enemyinfo.role.sapper",
+                  {{"windup", seconds(role.abilityWindup)}, {"duration", seconds(role.abilityDuration)}});
     case game::EnemyKind::Flyer:
-        return "공중 이동 · 저지 불가, 지상 폭발·장판 면역 (연사·저격·전격으로 요격)";
+        return tr("enemyinfo.role.flyer");
     case game::EnemyKind::Stalker:
-        return seconds(role.stealth) + "칸 이내 접근 시 조준 가능 · 피격 시 " +
-               seconds(catalog.balance.revealTime) + "초간 노출 (범위 공격 유효)";
+        return tr("enemyinfo.role.stalker",
+                  {{"range", seconds(role.stealth)}, {"reveal", seconds(catalog.balance.revealTime)}});
     case game::EnemyKind::Leaper:
-        return "최초 저지 시 " + seconds(role.abilityWindup) + "초 후 " + seconds(role.abilityRadius) +
-               "칸 도약 · 2중 저지선 권장";
+        return tr("enemyinfo.role.leaper",
+                  {{"windup", seconds(role.abilityWindup)}, {"distance", seconds(role.abilityRadius)}});
     case game::EnemyKind::Wrecker:
-        return seconds(role.abilityRadius) + "칸 내 건물 앞에서 멈춰 " + std::to_string(role.abilityAmount) +
-               " 피해 · 유닛으로 사전 저지";
+        return tr("enemyinfo.role.wrecker",
+                  {{"range", seconds(role.abilityRadius)}, {"damage", std::to_string(role.abilityAmount)}});
     case game::EnemyKind::Slinger:
-        return seconds(role.abilityRadius) + "칸 밖에서 건물을 원거리 타격 · 마법·저격으로 제압";
+        return tr("enemyinfo.role.slinger", {{"range", seconds(role.abilityRadius)}});
     case game::EnemyKind::Carrier:
-        return "비행 중 경로 중간에 " + catalog.enemy(role.minionKind).name + " " +
-               std::to_string(role.abilityAmount) + "마리 투하 · 대공 화력으로 조기 격추";
-    case game::EnemyKind::Boss:
-        return (role.shield > 0 ? "보호막 " + std::to_string(role.shield) + " · " : std::string()) +
-               (role.armor > 3 ? "방어 " + std::to_string(role.armor) + " · " : std::string()) + "타워 " +
-               seconds(role.abilityDuration) + "초 기절 · " + catalog.enemy(role.minionKind).name + " " +
-               std::to_string(role.abilityAmount) + " 소환 · 기지 피해 " + std::to_string(role.leak);
+        return tr("enemyinfo.role.carrier", {{"enemy", enemyName(catalog.enemy(role.minionKind))},
+                                             {"count", std::to_string(role.abilityAmount)}});
+    case game::EnemyKind::Boss: {
+        std::string traits;
+        if (role.shield > 0)
+            traits += tr("enemyinfo.boss.shield", {{"shield", std::to_string(role.shield)}}) + " · ";
+        if (role.armor > 3)
+            traits += tr("enemyinfo.boss.armor", {{"armor", std::to_string(role.armor)}}) + " · ";
+        return tr("enemyinfo.role.boss", {{"traits", traits},
+                                          {"stun", seconds(role.abilityDuration)},
+                                          {"enemy", enemyName(catalog.enemy(role.minionKind))},
+                                          {"count", std::to_string(role.abilityAmount)},
+                                          {"leak", std::to_string(role.leak)}});
+    }
     default:
-        return "기본 적";
+        return tr("enemyinfo.role.normal");
     }
 }
 /** Explain one elite modifier from its authored numbers. */
@@ -189,21 +197,31 @@ std::string eliteSummary(const game::Catalog &catalog, game::EliteAffix affix) {
     };
     switch (affix) {
     case game::EliteAffix::Steel:
-        return "방어력 +" + std::to_string(elite.armor) + " · 전격·포격·저격으로 타격하세요";
+        return tr("enemyinfo.elite.steel", {{"armor", std::to_string(elite.armor)}});
     case game::EliteAffix::Swift:
-        return "주변 " + seconds(elite.auraRadius) + "칸 적 이동 속도 +" + percent(elite.auraSpeed - 1) +
-               " · 우선 처치하세요";
+        return tr("enemyinfo.elite.swift",
+                  {{"radius", seconds(elite.auraRadius)}, {"speed", percent(elite.auraSpeed - 1)}});
     case game::EliteAffix::Regen:
-        return "매초 최대 체력 " + percent(elite.regen) + " 재생 · 화력을 집중하세요";
+        return tr("enemyinfo.elite.regen", {{"regen", percent(elite.regen)}});
     case game::EliteAffix::Enrage:
-        return "체력 " + percent(elite.enrageBelow) + " 이하에서 이동 속도 ×" + seconds(elite.enrageSpeed) +
-               " · 감속·저지로 묶어 두세요";
+        return tr("enemyinfo.elite.enrage",
+                  {{"threshold", percent(elite.enrageBelow)}, {"speed", seconds(elite.enrageSpeed)}});
     case game::EliteAffix::Leader:
-        return "주변 " + seconds(elite.auraRadius) + "칸 적이 받는 피해 -" + percent(elite.auraGuard) +
-               " · 지휘 개체부터 처치하세요";
+        return tr("enemyinfo.elite.leader",
+                  {{"radius", seconds(elite.auraRadius)}, {"guard", percent(elite.auraGuard)}});
     default:
         return "";
     }
+}
+/** Estimate a label's width in ems: Latin and digits are narrower than Hangul and other wide glyphs. */
+float labelEms(const std::string &text) {
+    float ems = 0;
+    for (unsigned char byte : text)
+        if (byte < 0x80)
+            ems += .6F;
+        else if (byte >= 0xC0)
+            ems += 1.05F;
+    return ems;
 }
 /** Drawn size multiplier of an elite carrier. */
 float eliteScale(game::EliteAffix affix) {
@@ -234,49 +252,51 @@ std::vector<Gimmick> stageGimmicks(const game::Catalog &catalog) {
     return result;
 }
 /** Return one gimmick's localized name. */
-const char *gimmickName(Gimmick gimmick, const game::Catalog &catalog) {
-    return gimmick == Gimmick::Boulder    ? (catalog.rails.empty() ? "낙석 바위" : "수정 군집")
-           : gimmick == Gimmick::TraitPad ? "특성 패드"
-           : gimmick == Gimmick::Tunnel   ? "갱도 터널"
-           : gimmick == Gimmick::Vent     ? "용암 분출구"
-           : gimmick == Gimmick::Bog      ? "늪"
-           : gimmick == Gimmick::Rail     ? "광차 선로"
-           : gimmick == Gimmick::Tank     ? "가스통"
-           : gimmick == Gimmick::Fork     ? "갈림길"
-                                          : "복합 지형";
+std::string gimmickName(Gimmick gimmick, const game::Catalog &catalog) {
+    return tr(gimmick == Gimmick::Boulder
+                  ? (catalog.rails.empty() ? "gimmick.boulder.name" : "gimmick.crystal.name")
+              : gimmick == Gimmick::TraitPad ? "gimmick.traitPad.name"
+              : gimmick == Gimmick::Tunnel   ? "gimmick.tunnel.name"
+              : gimmick == Gimmick::Vent     ? "gimmick.vent.name"
+              : gimmick == Gimmick::Bog      ? "gimmick.bog.name"
+              : gimmick == Gimmick::Rail     ? "gimmick.rail.name"
+              : gimmick == Gimmick::Tank     ? "gimmick.tank.name"
+              : gimmick == Gimmick::Fork     ? "gimmick.fork.name"
+                                             : "gimmick.mixed.name");
 }
 /** Explain one gimmick's rule from the catalog's authored numbers. */
 std::string gimmickSummary(const game::Catalog &catalog, Gimmick gimmick) {
     const game::RunBalance &balance = catalog.balance;
     switch (gimmick) {
     case Gimmick::Boulder:
-        return std::string(catalog.rails.empty() ? "패드를 가로막은 바위" : "패드를 가로막은 수정") +
-               " · 정비 중 선택해 제거 (" + game::costLabel(balance.boulder) + ")";
+        return tr(catalog.rails.empty() ? "gimmick.boulder.summary" : "gimmick.crystal.summary",
+                  {{"cost", costText(balance.boulder)}});
     case Gimmick::TraitPad:
-        return std::string(padTraitName(game::PadTrait::HighGround)) + " " +
-               padTraitEffect(game::PadTrait::HighGround, balance) + " · " +
-               padTraitName(game::PadTrait::Crystal) + " " + padTraitEffect(game::PadTrait::Crystal, balance);
+        return tr("gimmick.traitPad.summary",
+                  {{"highGround", std::string(padTraitName(game::PadTrait::HighGround))},
+                   {"highGroundEffect", padTraitEffect(game::PadTrait::HighGround, balance)},
+                   {"crystal", std::string(padTraitName(game::PadTrait::Crystal))},
+                   {"crystalEffect", padTraitEffect(game::PadTrait::Crystal, balance)}});
     case Gimmick::Tunnel:
-        return "내부 구간에서는 공격·저지 불가, 적 이동 속도 ×" + seconds(balance.tunnelSpeed);
+        return tr("gimmick.tunnel.summary", {{"speed", seconds(balance.tunnelSpeed)}});
     case Gimmick::Vent:
-        return seconds(balance.ventPeriod) + "초마다 분출 · 반경 내 적과 아군에게 피해 " +
-               std::to_string(balance.ventDamage);
+        return tr("gimmick.vent.summary",
+                  {{"period", seconds(balance.ventPeriod)}, {"damage", std::to_string(balance.ventDamage)}});
     case Gimmick::Bog:
-        return "늪 구간 지상 적 이동 속도 ×" + seconds(balance.bogSpeed) + " (비행 개체 제외)";
+        return tr("gimmick.bog.summary", {{"speed", seconds(balance.bogSpeed)}});
     case Gimmick::Rail:
-        return "전투 중 레버 작동 시 선로 위 지상 적에게 피해 " + std::to_string(balance.cartDamage) +
-               " · 재사용 " + seconds(balance.cartCooldown) + "초";
+        return tr("gimmick.rail.summary", {{"damage", std::to_string(balance.cartDamage)},
+                                           {"cooldown", seconds(balance.cartCooldown)}});
     case Gimmick::Tank:
-        return "전투 중 선택 시 폭발 · 반경 내 적과 아군에게 피해 " + std::to_string(balance.tankDamage) +
-               " (웨이브마다 보충)";
+        return tr("gimmick.tank.summary", {{"damage", std::to_string(balance.tankDamage)}});
     case Gimmick::Fork:
-        return "정비 중 바리케이드를 눌러 차단할 갈래 선택 · 우회로 유도 가능";
+        return tr("gimmick.fork.summary");
     case Gimmick::Mixed: {
-        std::string names = "동시 적용 지형";
+        std::string names;
         for (Gimmick part : stageGimmicks(catalog))
             if (part != Gimmick::Fork)
-                names += " · " + std::string(gimmickName(part, catalog));
-        return names;
+                names += (names.empty() ? "" : " · ") + gimmickName(part, catalog);
+        return tr("gimmick.mixed.summary", {{"names", names}});
     }
     case Gimmick::None:
         break;
@@ -528,10 +548,12 @@ void View::enemyMarkers(engine::Renderer &g, const game::Run &run, const State &
                 arc(g, at, tile * .52F, 1, std::max(2.0F, tile * .06F), {40, 20, 16, 180});
                 arc(g, at, tile * .52F, charge, std::max(2.0F, tile * .06F), fade(fuse, .6F + .4F * blink));
                 const float label = std::clamp(tile * .36F, 11.0F, 16.0F);
-                const std::string countdown = "폭파 " + seconds(std::max(0.0F, enemy->ability));
+                const std::string countdown =
+                    tr("enemyinfo.sapper.countdown", {{"seconds", seconds(std::max(0.0F, enemy->ability))}});
                 g.rect({at.x - label * 2.1F, at.y - tile * .62F - label * 1.25F, label * 4.2F, label * 1.2F},
                        {58, 20, 16, 220}, 4);
-                g.text(countdown, {at.x, at.y - tile * .62F - label * 1.2F}, label, {255, 214, 150}, .5F);
+                g.text(countdown, {at.x, at.y - tile * .62F - label * 1.2F}, label, {255, 214, 150}, .5F,
+                       label * 4);
                 g.circle({p.x + size * .2F, p.y - size * .3F}, size * .1F * (.7F + .5F * blink),
                          fade({255, 230, 120}, blink));
             }
@@ -539,9 +561,9 @@ void View::enemyMarkers(engine::Renderer &g, const game::Run &run, const State &
         if (elite) {
             const float crownW = std::max(9.0F, size * .34F);
             crown(g, {p.x, barTop - (shieldDamaged ? barH : 0) - 3}, crownW, eliteColor);
-            const std::string &name = run.catalog().elite(actor->affix).name;
+            const std::string name = eliteName(actor->affix);
             const float label = std::clamp(tile * .38F, 12.0F, 16.0F);
-            const float tagW = label * (static_cast<float>(name.size()) / 3 * 1.05F + .8F);
+            const float tagW = label * (labelEms(name) + .8F);
             const Rect tag{p.x - tagW / 2, p.y + size * .38F, tagW, label * 1.3F};
             g.rect(tag, {22, 18, 26, 215}, label * .4F);
             g.rect({tag.x, tag.y + tag.h - 2, tag.w, 2}, eliteColor, 1);
@@ -605,8 +627,8 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
                                                : game::EnemyKind::Armored;
         const game::EnemyDefinition &role = bossShown ? bossRole : catalog.enemy(kind);
         const std::string title =
-            bossShown ? "구역 보스 · " + bossRole.name
-                      : catalog.elite(game::EliteAffix::Leader).name + " · " + catalog.enemy(kind).name;
+            bossShown ? tr("enemyinfo.title.boss", {{"enemy", enemyName(bossRole)}})
+                      : eliteName(game::EliteAffix::Leader) + " · " + enemyName(catalog.enemy(kind));
         const int leak = bossShown ? bossRole.leak : role.leak + catalog.elite(game::EliteAffix::Leader).leak;
         const float arrival = bossShown ? bossArrival : leaderArrival;
         const Color accent = bossShown ? theme::gold : theme::elite(game::EliteAffix::Leader);
@@ -655,13 +677,17 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
                 g.line({{bar.x + bar.w * tick / 4, bar.y}, {bar.x + bar.w * tick / 4, bar.y + bar.h}}, 1,
                        {20, 10, 10, 160});
         } else {
-            const std::string threat = bossShown ? "구역 보스" : catalog.elite(game::EliteAffix::Leader).name;
-            g.text(planning ? "경고 · 다음 공세에 " + threat + " 출현" : "경고 · " + threat + " 접근 중",
-                   {left, banner.y + 5}, compact ? 10 : 13, {255, 226, 190});
-            const std::string name = bossShown ? bossRole.name : title;
-            g.text(planning ? name + " · 기지 피해 " + std::to_string(leak)
-                            : name + " · " + std::to_string(static_cast<int>(std::ceil(arrival))) + "초 후",
-                   {left, banner.y + (compact ? 19.0F : 22.0F)}, compact ? 9 : 11, accent);
+            const std::string threat = bossShown ? tr("enemyinfo.boss") : eliteName(game::EliteAffix::Leader);
+            g.text(
+                tr(planning ? "enemyinfo.warning.next" : "enemyinfo.warning.approach", {{"threat", threat}}),
+                {left, banner.y + 5}, compact ? 10 : 13, {255, 226, 190}, 0, banner.x + banner.w - 10 - left);
+            const std::string name = bossShown ? enemyName(bossRole) : title;
+            g.text(planning ? tr("enemyinfo.warning.leak", {{"name", name}, {"leak", std::to_string(leak)}})
+                            : tr("enemyinfo.warning.arrival",
+                                 {{"name", name},
+                                  {"seconds", std::to_string(static_cast<int>(std::ceil(arrival)))}}),
+                   {left, banner.y + (compact ? 19.0F : 22.0F)}, compact ? 9 : 11, accent, 0,
+                   banner.x + banner.w - 10 - left);
         }
     }
     // Composition chips for the current or next wave, with a NEW tag on roles and elites debuting now.
@@ -695,8 +721,9 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
     g.rect({stripX - 4, stripY - 4, stripW + 8, chip + 8}, {16, 30, 38, 200}, 7);
     float x = stripX;
     if (!compact) {
-        g.text(battle ? "이번" : "다음", {x + 26, stripY + 4}, 11, theme::muted, .5F);
-        g.text("공세", {x + 26, stripY + 20}, 11, theme::muted, .5F);
+        g.text(tr(battle ? "enemyinfo.strip.current" : "enemyinfo.strip.next"), {x + 26, stripY + 4}, 11,
+               theme::muted, .5F, 52);
+        g.text(tr("enemyinfo.strip.wave"), {x + 26, stripY + 20}, 11, theme::muted, .5F, 52);
         x += 58;
     }
     /** One introduction card: a debuting role, the pack leader, a debuting elite modifier or a battlefield
@@ -740,10 +767,10 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
         g.rect({x, stripY, chip, chip}, fresh ? fade({70, 44, 86, 240}, flash) : Color{40, 34, 52, 235}, 6);
         g.rect({x, stripY + chip - 3, chip, 3}, color, 1);
         crown(g, {x + chip / 2, stripY + chip * .42F}, chip * .42F, color);
-        const std::string &name = catalog.elite(affix).name;
-        const bool wide = name.size() > 6;
+        const std::string name = eliteName(affix);
+        const bool wide = labelEms(name) > 2.1F;
         g.text(name, {x + 2, stripY + chip * .5F}, wide ? (compact ? 6.5F : 9.0F) : (compact ? 10.0F : 12.0F),
-               color);
+               color, 0, chip - 4);
         g.text(std::to_string(elites[index]), {x + chip - 3, stripY + chip - (compact ? 12.0F : 15.0F)},
                compact ? 9 : 11, theme::text, 1);
         if (fresh)
@@ -775,8 +802,8 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
         g.rect({fold.x, fold.y + 2, fold.w, fold.h}, {0, 0, 0, 90}, 6);
         g.rect(fold, {22, 38, 46, 235}, 6);
         g.rect({fold.x, fold.y, 4, fold.h}, theme::gold, 2);
-        g.text("안내 " + std::to_string(intros.size()) + " · 펼치기", {fold.x + 12, fold.y + 8}, 11,
-               theme::gold);
+        g.text(tr("enemyinfo.intro.unfold", {{"count", std::to_string(intros.size())}}),
+               {fold.x + 12, fold.y + 8}, 11, theme::gold, 0, fold.w - 16);
         introToggle_ = fold;
         return;
     }
@@ -793,7 +820,8 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
                                          full.y + full.h - introToggle_.y};
         g.rect({card.x + card.w, full.y + 3, 34, full.h}, {0, 0, 0, 110}, 8);
         g.rect({card.x + card.w, full.y, 34, full.h}, {14, 26, 32, 240}, 8);
-        g.text("접기", {card.x + card.w + 17, full.y + full.h / 2 - 6}, 10, theme::muted, .5F);
+        g.text(tr("enemyinfo.intro.fold"), {card.x + card.w + 17, full.y + full.h / 2 - 6}, 10, theme::muted,
+               .5F, 30);
         const bool elite = intro.affix != game::EliteAffix::None;
         const bool ground = intro.gimmick != Gimmick::None;
         const Color accent = ground                                ? theme::green
@@ -808,8 +836,9 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
                         state.app.campaign ? game::stageMetadata(state.play.currentStage).biome
                                            : game::StageBiome::Meadow);
             const float textX = card.x + card.h + 6;
-            g.text(std::string("전장 지형 · ") + gimmickName(intro.gimmick, catalog),
-                   {textX, card.y + (compact ? 6.0F : 9.0F)}, compact ? 11 : 13, accent);
+            g.text(tr("gimmick.card.title", {{"gimmick", gimmickName(intro.gimmick, catalog)}}),
+                   {textX, card.y + (compact ? 6.0F : 9.0F)}, compact ? 11 : 13, accent, 0,
+                   card.x + card.w - textX - 8);
             g.text(gimmickSummary(catalog, intro.gimmick), {textX, card.y + (compact ? 24.0F : 31.0F)},
                    compact ? 9 : 11, theme::text, 0, card.x + card.w - textX - 8);
             continue;
@@ -827,12 +856,14 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
         const float textX = card.x + card.h + 6;
         const std::string title =
             intro.affix == game::EliteAffix::Leader
-                ? "정예 우두머리 · " + catalog.enemy(intro.kind).name + " 체력 ×" +
-                      seconds(catalog.elite(intro.affix).health)
-            : elite ? "정예 등장 · " + catalog.elite(intro.affix).name
-                    : (intro.kind == game::EnemyKind::Boss ? "구역 보스 · " : "새로운 적 · ") +
-                          catalog.enemy(intro.kind).name;
-        g.text(title, {textX, card.y + (compact ? 6.0F : 9.0F)}, compact ? 11 : 13, accent);
+                ? tr("enemyinfo.intro.leader", {{"enemy", enemyName(catalog.enemy(intro.kind))},
+                                                {"health", seconds(catalog.elite(intro.affix).health)}})
+            : elite
+                ? tr("enemyinfo.intro.elite", {{"elite", eliteName(intro.affix)}})
+                : tr(intro.kind == game::EnemyKind::Boss ? "enemyinfo.title.boss" : "enemyinfo.intro.enemy",
+                     {{"enemy", enemyName(catalog.enemy(intro.kind))}});
+        g.text(title, {textX, card.y + (compact ? 6.0F : 9.0F)}, compact ? 11 : 13, accent, 0,
+               card.x + card.w - textX - 8);
         g.text(elite ? eliteSummary(catalog, intro.affix) : roleSummary(catalog, intro.kind),
                {textX, card.y + (compact ? 24.0F : 31.0F)}, compact ? 9 : 11, theme::text, 0,
                card.x + card.w - textX - 8);

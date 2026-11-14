@@ -30,7 +30,7 @@ struct PlayPreview {
         return failure == PlayFailure::None;
     }
     /** Read the same explanation returned by a rejected execution. */
-    const char *message() const;
+    Message message() const;
 };
 /** Summarize legal targets for a current hand card, independently of its screen position. */
 struct PlayAvailability {

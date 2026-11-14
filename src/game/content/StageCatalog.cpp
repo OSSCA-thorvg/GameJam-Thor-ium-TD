@@ -209,34 +209,40 @@ void campaignWaves(Catalog &content, int stage, int count) {
     // and runners, the core armoured guards and the swamp a crowd of orelings.
     switch (stage) {
     case 2:
-        boss.name = "흑요석 골렘";
+        boss.key = "golem.obsidian";
+        boss.name = boss.key;
         boss.shield = 200;
         boss.shieldCap = 8;
         break;
     case 3:
-        boss.name = "동토 골렘";
+        boss.key = "golem.frost";
+        boss.name = boss.key;
         boss.abilityRadius = 3;
         boss.abilityDuration = 2.5F;
         boss.minionKind = EnemyKind::Burrower;
         break;
     case 4:
-        boss.name = "용암 골렘";
+        boss.key = "golem.lava";
+        boss.name = boss.key;
         boss.armor = 5;
         boss.abilityInterval = 6;
         boss.minionKind = EnemyKind::Runner;
         boss.abilityAmount = 3;
         break;
     case 5:
-        boss.name = "토르륨 골렘";
+        boss.key = "golem.thorium";
+        boss.name = boss.key;
         boss.abilityRadius = 2.8F;
         boss.abilityInterval = 8;
         boss.minionKind = EnemyKind::Armored;
         break;
     case 6:
-        boss.name = "수정 골렘";
+        boss.key = "golem.crystal";
+        boss.name = boss.key;
         break;
     case 7:
-        boss.name = "늪 골렘";
+        boss.key = "golem.swamp";
+        boss.name = boss.key;
         boss.minionKind = EnemyKind::Normal;
         boss.abilityAmount = 3;
         break;
@@ -513,8 +519,8 @@ Catalog makeStage(int stage) {
         content.height = 18;
         content.route.insert(content.route.end(), {{20, 5}, {20, 10}, {22, 10}});
         content.additionalRoutes = {
-            {"북쪽 우회로", {{18, 1}, {14, 1}, {14, 3}, {18, 3}, {18, 8}, {22, 8}, {22, 10}}, 3},
-            {"남서 광산길", {{1, 16}, {12, 16}, {12, 12}, {24, 12}, {24, 10}, {22, 10}}, 4}};
+            {"north_bypass", {{18, 1}, {14, 1}, {14, 3}, {18, 3}, {18, 8}, {22, 8}, {22, 10}}, 3},
+            {"southwest_mine_road", {{1, 16}, {12, 16}, {12, 12}, {24, 12}, {24, 10}, {22, 10}}, 4}};
         for (Point point : std::vector<Point>{{17, 4},
                                               {19, 7},
                                               {21, 9},
@@ -538,8 +544,8 @@ Catalog makeStage(int stage) {
         content.height = 20;
         content.route = {{2, 3}, {10, 3}, {10, 8}, {5, 8}, {5, 14}, {20, 14}, {20, 9}, {29, 9}};
         content.additionalRoutes = {
-            {"북쪽 협곡", {{21, 1}, {14, 1}, {14, 6}, {25, 6}, {25, 9}, {29, 9}}, 2},
-            {"남쪽 지름길",
+            {"north_gorge", {{21, 1}, {14, 1}, {14, 6}, {25, 6}, {25, 9}, {29, 9}}, 2},
+            {"south_shortcut",
              {{33, 19}, {30, 19}, {30, 16}, {18, 16}, {18, 12}, {26, 12}, {26, 9}, {29, 9}},
              5}};
         content.pads = {{4, 2},   {16, 2},  {19, 2},  {13, 3},  {8, 4},   {16, 5},  {19, 5},  {11, 6},
@@ -559,9 +565,9 @@ Catalog makeStage(int stage) {
         content.route = {{2, 3},   {12, 3},  {12, 8},  {6, 8},   {6, 17},
                          {17, 17}, {17, 13}, {25, 13}, {25, 11}, {34, 11}};
         content.additionalRoutes = {
-            {"북쪽 회랑", {{31, 1}, {21, 1}, {21, 6}, {31, 6}, {31, 11}, {34, 11}}, 2},
-            {"남쪽 갱도", {{35, 20}, {20, 20}, {20, 15}, {29, 15}, {29, 11}, {34, 11}}, 4},
-            {"중앙 우회로",
+            {"north_corridor", {{31, 1}, {21, 1}, {21, 6}, {31, 6}, {31, 11}, {34, 11}}, 2},
+            {"south_shaft", {{35, 20}, {20, 20}, {20, 15}, {29, 15}, {29, 11}, {34, 11}}, 4},
+            {"central_bypass",
              {{1, 11}, {10, 11}, {10, 15}, {15, 15}, {15, 9}, {27, 9}, {27, 11}, {34, 11}},
              7}};
         content.pads = {{22, 3},  {11, 5},  {21, 7},  {29, 7},  {13, 8},  {25, 8},  {32, 9},
@@ -579,10 +585,12 @@ Catalog makeStage(int stage) {
         content.route = {{2, 2},  {11, 2}, {11, 7},  {4, 7},   {4, 13},  {13, 13},
                          {13, 9}, {20, 9}, {20, 16}, {30, 16}, {30, 12}, {38, 12}};
         content.additionalRoutes = {
-            {"북쪽 용암길", {{27, 1}, {17, 1}, {17, 5}, {26, 5}, {26, 9}, {34, 9}, {34, 12}, {38, 12}}, 2},
-            {"남쪽 분화구", {{40, 22}, {25, 22}, {25, 19}, {34, 19}, {34, 12}, {38, 12}}, 4},
-            {"서쪽 균열", {{1, 18}, {9, 18}, {9, 21}, {20, 21}, {20, 16}, {30, 16}, {30, 12}, {38, 12}}, 7},
-            {"동쪽 열수로",
+            {"north_lava_road",
+             {{27, 1}, {17, 1}, {17, 5}, {26, 5}, {26, 9}, {34, 9}, {34, 12}, {38, 12}},
+             2},
+            {"south_crater", {{40, 22}, {25, 22}, {25, 19}, {34, 19}, {34, 12}, {38, 12}}, 4},
+            {"west_rift", {{1, 18}, {9, 18}, {9, 21}, {20, 21}, {20, 16}, {30, 16}, {30, 12}, {38, 12}}, 7},
+            {"east_vent_channel",
              {{41, 2}, {37, 2}, {37, 6}, {30, 6}, {30, 10}, {36, 10}, {36, 12}, {38, 12}},
              10}};
         content.pads = {{18, 3},  {39, 3},  {10, 4},  {36, 4},  {16, 6},  {19, 6},  {24, 6},  {27, 7},
@@ -600,12 +608,12 @@ Catalog makeStage(int stage) {
         content.route = {{2, 4},   {9, 4},   {9, 10},  {4, 10},  {4, 20},
                          {14, 20}, {14, 15}, {19, 15}, {19, 13}, {24, 13}};
         content.additionalRoutes = {
-            {"북쪽 관문", {{30, 1}, {18, 1}, {18, 6}, {28, 6}, {28, 10}, {24, 10}, {24, 13}}, 2},
-            {"동쪽 균열", {{46, 5}, {40, 5}, {40, 10}, {34, 10}, {34, 16}, {29, 16}, {29, 13}, {24, 13}}, 4},
-            {"남쪽 나선",
+            {"north_gate", {{30, 1}, {18, 1}, {18, 6}, {28, 6}, {28, 10}, {24, 10}, {24, 13}}, 2},
+            {"east_rift", {{46, 5}, {40, 5}, {40, 10}, {34, 10}, {34, 16}, {29, 16}, {29, 13}, {24, 13}}, 4},
+            {"south_spiral",
              {{38, 24}, {38, 19}, {31, 19}, {31, 22}, {22, 22}, {22, 17}, {26, 17}, {26, 13}, {24, 13}},
              7},
-            {"남서 광맥",
+            {"southwest_vein",
              {{1, 23}, {10, 23}, {10, 17}, {17, 17}, {17, 15}, {19, 15}, {19, 13}, {24, 13}},
              11}};
         content.pads = {{19, 3},  {7, 5},   {26, 5},  {42, 6},  {20, 7},  {8, 8},   {27, 8},  {39, 8},
@@ -628,9 +636,11 @@ Catalog makeStage(int stage) {
         content.height = 26;
         content.route = {{2, 5}, {12, 5}, {12, 11}, {6, 11}, {6, 19}, {18, 19}, {18, 13}, {36, 13}};
         content.additionalRoutes = {
-            {"북쪽 수정맥", {{20, 1}, {20, 8}, {26, 8}, {26, 4}, {32, 4}, {32, 13}, {36, 13}}, 2},
-            {"동쪽 광차길", {{49, 2}, {37, 2}, {37, 9}, {46, 9}, {46, 16}, {40, 16}, {40, 13}, {36, 13}}, 4},
-            {"남쪽 공명굴", {{48, 24}, {30, 24}, {30, 17}, {36, 17}, {36, 13}}, 7}};
+            {"north_crystal_vein", {{20, 1}, {20, 8}, {26, 8}, {26, 4}, {32, 4}, {32, 13}, {36, 13}}, 2},
+            {"east_cart_road",
+             {{49, 2}, {37, 2}, {37, 9}, {46, 9}, {46, 16}, {40, 16}, {40, 13}, {36, 13}},
+             4},
+            {"south_resonant_cave", {{48, 24}, {30, 24}, {30, 17}, {36, 17}, {36, 13}}, 7}};
         content.pads = {{11, 4},  {13, 8},  {9, 10},  {7, 13},  {5, 16},  {7, 18},  {10, 20}, {14, 18},
                         {17, 16}, {19, 15}, {19, 11}, {22, 14}, {25, 12}, {28, 14}, {21, 6},  {23, 7},
                         {25, 5},  {29, 3},  {31, 6},  {33, 9},  {34, 14}, {33, 11}, {36, 3},  {38, 6},
@@ -649,12 +659,12 @@ Catalog makeStage(int stage) {
         content.height = 28;
         content.route = {{2, 4}, {10, 4}, {10, 10}, {5, 10}, {5, 21}, {15, 21}, {15, 14}, {24, 14}};
         content.additionalRoutes = {
-            {"북쪽 갈대밭", {{38, 1}, {38, 3}, {27, 3}, {27, 6}, {20, 6}, {20, 10}, {24, 10}, {24, 14}}, 2},
-            {"동쪽 산성천", {{51, 8}, {39, 8}, {39, 17}, {30, 17}, {30, 14}, {24, 14}}, 4},
-            {"남쪽 수렁",
+            {"north_reeds", {{38, 1}, {38, 3}, {27, 3}, {27, 6}, {20, 6}, {20, 10}, {24, 10}, {24, 14}}, 2},
+            {"east_acid_stream", {{51, 8}, {39, 8}, {39, 17}, {30, 17}, {30, 14}, {24, 14}}, 4},
+            {"south_mire",
              {{45, 27}, {45, 25}, {37, 25}, {37, 23}, {27, 23}, {27, 19}, {24, 19}, {24, 14}},
              7},
-            {"남서 썩은 물길",
+            {"southwest_rot_channel",
              {{1, 26}, {11, 26}, {11, 24}, {19, 24}, {19, 17}, {22, 17}, {22, 14}, {24, 14}},
              11}};
         content.pads = {{9, 3},   {11, 7},  {8, 9},   {6, 12},  {4, 15},  {6, 18},  {4, 20},  {9, 20},
@@ -724,28 +734,20 @@ const Catalog &stageCatalog(int stageIndex) {
 }
 const StageMetadata &stageMetadata(int stageIndex) {
     static const std::array<StageMetadata, TotalStages> metadata{{
-        {1, "표층 방어선", "제1 작전 구역 · 표층 초원", "서쪽을 막고 북쪽 우회로와 남서 광산길에 대비하세요.",
-         static_cast<int>(stageCatalog(1).waves.size()), 1, StageBiome::Meadow,
-         "낙석 바위 · 정비 중 철을 사용해 패드 개방"},
-        {2, "흑요석 협곡", "제2 작전 구역 · 흑요석 지대", "교차하는 세 진입로가 거점 앞에서 합류합니다.",
-         static_cast<int>(stageCatalog(2).waves.size()), 2, StageBiome::Obsidian,
-         "특성 패드 · 고지 사거리 증가 · 결정 지반 피해 증가"},
-        {3, "동토의 고대 갱도", "제3 작전 구역 · 동토 갱도",
-         "외곽 순환과 중앙 우회로의 동시 공세를 막으세요.", static_cast<int>(stageCatalog(3).waves.size()), 3,
-         StageBiome::Tundra, "갱도 터널 · 터널 내부의 적은 공격 불가"},
-        {4, "용암 심층부", "제4 작전 구역 · 용암 심층", "용암 균열을 따라 다섯 입구가 차례로 열립니다.",
-         static_cast<int>(stageCatalog(4).waves.size()), 4, StageBiome::Lava,
-         "용암 분출구 · 피아 구분 없이 범위 피해"},
-        {5, "토르륨 핵", "제5 작전 구역 · 토르륨 핵",
-         "사방에서 중앙의 토르륨 핵으로 몰려드는 공세를 막으세요.",
-         static_cast<int>(stageCatalog(5).waves.size()), 5, StageBiome::Core,
-         "복합 지형 · 터널, 용암 분출구, 특성 패드 동시 등장"},
-        {6, "공명 수정굴", "제6 작전 구역 · 수정 공명굴", "수정 동굴의 네 갈래 공세를 광차로 쓸어내세요.",
-         static_cast<int>(stageCatalog(6).waves.size()), 6, StageBiome::Crystal,
-         "광차 선로 · 레버 작동 시 선로 위의 적 타격"},
-        {7, "부식의 늪", "제7 작전 구역 · 산성 늪지", "늪을 건너오는 다섯 갈래 공세를 가스통으로 끊으세요.",
-         static_cast<int>(stageCatalog(7).waves.size()), 7, StageBiome::Swamp,
-         "산성 늪 및 가스통 · 이동 감속 및 수동 폭파"},
+        {1, "stage.1.name", static_cast<int>(stageCatalog(1).waves.size()), 1, StageBiome::Meadow,
+         "stage.1.gimmick"},
+        {2, "stage.2.name", static_cast<int>(stageCatalog(2).waves.size()), 2, StageBiome::Obsidian,
+         "stage.2.gimmick"},
+        {3, "stage.3.name", static_cast<int>(stageCatalog(3).waves.size()), 3, StageBiome::Tundra,
+         "stage.3.gimmick"},
+        {4, "stage.4.name", static_cast<int>(stageCatalog(4).waves.size()), 4, StageBiome::Lava,
+         "stage.4.gimmick"},
+        {5, "stage.5.name", static_cast<int>(stageCatalog(5).waves.size()), 5, StageBiome::Core,
+         "stage.5.gimmick"},
+        {6, "stage.6.name", static_cast<int>(stageCatalog(6).waves.size()), 6, StageBiome::Crystal,
+         "stage.6.gimmick"},
+        {7, "stage.7.name", static_cast<int>(stageCatalog(7).waves.size()), 7, StageBiome::Swamp,
+         "stage.7.gimmick"},
     }};
     return metadata.at(static_cast<std::size_t>(std::clamp(stageIndex, 1, TotalStages) - 1));
 }

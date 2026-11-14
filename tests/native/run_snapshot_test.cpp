@@ -61,7 +61,8 @@ void lockstep(int stage, MiningMode mining, int wave, bool prepared) {
     require(!text.empty(), "a run between waves has a snapshot: " + label);
     Run copy = makeRun(content);
     const Result restored = copy.restore(text);
-    require(restored.ok, "the snapshot restores into a new run: " + label + " (" + restored.message + ")");
+    require(restored.ok,
+            "the snapshot restores into a new run: " + label + " (" + restored.message.key + ")");
     require(copy.snapshot() == text && copy.debugState() == original.debugState(),
             "the restored run reads exactly like the original: " + label);
     require(finish(copy) == finish(original), "both runs finish identically: " + label);

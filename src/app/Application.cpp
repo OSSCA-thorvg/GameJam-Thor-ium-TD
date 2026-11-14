@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "game/autoplay/Autoplayer.h"
+#include "game/content/ContentKeys.h"
 #include "game/presentation/Assets.h"
 #include "game/presentation/Text.h"
 #include <algorithm>
@@ -29,9 +30,9 @@ std::string jsonText(const std::string &value) {
 /** Serialize the actual rendered base-card data for read-only UI regression diagnostics. */
 std::string jsonCardDetails(const presentation::CardDetails &card) {
     std::ostringstream output;
-    output << "{\"kind\":" << static_cast<int>(card.kind) << ",\"name\":" << jsonText(card.name)
-           << ",\"cost\":" << card.cost << ",\"description\":" << jsonText(card.description)
-           << ",\"stats\":[";
+    output << "{\"kind\":" << static_cast<int>(card.kind)
+           << ",\"name\":" << jsonText(game::cardKey(card.kind)) << ",\"cost\":" << card.cost
+           << ",\"description\":" << jsonText(card.description) << ",\"stats\":[";
     for (std::size_t index = 0; index < card.stats.size(); ++index) {
         if (index)
             output << ',';
@@ -78,7 +79,7 @@ void Application::restoreRun() {
                 state.app.selectedStage = stage;
                 state.play = presentation::PlayState{};
                 state.play.currentStage = stage;
-                state.play.toast = restored.message;
+                state.play.toast = presentation::tr(restored.message);
                 state.app.navigation.resume();
                 feedback.reset();
                 savedRun_ = text;
@@ -333,7 +334,7 @@ void Application::act(engine::Interaction interaction) {
             return;
     }
     if (state.app.navigation.gameplay() && !tutorial.allows(*input, view.layout)) {
-        feedback.notify({false, "강조된 카드·칸부터 진행해 주세요. 다시하기로 이 단계를 복구할 수 있어요"});
+        feedback.notify({false, game::Message("tutorial.blocked")});
         return;
     }
     const std::string languageBefore = presentation::language();
@@ -464,6 +465,10 @@ void Application::suspend() {
 std::string Application::debugState() const {
     std::string result = run.debugState();
     result.pop_back();
+    std::string missingText;
+    for (const std::string &key : presentation::missingKeys())
+        missingText += (missingText.empty() ? "" : ",") + jsonText(key);
+    result += ",\"missingText\":[" + missingText + "]";
     result += ",\"paused\":" + std::string(state.play.paused ? "true" : "false") +
               ",\"splash\":" + (splashActive_ ? "true" : "false") +
               ",\"screen\":" + std::to_string(static_cast<int>(state.app.navigation.current())) +
@@ -575,7 +580,7 @@ std::string Application::debugState() const {
                  << ",\"action\":" << static_cast<int>(placement->rule.action)
                  << ",\"range\":" << placement->range
                  << ",\"reason\":" << static_cast<int>(placement->rule.failure)
-                 << ",\"message\":" << jsonText(placement->rule.message()) << '}';
+                 << ",\"message\":" << jsonText(placement->rule.message().key) << '}';
     } else
         feedback << "null";
     feedback << ",\"cardInfo\":";

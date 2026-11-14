@@ -33,7 +33,7 @@ Catalog fixture(MineTileDefinition tile) {
 void excavate(Run &run, int cell) {
     const Result result = run.dig(cell);
     if (!result.ok) {
-        std::cerr << "dig " << cell << " failed: " << result.message << '\n';
+        std::cerr << "dig " << cell << " failed: " << result.message.key << '\n';
         std::exit(1);
     }
     for (int step = 0; run.state().job.active && step < 400; ++step)

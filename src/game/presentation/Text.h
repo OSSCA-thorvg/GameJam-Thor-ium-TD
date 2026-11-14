@@ -1,5 +1,7 @@
 #pragma once
 #include "engine/text/Strings.h"
+#include "game/content/Catalog.h"
+#include "game/model/Message.h"
 #include <array>
 #include <string>
 #include <string_view>
@@ -25,6 +27,26 @@ std::string nextLanguage();
 std::string tr(std::string_view key);
 /** The same, with `{name}` placeholders filled. */
 std::string tr(std::string_view key, const engine::TextArgs &args);
+/** Keys looked up since start that no table defines, sorted, for diagnostics and tests. */
+std::vector<std::string> missingKeys();
+/** A rule message: `@key` values are looked up and `#cost/...` values become a price before the
+ *  placeholders are filled. An empty message is an empty string. */
+std::string tr(const game::Message &message);
+/** A card kind's name, `card.<id>.name`. */
+std::string cardName(game::CardKind kind);
+/** An enemy definition's name, `enemy.<key>.name`. */
+std::string enemyName(const game::EnemyDefinition &enemy);
+/** An elite modifier's name, `elite.<id>.name`. */
+std::string eliteName(game::EliteAffix affix);
+/** An ore's name, `ore.<id>.name`, or its short form `ore.<id>.short` for tight labels. */
+std::string oreName(game::Ore ore, bool compact = false);
+/** A mine layer's name, `minelayer.<id>.name`. */
+std::string mineLayerName(const game::MineLayerDefinition &layer);
+/** A relic's name, `relic.<id>.name`. */
+std::string relicName(game::Relic relic);
+/** A resource price as ore names with amounts, or `cost.free` when nothing is charged; compact uses short ore
+ *  names without spaces. */
+std::string costText(const game::ResourceCost &cost, bool compact = false);
 /** A campaign stage's name, read from `stage.<id>.name`. */
 std::string stageName(int id);
 /** A campaign stage's one-line gimmick summary, read from `stage.<id>.gimmick`. */

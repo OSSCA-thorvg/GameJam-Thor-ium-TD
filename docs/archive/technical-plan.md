@@ -73,7 +73,7 @@ ThorVG Animation이 프레임을 제어하고 해당 Picture를 게임 캔버스
 
 CPU 렌더링과 WebGL을 동일한 장면·해상도에서 비교합니다. WebGPU는 목표 환경과 도입 비용을 확인한 뒤 판단합니다. Q-07 답변으로 데스크톱 60 FPS 검증을 우선하고 모바일 UI·UX도 준비합니다. 실제 기준 기기·브라우저·해상도·DPR과 모바일 성능 기준은 미정이며 [검증 계획](validation-plan.md)의 환경표에 기록합니다. 모바일 화면·터치·안전 영역·조작 취소는 [UI·UX 계획](interface-plan.md)에 정리했습니다.
 
-GitHub Pages의 프로젝트 하위 경로에서도 WASM·Lottie·폰트가 로딩되어야 합니다. 게임 시작 시 공식 ThorVG 스플래시를 타이틀보다 먼저 ThorVG로 재생하고, 새로고침·리사이즈·탭 복귀를 검증합니다. 자세한 행사 기준은 [등록 및 제출](registration.md)을 따릅니다.
+GitHub Pages의 프로젝트 하위 경로에서도 WASM·Lottie·폰트가 로딩되어야 합니다. 게임 시작 시 공식 ThorVG 스플래시를 타이틀보다 먼저 ThorVG로 재생하고, 새로고침·리사이즈·탭 복귀를 검증합니다. 자세한 행사 기준은 [등록 및 제출](../registration.md)을 따릅니다.
 
 ## 개발 규칙
 

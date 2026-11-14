@@ -1,4 +1,5 @@
 #include "MineArt.h"
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -210,20 +211,6 @@ Color mineOreColor(game::Ore ore) {
         return {176, 160, 140};
     }
 }
-const char *mineOreName(game::Ore ore) {
-    switch (ore) {
-    case game::Ore::Iron:
-        return "철";
-    case game::Ore::Copper:
-        return "구리";
-    case game::Ore::Crystal:
-        return "수정";
-    case game::Ore::Gold:
-        return "금";
-    default:
-        return "암석";
-    }
-}
 Color clueColor(int clue) {
     switch (clue) {
     case 1:
@@ -249,29 +236,16 @@ void drawPickaxe(engine::Renderer &g, ScreenPoint center, float size, Color head
     g.line({point(-.18F, -.62F), point(.3F, -.36F), point(.62F, .12F)}, std::max(1.5F, size * .15F), head);
 }
 
-const char *relicName(game::Relic relic) {
-    switch (relic) {
-    case game::Relic::Battery:
-        return "고대 축전지";
-    case game::Relic::Charm:
-        return "광부의 부적";
-    case game::Relic::Ward:
-        return "둥지 봉인석";
-    case game::Relic::Lens:
-        return "심층 탐지경";
-    }
-    return "유물";
-}
 std::string relicEffect(game::Relic relic, const game::RunBalance &balance) {
     switch (relic) {
     case game::Relic::Battery:
-        return "전투 시작 에너지 +" + std::to_string(balance.relicEnergy);
+        return tr("mine.relic.battery.effect", {{"amount", std::to_string(balance.relicEnergy)}});
     case game::Relic::Charm:
-        return "정비마다 굴착 +" + std::to_string(balance.relicDigs);
+        return tr("mine.relic.charm.effect", {{"amount", std::to_string(balance.relicDigs)}});
     case game::Relic::Ward:
-        return "둥지 증원 -" + std::to_string(balance.relicNestReduction);
+        return tr("mine.relic.ward.effect", {{"amount", std::to_string(balance.relicNestReduction)}});
     case game::Relic::Lens:
-        return "정비마다 무료 스캔 +" + std::to_string(balance.relicScans);
+        return tr("mine.relic.lens.effect", {{"amount", std::to_string(balance.relicScans)}});
     }
     return {};
 }
@@ -331,21 +305,24 @@ void drawRelicIcon(engine::Renderer &g, game::Relic relic, ScreenPoint c, float 
         g.circle({lens.x - r * .12F, lens.y - r * .12F}, r * .08F, {255, 255, 255, 200});
     }
 }
-const char *mineSpecialName(game::MineSpecial special) {
+namespace {
+/** Return a special tile's short localized label. */
+std::string specialName(game::MineSpecial special) {
     switch (special) {
     case game::MineSpecial::Relic:
-        return "보물 상자";
+        return tr("mine.special.relic");
     case game::MineSpecial::Fossil:
-        return "카드 화석";
+        return tr("mine.special.fossil");
     case game::MineSpecial::Unstable:
-        return "붕괴 암반";
+        return tr("mine.special.unstable");
     case game::MineSpecial::Energy:
-        return "에너지 수정";
+        return tr("mine.special.energy");
     case game::MineSpecial::None:
         break;
     }
-    return "암석";
+    return oreName(game::Ore::Rock);
 }
+} // namespace
 Color mineSpecialColor(game::MineSpecial special) {
     switch (special) {
     case game::MineSpecial::Relic:
@@ -868,11 +845,12 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
                 if (cell.special == game::MineSpecial::Relic)
                     twinkle(g, {c.x + tile * .2F, c.y - tile * .18F}, tile * .1F, glow);
             }
-            const std::string label = cell.special == game::MineSpecial::Energy
-                                          ? "에너지 +" + std::to_string(cell.amount)
-                                      : cell.special == game::MineSpecial::Relic  ? std::string("유물")
-                                      : cell.special == game::MineSpecial::Fossil ? std::string("화석")
-                                                                                  : std::string("붕괴");
+            const std::string label =
+                cell.special == game::MineSpecial::Energy
+                    ? tr("mine.energy", {{"amount", std::to_string(cell.amount)}})
+                    : tr(cell.special == game::MineSpecial::Relic    ? "mine.cell.relic"
+                         : cell.special == game::MineSpecial::Fossil ? "mine.cell.fossil"
+                                                                     : "mine.cell.unstable");
             const float pillW = std::max(tile * .5F, labelWidth(label, tile * .19F) + tile * .14F);
             const Rect pill{box.x + (box.w - pillW) / 2, box.y + box.h - tile * .3F, pillW, tile * .24F};
             g.rect(pill, {18, 14, 16, 215}, tile * .12F);
@@ -890,7 +868,8 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
                       (noise(index, static_cast<int>(piece), 70) - .5F) * 1.2F);
             const float sparkle = still ? .6F : std::max(0.0F, std::sin(time * 3.0F + index * 1.7F));
             twinkle(g, {places[1].x + tile * .08F, places[1].y - tile * .1F}, tile * .1F, sparkle);
-            const std::string label = std::string(mineOreName(cell.ore)) + " " + std::to_string(cell.amount);
+            const std::string label =
+                tr("mine.cell.ore", {{"ore", oreName(cell.ore)}, {"amount", std::to_string(cell.amount)}});
             const float pillW = tile * .62F;
             const Rect pill{box.x + (box.w - pillW) / 2, box.y + box.h - tile * .3F, pillW, tile * .24F};
             g.rect(pill, {18, 14, 16, 200}, tile * .12F);
@@ -1049,7 +1028,7 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
             const float plate = size * 7.6F;
             g.rect({at.x - plate / 2, at.y - size * .2F, plate, size * 1.45F}, alpha({60, 12, 12, 230}, fade),
                    size * .6F);
-            shadowText(g, "다음 웨이브 +" + std::to_string(cue.extra), at, size,
+            shadowText(g, tr("mine.cue.nest", {{"count", std::to_string(cue.extra)}}), at, size,
                        alpha({255, 140, 120, 255}, fade));
         }
         if (cue.special != game::MineSpecial::None) {
@@ -1062,18 +1041,18 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
                                alpha(accent, .85F * std::max(0.0F, 1 - (t - lag) / .9F)));
             std::string title, detail;
             if (cue.special == game::MineSpecial::Relic) {
-                title = "보물 상자!";
+                title = tr("mine.cue.relic");
                 detail = relicName(cue.relic);
             } else if (cue.special == game::MineSpecial::Fossil) {
-                title = "카드 화석";
-                detail = run.catalog().card(cue.card).name + " 카드 발견";
+                title = tr("mine.special.fossil");
+                detail = tr("mine.cue.fossil", {{"card", cardName(cue.card)}});
             } else if (cue.special == game::MineSpecial::Energy) {
-                title = "에너지 +" + std::to_string(cue.amount);
-                detail = "다음 전투 시작 시";
+                title = tr("mine.energy", {{"amount", std::to_string(cue.amount)}});
+                detail = tr("mine.cue.energy");
             } else {
-                title = "붕괴!";
-                detail = cue.collapsed ? "주변 " + std::to_string(cue.collapsed) + "칸이 무너졌습니다"
-                                       : "무너질 칸이 없습니다";
+                title = tr("mine.cue.collapse");
+                detail = cue.collapsed ? tr("mine.cue.collapsed", {{"count", std::to_string(cue.collapsed)}})
+                                       : tr("mine.cue.collapsed.none");
             }
             const float pop =
                 still ? 1.0F : std::min(1.0F, .6F + t * 3.0F) * (t < .2F ? 1.0F + (.2F - t) : 1.0F);
@@ -1128,25 +1107,27 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
         const float rise = still ? 0.0F : t * tile * .9F;
         const float size = std::max(12.0F, tile * .32F);
         if (cue.amount > 0)
-            shadowText(g, "+" + std::to_string(cue.amount) + " " + mineOreName(cue.ore),
-                       {c.x, c.y - tile * .35F - rise}, size, alpha(mineOreColor(cue.ore), fade));
+            shadowText(
+                g, tr("mine.cue.ore", {{"amount", std::to_string(cue.amount)}, {"ore", oreName(cue.ore)}}),
+                {c.x, c.y - tile * .35F - rise}, size, alpha(mineOreColor(cue.ore), fade));
         else if (!cue.nest)
-            shadowText(g, "빈 암석", {c.x, c.y - tile * .3F - rise}, size * .8F,
+            shadowText(g, tr("mine.cue.empty"), {c.x, c.y - tile * .3F - rise}, size * .8F,
                        alpha({206, 196, 182, 255}, fade));
     }
     // Hover explanation of a revealed special tile.
     if (hovered >= 0 && hovered < static_cast<int>(live.mine.size()) && live.mine[hovered].info &&
         live.mine[hovered].special != game::MineSpecial::None && !live.mine[hovered].dug) {
         const game::MineCell &cell = live.mine[hovered];
-        const std::string title = mineSpecialName(cell.special);
+        const std::string title = specialName(cell.special);
         const std::string detail =
             cell.special == game::MineSpecial::Relic
-                ? std::string(relicName(cell.relic)) + " · " + relicEffect(cell.relic, run.catalog().balance)
+                ? tr("mine.relic.summary", {{"relic", relicName(cell.relic)},
+                                            {"effect", relicEffect(cell.relic, run.catalog().balance)}})
             : cell.special == game::MineSpecial::Fossil
-                ? run.catalog().card(cell.card).name + " 카드를 무료로 획득"
+                ? tr("mine.hover.fossil", {{"card", cardName(cell.card)}})
             : cell.special == game::MineSpecial::Energy
-                ? "다음 전투 시작 에너지 +" + std::to_string(cell.amount)
-                : std::string("주변 4칸이 무너져 열리지만 광물은 소실됩니다");
+                ? tr("mine.hover.energy", {{"amount", std::to_string(cell.amount)}})
+                : tr("mine.hover.unstable");
         const float size = layout.compact ? 11.0F : 12.0F;
         const float width =
             std::min(view.w - 16, std::max(labelWidth(title, size + 1), labelWidth(detail, size)) + 20);
@@ -1186,11 +1167,7 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
     const bool narrow = layout.world.w - 122 - 14 - nameW - 57 < 36;
     if (narrow)
         nameW = 36;
-    const std::string layerName =
-        narrow ? layerCode
-               : layerCode + " · " +
-                     (layer == 0 ? run.catalog().mine.name
-                                 : run.catalog().deeperMines[static_cast<std::size_t>(layer - 1)].name);
+    const std::string layerName = narrow ? layerCode : layerCode + " · " + mineLayerName(definition);
     g.rect({layout.world.x + 8, headerY, nameW, 24}, {22, 18, 18, 220}, 6);
     g.rect({layout.world.x + 8, headerY, 3, 24}, theme::gold, 1);
     g.text(layerName, {layout.world.x + 17, headerY + 5}, layout.compact ? 11 : 12, {240, 224, 190}, 0,
@@ -1198,9 +1175,9 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
     float legendX = layout.world.x + 14 + nameW;
     const float legendLimit = layout.world.x + layout.world.w - 122;
     const float room = legendLimit - legendX - 57;
-    const char *meaning = room >= 130  ? "= 주변 8칸의 둥지 수"
-                          : room >= 64 ? "= 주변 둥지"
-                          : room >= 36 ? "= 둥지"
+    const char *meaning = room >= 130  ? "mine.legend.long"
+                          : room >= 64 ? "mine.legend.medium"
+                          : room >= 36 ? "mine.legend.short"
                                        : nullptr;
     if (meaning) {
         for (int clue = 1; clue <= 3; ++clue) {
@@ -1208,7 +1185,7 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
             g.text(std::to_string(clue), {legendX + 9, headerY + 4}, 13, clueColor(clue), .5F);
             legendX += 19;
         }
-        g.text(meaning, {legendX + 3, headerY + 5}, layout.compact ? 10 : 11, {226, 210, 180}, 0,
+        g.text(tr(meaning), {legendX + 3, headerY + 5}, layout.compact ? 10 : 11, {226, 210, 180}, 0,
                legendLimit - legendX - 3);
     }
 }
@@ -1222,9 +1199,9 @@ void View::relicBanner(engine::Renderer &g, const game::Run &run, const State &s
         const float enter = still ? 1.0F : std::clamp(t / .25F, 0.0F, 1.0F);
         const float fade = std::clamp((banner.lifetime - t) / .6F, 0.0F, 1.0F);
         const Color accent = relicColor(banner.relic);
-        const std::string title = std::string("유물 획득 · ") + relicName(banner.relic);
+        const std::string title = tr("mine.relic.found", {{"relic", relicName(banner.relic)}});
         const std::string detail =
-            relicEffect(banner.relic, run.catalog().balance) + " · 이번 원정 동안 유지";
+            tr("mine.relic.lasting", {{"effect", relicEffect(banner.relic, run.catalog().balance)}});
         const float size = layout.compact ? 13.0F : 15.0F;
         const float width =
             std::min(view.w - 16, std::max(labelWidth(title, size), labelWidth(detail, size * .78F)) + 74);
@@ -1249,7 +1226,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     // Status: remaining digs and scans as pips, tool tier and nest alarm.
     const bool tight = area.h < 300;
     float y = area.y;
-    g.text("굴착", {area.x, y}, 11, theme::muted);
+    g.text(tr("prep.digs"), {area.x, y}, 11, theme::muted);
     const int digCapacity = std::max(run.prepDigBudget(), live.digs);
     const int scanCapacity = std::max({1, run.prepScanBudget(), live.scans});
     // Relic bonuses add pips; the spacing shrinks so the row keeps clear of the tool or nest badge.
@@ -1276,14 +1253,14 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
            : scanUsable ? Color{24, 50, 64}
                         : Color{22, 32, 38},
            10.5F);
-    g.text("스캔", {scanX, y}, 11, scanning ? theme::text : scanUsable ? theme::blue : theme::muted);
+    g.text(tr("prep.scan"), {scanX, y}, 11, scanning ? theme::text : scanUsable ? theme::blue : theme::muted);
     for (int index = 0; index < scanCapacity; ++index) {
         const ScreenPoint c{scanX + 32 + index * step, y + 8};
         g.circle(c, pip / 2 + 1, {10, 18, 24});
         g.circle(c, pip / 2 - .5F, index < live.scans ? theme::blue : Color{44, 58, 64});
     }
     if (tight && live.nextExtra) {
-        const std::string alarm = "둥지 +" + std::to_string(live.nextExtra);
+        const std::string alarm = tr("prep.nest.short", {{"count", std::to_string(live.nextExtra)}});
         g.rect({area.x + area.w - 62, y - 1, 62, 19}, {120, 40, 34, 235}, 9);
         g.text(alarm, {area.x + area.w - 31, y + 2}, 11, {255, 206, 190}, .5F);
     } else {
@@ -1299,13 +1276,13 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         const auto tag = [&](game::Relic relic) -> std::string {
             switch (relic) {
             case game::Relic::Battery:
-                return "에너지+" + std::to_string(balance.relicEnergy);
+                return tr("prep.relic.battery.tag", {{"amount", std::to_string(balance.relicEnergy)}});
             case game::Relic::Charm:
-                return "굴착+" + std::to_string(balance.relicDigs);
+                return tr("prep.relic.charm.tag", {{"amount", std::to_string(balance.relicDigs)}});
             case game::Relic::Ward:
-                return "둥지-" + std::to_string(balance.relicNestReduction);
+                return tr("prep.relic.ward.tag", {{"amount", std::to_string(balance.relicNestReduction)}});
             case game::Relic::Lens:
-                return "스캔+" + std::to_string(balance.relicScans);
+                return tr("prep.relic.lens.tag", {{"amount", std::to_string(balance.relicScans)}});
             }
             return {};
         };
@@ -1321,7 +1298,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         }
         float right = area.x + area.w;
         if (live.bonusEnergy > 0) {
-            const std::string bonus = "다음 전투 에너지 +" + std::to_string(live.bonusEnergy);
+            const std::string bonus = tr("mine.next.energy", {{"amount", std::to_string(live.bonusEnergy)}});
             const float chipW = labelWidth(bonus, 10.5F) + 12;
             right -= chipW;
             g.rect({right, y - 1, chipW, icon}, {20, 60, 58, 235}, icon / 2);
@@ -1332,7 +1309,8 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
             std::string summary;
             if (hovered >= 0) {
                 const game::Relic relic = live.relics[static_cast<std::size_t>(hovered)];
-                summary = std::string(relicName(relic)) + " · " + relicEffect(relic, balance);
+                summary = tr("mine.relic.summary",
+                             {{"relic", relicName(relic)}, {"effect", relicEffect(relic, balance)}});
             } else if (live.relics.size() == 1)
                 summary = relicEffect(live.relics.front(), balance);
             else
@@ -1358,15 +1336,14 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         y += 16;
     } else if (live.nextExtra) {
         g.rect({area.x, y, area.w, 20}, {96, 34, 30, 220}, 5);
-        g.text("둥지 경보 · 다음 웨이브 +" + std::to_string(live.nextExtra), {area.x + 8, y + 3}, 11,
+        g.text(tr("prep.nest.alarm", {{"count", std::to_string(live.nextExtra)}}), {area.x + 8, y + 3}, 11,
                {255, 196, 180}, 0, area.w - 16);
         y += 26;
     } else {
         const bool wall = run.catalog().mining == game::MiningMode::Excavate;
-        g.text(state.play.scan ? (wall ? "속을 비춰 볼 암벽을 선택하세요"
-                                       : "스캔할 경계 1칸을 선택하세요 (정보만 공개)")
-               : wall          ? "매장물을 모두 드러내면 획득합니다 · 길게 누르면 정보 확인"
-                               : "타일을 선택하면 광부가 이동하여 굴착합니다",
+        g.text(tr(state.play.scan ? (wall ? "prep.hint.scan.wall" : "prep.hint.scan")
+                  : wall          ? "prep.hint.wall"
+                                  : "prep.hint.dig"),
                {area.x, y}, 11, state.play.scan ? theme::blue : theme::muted, 0, area.w);
         y += 18;
     }
@@ -1375,8 +1352,8 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     enum class Status { Open, Owned, Done, Locked };
     struct Entry {
         engine::WidgetId id;
-        const char *title;
-        const char *shortTitle;
+        std::string title;
+        std::string shortTitle;
         std::string effect;
         game::ResourceCost cost;
         Status status;
@@ -1386,7 +1363,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         int group;
     };
     /** Build a row from the same quote the purchase command checks before paying. */
-    const auto entry = [](engine::WidgetId id, const char *title, const char *shortTitle, std::string effect,
+    const auto entry = [](engine::WidgetId id, std::string title, std::string shortTitle, std::string effect,
                           const game::PurchaseQuote &price, Color tint, int group) -> Entry {
         const Status value = price.failure == game::PurchaseFailure::Owned       ? Status::Owned
                              : price.failure == game::PurchaseFailure::Exhausted ? Status::Done
@@ -1395,12 +1372,12 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
                                  ? Status::Locked
                                  : Status::Open;
         return {id,
-                title,
-                shortTitle,
+                std::move(title),
+                std::move(shortTitle),
                 std::move(effect),
                 price.cost,
                 value,
-                value == Status::Done || value == Status::Locked ? price.message : std::string(),
+                value == Status::Done || value == Status::Locked ? tr(price.message) : std::string(),
                 tint,
                 group};
     };
@@ -1410,7 +1387,8 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     game::PurchaseQuote awakenPrice;
     awakenPrice.failure = game::PurchaseFailure::Requirement;
     awakenPrice.cost = balance.awaken.front();
-    awakenPrice.message = "동일 카드로 Lv" + std::to_string(game::CardMaxLevel) + "까지 강화한 건물에 적용 가능";
+    awakenPrice.message =
+        game::Message("prep.awaken.requirement", {{"level", std::to_string(game::CardMaxLevel)}});
     int awakenable = 0;
     for (const game::Tower &tower : live.towers) {
         const game::PurchaseQuote price = run.awakenQuote(tower.id);
@@ -1423,46 +1401,48 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     recruitPrice.cost = live.recruitmentOffer ? live.recruitmentOffer->cost : balance.recruit;
     recruitPrice.failure =
         live.recruitmentOffer ? game::PurchaseFailure::None : game::PurchaseFailure::Exhausted;
-    recruitPrice.message = "이번 정비 모집 완료";
+    recruitPrice.message = game::Message("prep.recruit.done");
     // Enough shards make the recruitment open even when gold is short.
     if (live.recruitmentOffer && live.recruitmentOffer->shards > 0 &&
         live.shards >= live.recruitmentOffer->shards)
         recruitPrice.cost = {};
     const std::array<Entry, 8> entries{{
-        entry(Tool, drill ? "T3 드릴" : "T2 곡괭이", drill ? "T3" : "T2",
-              drill ? "정비마다 굴착 +" + std::to_string(balance.drillDigs) + " · 이번 정비부터 즉시 적용"
-                    : "단단한 암반과 수정을 채굴할 수 있습니다",
+        entry(Tool, tr(drill ? "prep.drill.title" : "prep.pick.title"), drill ? "T3" : "T2",
+              drill ? tr("prep.drill.effect", {{"amount", std::to_string(balance.drillDigs)}})
+                    : tr("prep.pick.effect"),
               run.quote(drill ? game::UpgradeKind::Drill : game::UpgradeKind::Tool),
               drill ? Color{240, 170, 96} : Color{200, 206, 210}, 0),
-        entry(Armor, "경비병 장갑", "장갑",
-              "경비병 최대 체력 " + std::to_string(run.catalog().card(game::CardKind::Guard).hp) + " → " +
-                  std::to_string(balance.armoredGuardHp),
+        entry(Armor, tr("prep.armor.title"), tr("prep.armor.short"),
+              tr("prep.armor.effect", {{"from", std::to_string(run.catalog().card(game::CardKind::Guard).hp)},
+                                       {"to", std::to_string(balance.armoredGuardHp)}}),
               run.quote(game::UpgradeKind::Armor), theme::blue, 0),
-        entry(Coil, "전격 코일", "코일",
-              "전격탑 피해 +" + std::to_string(static_cast<int>(std::lround((balance.coilBonus - 1) * 100))) +
-                  "%",
+        entry(Coil, tr("prep.coil.title"), tr("prep.coil.short"),
+              tr("prep.coil.effect",
+                 {{"percent", std::to_string(static_cast<int>(std::lround((balance.coilBonus - 1) * 100)))}}),
               run.quote(game::UpgradeKind::Coil), theme::purple, 0),
-        entry(AwakenPick, "건물 각성", "각성",
-              (awakenable ? "각성 가능 " + std::to_string(awakenable) + "곳"
-                          : "Lv" + std::to_string(game::CardMaxLevel) + " 건물을 Lv" +
-                                std::to_string(run.awakenedLevel()) + "까지") +
-                  " · 단계마다 피해 +" + std::to_string(awakenBonus) + "%",
+        entry(AwakenPick, tr("prep.awaken.title"), tr("prep.awaken.short"),
+              awakenable ? tr("prep.awaken.effect.ready", {{"count", std::to_string(awakenable)},
+                                                           {"percent", std::to_string(awakenBonus)}})
+                         : tr("prep.awaken.effect.locked", {{"max", std::to_string(game::CardMaxLevel)},
+                                                            {"level", std::to_string(run.awakenedLevel())},
+                                                            {"percent", std::to_string(awakenBonus)}}),
               awakenPrice, {150, 120, 255}, 0),
-        entry(Hire, "광부 고용", "고용",
-              "이번 정비 굴착 +1 · 고용 " + std::to_string(live.hires) + "/" +
-                  std::to_string(balance.hireLimit),
+        entry(Hire, tr("prep.hire.title"), tr("prep.hire.short"),
+              tr("prep.hire.effect",
+                 {{"count", std::to_string(live.hires)}, {"limit", std::to_string(balance.hireLimit)}}),
               run.quote(game::UpgradeKind::Hire), theme::gold, 1),
-        entry(Supply, "보급 상자", "보급",
-              "다음 전투 에너지 +" + std::to_string(balance.supplyEnergy) + " · 정비마다 1회",
+        entry(Supply, tr("prep.supply.title"), tr("prep.supply.short"),
+              tr("prep.supply.effect", {{"amount", std::to_string(balance.supplyEnergy)}}),
               run.quote(game::UpgradeKind::Supply), {120, 220, 190}, 1),
-        entry(Slots, "부대 슬롯", "슬롯",
-              "출격 부대 " + std::to_string(balance.initialSlots) + " → " +
-                  std::to_string(balance.upgradedSlots),
+        entry(Slots, tr("prep.slots.title"), tr("prep.slots.short"),
+              tr("prep.slots.effect", {{"from", std::to_string(balance.initialSlots)},
+                                       {"to", std::to_string(balance.upgradedSlots)}}),
               run.quote(game::UpgradeKind::Slots), theme::green, 2),
-        entry(Recruit, "카드 모집", "모집",
+        entry(Recruit, tr("prep.recruit.title"), tr("prep.recruit.short"),
               live.recruitmentOffer && live.recruitmentOffer->candidates.size() > 3
-                  ? "유닛·건물 4장 중 1장 · 금 또는 조각 " + std::to_string(live.recruitmentOffer->shards)
-                  : "후보 3장 중 1장을 선택해 덱에 편입",
+                  ? tr("prep.recruit.effect.shards",
+                       {{"shards", std::to_string(live.recruitmentOffer->shards)}})
+                  : tr("prep.recruit.effect"),
               recruitPrice, theme::gold, 2),
     }};
     const auto missing = [&](const game::ResourceCost &cost) -> std::array<int, 4> {
@@ -1576,12 +1556,9 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     };
     const auto lackingLabel = [&](const game::ResourceCost &cost) -> std::string {
         const std::array<int, 4> lacking = missing(cost);
-        std::string text;
-        for (std::size_t index = 0; index < 4; ++index)
-            if (lacking[index] > 0)
-                text += (text.empty() ? "" : " ") + std::string(mineOreName(ores[index])) +
-                        std::to_string(lacking[index]);
-        return text.empty() ? text : text + " 부족";
+        if (std::all_of(lacking.begin(), lacking.end(), [](int value) -> bool { return value == 0; }))
+            return {};
+        return tr("prep.lacking", {{"cost", costText({lacking[0], lacking[1], lacking[2], lacking[3]})}});
     };
     /** Paint one row or tile frame in its open, owned, done or locked state. */
     const auto frame = [&](const Entry &item, Rect face, float radius) {
@@ -1601,7 +1578,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
                        radius - 1);
     };
     const float bottom = area.y + area.h;
-    const std::array<const char *, 3> groups{{"도구 · 장비", "금 보급", "부대 · 모집"}};
+    const std::array<const char *, 3> groups{{"prep.group.gear", "prep.group.gold", "prep.group.squad"}};
     const float headerHeight = 18;
     const float rowStep = std::min(50.0F, (bottom - y - static_cast<float>(groups.size()) * headerHeight) /
                                               static_cast<float>(entries.size()));
@@ -1613,7 +1590,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         for (const Entry &item : entries) {
             if (item.group != group) {
                 group = item.group;
-                g.text(groups[static_cast<std::size_t>(group)], {area.x, y}, 11, theme::gold);
+                g.text(tr(groups[static_cast<std::size_t>(group)]), {area.x, y}, 11, theme::gold);
                 g.line({{area.x + 70, y + 7}, {area.x + area.w, y + 7}}, 1, {52, 76, 84});
                 y += headerHeight;
             }
@@ -1638,8 +1615,8 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
                 const bool owned = item.status == Status::Owned;
                 g.rect({face.x + face.w - 54, badgeY, 46, 20}, owned ? Color{50, 120, 90} : Color{48, 60, 66},
                        10);
-                g.text(owned ? "보유" : "완료", {face.x + face.w - 31, badgeY + 3}, 11,
-                       owned ? Color{220, 255, 236} : theme::muted, .5F);
+                g.text(tr(owned ? "prep.badge.owned" : "prep.badge.done"), {face.x + face.w - 31, badgeY + 3},
+                       11, owned ? Color{220, 255, 236} : theme::muted, .5F);
                 chipsLeft = face.x + face.w - 58;
             } else
                 chipsLeft = chips(item.cost, face.x + face.w - 6, face.y + (big ? 6.0F : 4.0F),
@@ -1683,9 +1660,9 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         frame(item, face, 7);
         const Color tint = shown ? item.tint : Color{110, 124, 128};
         const Color titleColor = shown ? theme::text : Color{130, 148, 150};
-        const char *badge = item.status == Status::Owned    ? "보유"
-                            : item.status == Status::Done   ? "완료"
-                            : item.status == Status::Locked ? "잠김"
+        const char *badge = item.status == Status::Owned    ? "prep.badge.owned"
+                            : item.status == Status::Done   ? "prep.badge.done"
+                            : item.status == Status::Locked ? "prep.badge.locked"
                                                             : nullptr;
         const Color stateColor = item.status == Status::Owned ? theme::green : theme::muted;
         if (narrow) {
@@ -1696,7 +1673,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
             g.text(item.shortTitle, {textX, face.y + 3}, 10.5F, titleColor, 0, face.x + face.w - textX - 3);
             const float lower = face.y + face.h - 15;
             if (badge)
-                g.text(badge, {face.x + face.w - 5, lower + 1}, 10, stateColor, 1);
+                g.text(tr(badge), {face.x + face.w - 5, lower + 1}, 10, stateColor, 1);
             else
                 chips(item.cost, face.x + face.w - 3, lower, 9);
             continue;
@@ -1709,7 +1686,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
                roomy ? 12.0F : 11.0F, titleColor, 0, face.x + face.w - textX - 4);
         const float lower = face.y + face.h - (tileH > 40 ? 20.0F : 17.0F);
         if (badge)
-            g.text(badge, {textX, lower + 2}, 10, stateColor);
+            g.text(tr(badge), {textX, lower + 2}, 10, stateColor);
         else
             chips(item.cost, face.x + face.w - 4, lower, 10);
     }

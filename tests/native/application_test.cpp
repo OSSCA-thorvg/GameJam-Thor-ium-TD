@@ -2,6 +2,7 @@
 #include "app/Application.h"
 #include "app/Persistence.h"
 #include "game/autoplay/Autoplayer.h"
+#include "game/presentation/Text.h"
 #include "game/presentation/Theme.h"
 #include <cmath>
 #include <cstdlib>
@@ -288,12 +289,17 @@ void energyAndRangeUiContracts() {
                 "cancelled drag removes its range overlay");
     }
 }
-/** Read one displayed stat by its semantic label rather than relying on a particular grid cell. */
-std::string statValue(const presentation::CardDetails &details, const std::string &label) {
+/** Read one displayed stat by its label's string key rather than relying on a particular grid cell. */
+std::string statValue(const presentation::CardDetails &details, const std::string &key) {
+    const std::string label = presentation::tr(key);
     for (const presentation::CardStat &stat : details.stats)
         if (stat.label == label)
             return stat.value;
     return {};
+}
+/** Format one number with a stat value unit template. */
+std::string valueText(const char *key, const std::string &value) {
+    return presentation::tr(key, {{"value", value}});
 }
 /** Hold a real current control with touch input while the app advances its independent UI clock. */
 void holdCard(Application &app, engine::WidgetId id, int width, int height) {
@@ -452,9 +458,10 @@ void cardInformationContracts() {
         require(app.frame(1200, 900, 1, .1F), "advance mouse hover time");
     require(view.currentCardInspection() && view.currentCardInspection()->details.cost == 7 &&
                 view.currentCardInspection()->details.category == game::CardCategory::Spell &&
-                statValue(view.currentCardInspection()->details, "효과 범위") == "2.75칸" &&
-                statValue(view.currentCardInspection()->details, "피해") == "47" &&
-                statValue(view.currentCardInspection()->details, "공격 간격").empty() &&
+                statValue(view.currentCardInspection()->details, "carddetail.stat.area") ==
+                    valueText("carddetail.value.tiles", "2.75") &&
+                statValue(view.currentCardInspection()->details, "carddetail.stat.damage") == "47" &&
+                statValue(view.currentCardInspection()->details, "carddetail.stat.interval").empty() &&
                 app.game().debugState() == before,
             "hover shows the actual catalog category and stats without changing the run");
     for (const std::array<int, 2> size : {std::array<int, 2>{390, 844}, {320, 568}}) {
@@ -463,8 +470,9 @@ void cardInformationContracts() {
         holdCard(app, presentation::CardBase + 2, size[0], size[1]);
         require(
             view.currentCardInspection() &&
-                statValue(view.currentCardInspection()->details, "체력") == "120" &&
-                statValue(view.currentCardInspection()->details, "저지") == "2명" &&
+                statValue(view.currentCardInspection()->details, "carddetail.stat.hp") == "120" &&
+                statValue(view.currentCardInspection()->details, "carddetail.stat.block") ==
+                    valueText("carddetail.value.count", "2") &&
                 view.currentCardInspection()->bounds.x >= 0 && view.currentCardInspection()->bounds.y >= 0 &&
                 view.currentCardInspection()->bounds.y + view.currentCardInspection()->bounds.h <= size[1] &&
                 app.game().debugState() == before &&
@@ -489,7 +497,8 @@ void cardInformationContracts() {
     tap(app, bounds(app, presentation::CandidateBase + static_cast<int>(game::CardKind::Shooter)).center());
     require(app.frame(320, 568, 1, 0) && view.currentOfferCard() &&
                 view.currentOfferCard()->kind == game::CardKind::Shooter &&
-                statValue(*view.currentOfferCard(), "공격력") == "12" && run.state().gold == 4,
+                statValue(*view.currentOfferCard(), "carddetail.stat.attack") == "12" &&
+                run.state().gold == 4,
             "replacement always displays the incoming portrait data and performance before charging");
     const std::string offerBefore = run.debugState();
     holdCard(app, presentation::DeckBase + 1, 320, 568);
@@ -504,11 +513,13 @@ void cardInformationContracts() {
     game::enterPreparation(run, 2);
     require(run.expand(1).ok && app.frame(320, 568, 1, 0) && view.currentOfferCard() &&
                 view.currentOfferCard()->kind == game::CardKind::Lightning &&
-                statValue(*view.currentOfferCard(), "연쇄 대상") == "3명",
+                statValue(*view.currentOfferCard(), "carddetail.stat.chains") ==
+                    valueText("carddetail.value.count", "3"),
             "expansion reward shows its actual card art and chaining performance before deck replacement");
     const presentation::CardDetails frost = presentation::cardDetails(run.catalog(), game::CardKind::Frost);
-    require(statValue(frost, "둔화") == "40%" && statValue(frost, "지속 시간") == "3초" &&
-                statValue(frost, "공격력").empty(),
+    require(statValue(frost, "carddetail.stat.slow") == "40%" &&
+                statValue(frost, "carddetail.stat.duration") == valueText("carddetail.value.seconds", "3") &&
+                statValue(frost, "carddetail.stat.attack").empty(),
             "control spells describe their real effect instead of pretending to be attack towers");
 }
 /** Verify continuous cost coverage, clockwise pixels and the same prices used by actual placement rules. */

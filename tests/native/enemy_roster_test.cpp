@@ -502,7 +502,7 @@ void introductions() {
     }
     require(known.size() == EnemyKindCount, "the campaign fields every enemy role");
     for (std::size_t kind = 0; kind < EnemyKindCount; ++kind)
-        require(!defaultCatalog().enemies[kind].name.empty(), "every role has a display name");
+        require(!defaultCatalog().enemies[kind].name.empty(), "every role has a name id");
     Catalog recursive = defaultCatalog();
     recursive.enemies[static_cast<std::size_t>(EnemyKind::Splitter)].minionKind = EnemyKind::Splitter;
     require(!Run::create(recursive).run, "minions that split again are rejected");

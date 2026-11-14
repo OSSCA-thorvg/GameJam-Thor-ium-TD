@@ -1,5 +1,6 @@
 #include "View.h"
 #include "Assets.h"
+#include "Text.h"
 #include "Theme.h"
 #include <algorithm>
 #include <cmath>
@@ -336,7 +337,9 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
             drawRing(graphics, p, tile * .46F, std::max(2.0F, tile * .08F),
                      {accent.r, accent.g, accent.b,
                       static_cast<std::uint8_t>((preview.allowed() || maxed ? 235.0F : 120.0F) * pulse)});
-            const std::string tag = maxed ? "최대" : "강화 Lv" + std::to_string(unit.level + 1);
+            const std::string tag =
+                maxed ? tr("battle.tag.max")
+                      : tr("battle.tag.upgrade", {{"level", std::to_string(unit.level + 1)}});
             const float size = std::clamp(tile * .3F, 10.0F, 13.0F);
             const float width = size * (maxed ? 2.6F : 4.6F);
             const engine::Rect plate{p.x - width / 2, p.y - tile * .62F - size * 1.4F, width, size * 1.4F};
@@ -366,9 +369,10 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
                 static_cast<std::uint8_t>((preview.allowed() || maxed ? 235.0F : 120.0F) * pulse);
             drawRing(graphics, p, tile * .52F, std::max(2.0F, tile * .09F),
                      {accent.r, accent.g, accent.b, opacity});
-            const std::string tag = maxed     ? "최대"
-                                    : upgrade ? "강화 Lv" + std::to_string(tower.level + 1)
-                                              : "교체";
+            const std::string tag =
+                maxed     ? tr("battle.tag.max")
+                : upgrade ? tr("battle.tag.upgrade", {{"level", std::to_string(tower.level + 1)}})
+                          : tr("battle.tag.replace");
             const float size = std::clamp(tile * .3F, 10.0F, 13.0F);
             const float width = size * (upgrade ? 4.6F : 2.6F);
             const engine::Rect plate{p.x - width / 2, p.y - tile * .62F - size * 1.4F, width, size * 1.4F};
@@ -452,7 +456,8 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
             const float label = std::clamp(tile * .34F, 10.0F, 15.0F);
             graphics.rect({p.x - label * 1.9F, p.y + tile * .5F, label * 3.8F, label * 1.2F},
                           {58, 20, 16, 220}, 4);
-            graphics.text("마비 " + std::to_string(static_cast<int>(std::ceil(tower.disabled))),
+            graphics.text(tr("battle.stunned",
+                             {{"seconds", std::to_string(static_cast<int>(std::ceil(tower.disabled)))}}),
                           {p.x, p.y + tile * .5F + 1}, label, {255, 214, 150}, .5F);
         }
     }
@@ -461,8 +466,8 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
     graphics.endClip();
     graphics.rect({layout.world.x + 10, layout.world.y + 9, layout.compact ? 116.0F : 184.0F, 25},
                   {34, 67, 56, 220}, 5);
-    const auto &stageMeta = game::stageMetadata(state.play.currentStage);
-    graphics.text(run.state().phase == game::Phase::Prep ? "정비 구역 · 지상" : stageMeta.name,
+    graphics.text(run.state().phase == game::Phase::Prep ? tr("battle.prepSurface")
+                                                         : stageName(state.play.currentStage),
                   {layout.world.x + 21, layout.world.y + 15}, layout.compact ? 11 : 12, {235, 231, 198});
 }
 

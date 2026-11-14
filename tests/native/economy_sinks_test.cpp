@@ -59,7 +59,7 @@ void drill() {
     scenario(run).crystal = 4;
     const PurchaseQuote short_ = run.quote(UpgradeKind::Drill);
     require(short_.failure == PurchaseFailure::Shortage && short_.open() &&
-                short_.message == "수정5가 필요해요",
+                short_.message == Message("rules.progression.cost", {{"cost", "#cost/0/0/5/0"}}),
             "a short wallet is reported with the full price");
     rejected(run, [&run] { return run.upgrade(UpgradeKind::Drill); }, "a short wallet keeps every resource");
     scenario(run).crystal = 7;

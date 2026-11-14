@@ -1,5 +1,6 @@
 #include "CardPresentation.h"
 #include "TerrainPresentation.h"
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -33,7 +34,7 @@ void View::preparePlacement(const game::Run &run, const engine::Ui &ui, const St
         building ? run.buildingRange(card->kind, target) : run.catalog().card(card->kind).range,
         trait == game::PadTrait::None
             ? std::string()
-            : std::string(padTraitName(trait)) + " " + padTraitEffect(trait, run.catalog().balance)};
+            : padTraitName(trait) + " " + padTraitEffect(trait, run.catalog().balance)};
 }
 void View::placementHint(engine::Renderer &graphics) const {
     if (!placement_)
@@ -63,11 +64,13 @@ void View::placementHint(engine::Renderer &graphics) const {
         height};
     graphics.rect(hint, {12, 28, 35, 245}, 6);
     graphics.rect({hint.x, hint.y, 3, hint.h}, color, 1);
-    const std::string title = std::string(playActionName(preview.action)) + " · 에너지 " +
-                              std::to_string(preview.cost) +
-                              (placement_->terrain.empty() ? std::string() : " · " + placement_->terrain);
+    const engine::TextArgs args{{"action", playActionName(preview.action)},
+                                {"cost", std::to_string(preview.cost)},
+                                {"terrain", placement_->terrain}};
+    const std::string title =
+        tr(placement_->terrain.empty() ? "placement.title" : "placement.title.terrain", args);
     graphics.text(title, {hint.x + 12, hint.y + 9}, 12, color, 0, hint.w - 22);
     if (!preview.allowed())
-        graphics.text(preview.message(), {hint.x + 12, hint.y + 30}, 11, theme::text, 0, hint.w - 22);
+        graphics.text(tr(preview.message()), {hint.x + 12, hint.y + 30}, 11, theme::text, 0, hint.w - 22);
 }
 } // namespace thorium::presentation

@@ -1,4 +1,5 @@
 #pragma once
+#include "Message.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -83,7 +84,7 @@ inline constexpr int RelicCount = 4;
 /** An operation result suitable for a UI message without partial mutation. */
 struct Result {
     bool ok = false;
-    std::string message;
+    Message message;
 };
 /** Category selects a rule family without teaching the engine about cards. */
 enum class CardCategory { Building, Unit, Spell };

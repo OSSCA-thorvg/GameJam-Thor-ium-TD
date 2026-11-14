@@ -1,6 +1,6 @@
 # 현재 구현 아키텍처
 
-2026-11-04 아키텍처 검토 후 승인된 네 단계(엔진 정책 분리 → 콘텐츠 정의 → 앱 흐름/입력 분리 → 규칙 내부 분리)를 반영했습니다. 이 문서는 **현재 코드**를 설명합니다. 이전 [구조 제안](architecture.md)과 [엔진 패턴 조사](architecture-research.md)는 당시의 비교·계획 기록입니다.
+2026-11-04 아키텍처 검토 후 승인된 네 단계(엔진 정책 분리 → 콘텐츠 정의 → 앱 흐름/입력 분리 → 규칙 내부 분리)를 반영했습니다. 이 문서는 **현재 코드**를 설명합니다. 이전 [구조 제안](archive/architecture.md)과 [엔진 패턴 조사](archive/architecture-research.md)는 당시의 비교·계획 기록입니다.
 
 승인된 후속으로 [Lottie 애니메이션 계층](animation-system.md)을 추가했습니다. 엔진 플레이어·게임 상태머신·사망 연출 수명은 해당 문서가 최신 설명입니다.
 
@@ -61,13 +61,20 @@ src/
     AppFlow.*           # 화면 이동, 설정, 새 판 확인, 시뮬레이션 허용 여부
     GameplayController.* # 카드/개체 선택, 대상 좌표, 규칙 명령, 단계 전환 후 정리
     GameInput.h         # widget ID → typed control/hand/deck/candidate 경계
-    FeedbackChannel.*   # 전투 사실 1회 drain → 시각/사운드 양쪽 소비
+    FeedbackChannel.*   # 전투 사실 1회 drain → 시각/사운드 양쪽 소비, 정규 원정 상황별 힌트
+    MapCamera.*         # 빈 전장 드래그·휠 → 카메라 의도; 게임 명령은 내지 않음
+    MineScroll.*        # 채굴판 세로 스크롤·광부 따라가기
+    Persistence.*       # 설정·진행(SaveData)과 진행 중 원정 스냅샷의 플랫폼 저장
+    TutorialDirector.*  # 연습 원정 단계·입력 허용·시뮬레이션 정지·체크포인트, 정규 판 보관
+    BenchScene.*        # 측정 전용 장면: bench 쿼리로 지정한 구역·웨이브까지 자동 플레이
   engine/
     diagnostics/        # FrameProfiler · 고정 크기 측정 이력과 구간별 통계
     animation/          # 클립·원본 메타데이터·독립 재생/완료 관리
     ui/                 # 게임 ID를 모르는 포인터·키보드 UI
     render/             # 호출자가 지정한 파일·에셋 키·인스턴스별 ThorVG 렌더링
     audio/              # 플랫폼·게임 미의존 PCM 합성/MP3/믹싱
+    text/               # StringTable · 평면 JSON 문자열 표, `{name}` 자리표시자 치환
+    view/               # Camera2D · 게임·렌더 장치 미의존 2D 투영과 확대·이동 자세
   game/
     model/
       Types.h           # ID, 좌표, enum, 개체/카드 값 타입, 전투 사실
@@ -76,13 +83,20 @@ src/
     content/
       CatalogValidation.* # 필드별 수치·경로·참조 검증과 현재 지원 범위
       Catalog.*         # typed 초기 데이터와 밸런스, 공세 스케줄, 비용 표시
+      StageCatalog.cpp  # 캠페인 7구역의 전장 크기·경로·입구·기믹·공세·구역 메타데이터
+      MineCatalog.cpp   # 구역별 7×11 채굴층 B1·B2·B3 문자 지도와 개방 웨이브
+      TutorialCatalog.* # 연습 원정의 공세·갈림길·발굴 벽 설정
+      Excavation.*      # 층 정의와 시드로 암벽 발굴 벽(덮개·등급·매장물) 생성
     rules/
       Run.*             # 생성, 상태 읽기, 시간 분기, 사실 큐, 진단
       Combat.cpp        # 이동, 저지, 동시 공격, 철수·재배치
       Cards.cpp         # 설치/소환/마법, 순환, 모집, 교체, 손패 재구성
-      Mining.cpp        # 접근, 자동 이동·굴착, 스캔, 0 정보 공개
+      Mining.cpp        # 접근, 자동 이동·굴착, 스캔, 0 정보 공개, 암벽 발굴 타격
       Progression.cpp   # 웨이브·승패, 정비, 제작/치료/비용, 확장/보상
+      RunSnapshot.cpp   # 원정 상태의 버전 지정 텍스트 스냅샷·복원 검증
       RuleGeometry.h    # 규칙 내부 좌표·인접 칸 계산
+    autoplay/
+      Autoplayer.h      # 공개 Run 명령만 쓰는 기준 자동 플레이; 완주 테스트·밸런스 하네스·BenchScene 공유
     presentation/
       State.h           # 세션 바인딩 + 판의 개체/연출 수명; typed Modal
       AnimationBindings.* # Catalog 프로필→원본→필수 클립의 원자적 검증
@@ -94,12 +108,16 @@ src/
       Shell.h           # 화면 탐색·뒤로 이력·설정 값
       Actions.h         # 안정적인 게임 UI control ID
       Layout.*          # 그리기와 입력이 공유하는 좌표 변환
+      Text.*            # 언어 선택과 `tr` 문자열 조회; 표는 content/i18n
       Assets.h          # 게임 폰트와 Lottie 파일 바인딩
       View.*, GameUi.cpp, FrontEnd.cpp, Theme.h
+      MineUi.cpp, ExcavationUi.cpp, TutorialUi.cpp # 채굴판·발굴 벽·연습 안내 화면
       Feedback.*, CombatFeedback.cpp, Soundscape.*
 ~~~
 
-규칙 파일들은 같은 `Run`의 구현입니다. 파일마다 별도의 상태나 매니저를 만들지 않았습니다. 전투·광물·덱을 수정하는 명령은 하나의 소유자 안에서 검증 후 커밋합니다.
+규칙 파일들은 같은 `Run`의 구현입니다. 파일마다 별도의 상태나 매니저를 만들지 않았습니다. 전투·광물·덱을 수정하는 명령은 하나의 소유자 안에서 검증 후 커밋합니다. `RunSnapshot.cpp`의 `Run::snapshot`·`restore`도 같은 `Run`의 구현이며, 복원은 같은 콘텐츠·채굴 방식·벽 시드로 만든 새 판에만 적용하며, 거절한 스냅샷은 판을 바꾸지 않습니다.
+
+`Application`이 `TutorialDirector`·`MapCamera`·`MineScroll`을 멤버로 소유하고 `Persistence`로 설정·진행과 원정 스냅샷을 읽고 씁니다. `TutorialDirector`는 공개 `Run` 명령과 `FeedbackChannel`이 이미 꺼낸 사실만 관찰하며, `MapCamera`·`MineScroll`은 화면 상태만 바꿉니다. 표현 계층의 문자열은 `tr`로 `content/i18n`의 언어별 표를 읽습니다([문자열 표](i18n.md)).
 
 ## 이번에 바뀐 경계
 
@@ -141,8 +159,8 @@ src/
 - [test_source_boundaries.py](../tests/test_source_boundaries.py): 엔진→게임, 규칙→표현/플랫폼, 컨트롤러→렌더러 역의존 방지.
 - 기존 브라우저 5개 시나리오: 전투/채굴, 철수, 카드/타격 피드백, 실제 오디오, 메인/설정/모바일 배치.
 
-기존 규칙 테스트의 임의 시나리오는 테스트 전용 [Scenario.h](../tests/native/Scenario.h)에서 만듭니다. `RunTestAccess` friend는 fixture 준비에만 사용하며 앱에 mutable state 접근 API나 상태 쓰기용 웹 export를 추가하지 않았습니다. 이것은 저장 복원 API가 아닙니다.
+기존 규칙 테스트의 임의 시나리오는 테스트 전용 [Scenario.h](../tests/native/Scenario.h)에서 만듭니다. `RunTestAccess` friend는 fixture 준비에만 사용하며 앱에 mutable state 접근 API나 상태 쓰기용 웹 export를 추가하지 않았습니다. 이것은 저장 복원 API가 아니며, 저장 복원은 `Run::restore`가 검증 후 수행합니다.
 
-외부 JSON/콘텐츠 팩 로더·스키마 검증·안정적인 문자열 ID 레지스트리는 후속입니다. 현재 카드/적 enum과 8장/4손패·5×6 보드 크기는 첫 시연판의 고정 범위이며, 새로운 공격 행동은 규칙 코드가 필요합니다. Catalog 추출이 유저 모드나 임의 행동 스크립트를 지원한다는 의미는 아닙니다. 저장/불러오기와 설정의 디스크 저장도 아직 없습니다.
+외부 JSON/콘텐츠 팩 로더·스키마 검증·안정적인 문자열 ID 레지스트리는 후속입니다. 현재 카드/적 enum과 8장/4손패는 고정 범위이며, 새로운 공격 행동은 규칙 코드가 필요합니다. 채굴판 크기는 층 정의(`MineLayerDefinition`)가 가지며 정규 원정의 층은 7×11, 기본 콘텐츠와 연습 원정은 5×6입니다. Catalog 추출이 유저 모드나 임의 행동 스크립트를 지원한다는 의미는 아닙니다. 설정·연습 완료·구역 해금은 `Persistence`가 네이티브 홈 디렉터리 파일 또는 브라우저 `localStorage`에 저장하고, 진행 중 원정은 `Run::snapshot`으로 따로 저장합니다([원정 저장](expedition-save.md)).
 
 다수 적 성능은 별도 측정이 필요합니다. 현재 선형 탐색과 메인 스레드 오디오 큐를 유지했습니다. 100/300/1000개 적의 갱신·렌더링 시간과 오디오 공급을 측정한 뒤 공간 인덱스·오디오 콜백 등의 필요를 판단합니다. Windows 실행·모바일 실제 기기 성능·설치 패키지는 이번 구조 정리의 검증 범위에 포함되지 않습니다.

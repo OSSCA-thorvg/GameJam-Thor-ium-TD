@@ -1,5 +1,6 @@
 #include "RuleGeometry.h"
 #include "Run.h"
+#include "game/content/ContentKeys.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -20,34 +21,34 @@ void Run::cycle(int position) {
     state_.queue.push_back(used);
 }
 
-const char *PlayPreview::message() const {
+Message PlayPreview::message() const {
     switch (failure) {
     case PlayFailure::None:
-        return "사용할 수 있어요";
+        return Message("rules.cards.preview.ready");
     case PlayFailure::InvalidTarget:
-        return "유효한 전장 위치를 선택해 주세요";
+        return Message("rules.cards.preview.invalid_target");
     case PlayFailure::BattleRequired:
-        return "전투 시작 후 카드를 사용할 수 있어요";
+        return Message("rules.cards.preview.battle_required");
     case PlayFailure::CardNotInHand:
-        return "현재 손패의 카드를 선택해 주세요";
+        return Message("rules.cards.preview.not_in_hand");
     case PlayFailure::BuildingPadRequired:
-        return "둥근 건물 패드에 설치해 주세요";
+        return Message("rules.cards.preview.pad_required");
     case PlayFailure::MaximumLevel:
-        return "이미 최고 레벨이에요";
+        return Message("rules.cards.preview.max_level");
     case PlayFailure::UnitCellRequired:
-        return "길 위의 작은 배치 칸에 놓아 주세요";
+        return Message("rules.cards.preview.unit_cell_required");
     case PlayFailure::SlotsFull:
-        return "유닛 슬롯이 가득 찼어요";
+        return Message("rules.cards.preview.slots_full");
     case PlayFailure::OccupiedCell:
-        return "다른 유닛이 있는 칸이에요";
+        return Message("rules.cards.preview.occupied");
     case PlayFailure::OutsideBattlefield:
-        return "열린 전장 안을 선택해 주세요";
+        return Message("rules.cards.preview.outside");
     case PlayFailure::EnergyShortage:
-        return "에너지가 부족해요";
+        return Message("rules.cards.preview.energy");
     case PlayFailure::PadBlocked:
-        return "바위가 막은 패드예요 · 정비 중에 치워 주세요";
+        return Message("rules.cards.preview.pad_blocked");
     }
-    return "현재는 사용할 수 없어요";
+    return Message("rules.cards.preview.unavailable");
 }
 Run::PlayPlan Run::planPlay(CardId id, Point target) const {
     PlayPlan plan;
@@ -243,19 +244,19 @@ Result Run::play(CardId id, Point target) {
     }
     state_.energy -= plan.preview.cost;
     cycle(plan.handPosition);
-    return {true, std::string(catalog_.card(kind).name) + " 사용!"};
+    return {true, Message("rules.cards.played", {{"card", cardRef(kind)}})};
 }
 
 Result Run::exchange(CardId id) {
     if (state_.phase != Phase::Battle || state_.energy < 1)
-        return {false, "전투 중 에너지 1로 교환할 수 있어요"};
+        return {false, Message("rules.cards.exchange.closed")};
     for (int index = 0; index < 4; ++index)
         if (state_.deck[state_.hand[index]].id == id) {
             --state_.energy;
             cycle(index);
-            return {true, "카드를 순환했어요"};
+            return {true, Message("rules.cards.exchange.done")};
         }
-    return {false, "현재 손패를 선택해 주세요"};
+    return {false, Message("rules.cards.exchange.not_in_hand")};
 }
 
 Result Run::replaceCard(CardKind kind, CardId old) {
@@ -263,9 +264,9 @@ Result Run::replaceCard(CardKind kind, CardId old) {
         if (item.id == old) {
             item = {nextCard_++, kind};
             acquisitions_.push_back(item.id);
-            return {true, std::string(catalog_.card(kind).name) + " 카드를 획득했어요"};
+            return {true, Message("rules.cards.acquired", {{"card", cardRef(kind)}})};
         }
-    return {false, "교체할 활성 덱 카드를 선택해 주세요"};
+    return {false, Message("rules.cards.replace.invalid")};
 }
 
 const CardOffer *Run::offer(OfferId id) const {
@@ -278,17 +279,17 @@ const CardOffer *Run::offer(OfferId id) const {
 Result Run::acceptOffer(OfferId id, CardKind candidate, CardId old, bool shards) {
     if (state_.phase != Phase::Prep || state_.expansionPending ||
         (state_.rewardOffer && state_.rewardOffer->id != id))
-        return {false, "먼저 현재 정비의 확장과 보상을 확인해 주세요"};
+        return {false, Message("rules.cards.offer.closed")};
     const CardOffer *active = offer(id);
     if (!active ||
         std::find(active->candidates.begin(), active->candidates.end(), candidate) ==
             active->candidates.end() ||
         !card(old))
-        return {false, "현재 제시된 후보와 교체할 활성 덱 카드를 선택해 주세요"};
+        return {false, Message("rules.cards.offer.invalid")};
     if (shards && (active->shards <= 0 || state_.shards < active->shards))
-        return {false, "조각 " + std::to_string(active->shards) + "개가 필요해요"};
+        return {false, Message("rules.cards.offer.shards", {{"count", std::to_string(active->shards)}})};
     if (!shards && !canPay(active->cost))
-        return {false, costLabel(active->cost) + "가 필요해요"};
+        return {false, Message("rules.cards.offer.cost", {{"cost", costRef(active->cost)}})};
     const ResourceCost cost = shards ? ResourceCost{} : active->cost;
     const int shardCost = shards ? active->shards : 0;
     const OfferSource source = active->source;
@@ -306,9 +307,9 @@ Result Run::acceptOffer(OfferId id, CardKind candidate, CardId old, bool shards)
 Result Run::skipOffer(OfferId id) {
     if (state_.phase != Phase::Prep || state_.expansionPending || !state_.rewardOffer ||
         state_.rewardOffer->id != id)
-        return {false, "현재 선택할 확장 보상이 없어요"};
+        return {false, Message("rules.cards.skip.none")};
     state_.rewardOffer.reset();
-    return {true, "보상을 건너뛰었어요"};
+    return {true, Message("rules.cards.skip.done")};
 }
 
 void Run::rebuildHand() {

@@ -1,6 +1,6 @@
 # 콘텐츠 검증·카드 오퍼·앱 접근 경계
 
-2026-11-06 승인된 추가 구조 개선 중 1·2번과 함께 진행한 3번을 구현했습니다. 콘텐츠 정의 ID 레지스트리·저장 스냅샷은 후속입니다. [전체 구조](current-architecture.md)와 [이전 아키텍처·성능 정리](architecture-follow-up.md)를 잇는 현재 구현 기록입니다.
+2026-11-06 승인된 추가 구조 개선 중 1·2번과 함께 진행한 3번을 구현했습니다. 콘텐츠 정의 ID 레지스트리는 후속입니다. 원정 저장 스냅샷은 [RunSnapshot.cpp](../src/game/rules/RunSnapshot.cpp)의 `Run::snapshot`·`restore`가 담당합니다([원정 저장](expedition-save.md)). [전체 구조](current-architecture.md)와 [이전 아키텍처·성능 정리](architecture-follow-up.md)를 잇는 현재 구현 기록입니다.
 
 ## 생성 전에 콘텐츠 검증
 

@@ -1,5 +1,9 @@
 #include "Text.h"
+#include "game/content/ContentKeys.h"
 #include <algorithm>
+#include <array>
+#include <set>
+#include <sstream>
 
 namespace thorium::presentation {
 namespace {
@@ -9,6 +13,7 @@ struct Tables {
     engine::StringTable selected;
     std::string code;
     bool loaded = false;
+    std::set<std::string> missing;
 };
 Tables &tables() {
     static Tables state;
@@ -71,10 +76,84 @@ std::string tr(std::string_view key) {
         return *text;
     if (const std::string *text = state.source.find(key))
         return *text;
+    tables().missing.emplace(key);
     return std::string(key);
+}
+std::vector<std::string> missingKeys() {
+    const std::set<std::string> &missing = tables().missing;
+    return {missing.begin(), missing.end()};
 }
 std::string tr(std::string_view key, const engine::TextArgs &args) {
     return engine::formatText(tr(key), args);
+}
+std::string costText(const game::ResourceCost &cost, bool compact) {
+    const std::array<int, 4> amounts{{cost.iron, cost.copper, cost.crystal, cost.gold}};
+    const std::array<game::Ore, 4> ores{
+        {game::Ore::Iron, game::Ore::Copper, game::Ore::Crystal, game::Ore::Gold}};
+    std::string result;
+    for (std::size_t index = 0; index < amounts.size(); ++index)
+        if (amounts[index] > 0) {
+            if (!compact && !result.empty())
+                result += " ";
+            result += oreName(ores[index], compact) + std::to_string(amounts[index]);
+        }
+    return result.empty() ? tr("cost.free") : result;
+}
+namespace {
+/** Resolve one message value: `@key` and `@key?name=value&name=value` are looked up (inner values resolve the
+ *  same way), `#cost/...` becomes a price and anything else is used as written. */
+std::string resolveValue(const std::string &value) {
+    if (value.rfind("#cost/", 0) == 0) {
+        game::ResourceCost cost;
+        std::istringstream in(value.substr(6));
+        char slash = 0;
+        in >> cost.iron >> slash >> cost.copper >> slash >> cost.crystal >> slash >> cost.gold;
+        return costText(cost);
+    }
+    if (value.size() < 2 || value[0] != '@')
+        return value;
+    const std::size_t query = value.find('?');
+    if (query == std::string::npos)
+        return tr(std::string_view(value).substr(1));
+    engine::TextArgs args;
+    std::size_t at = query + 1;
+    while (at <= value.size()) {
+        const std::size_t next = std::min(value.find('&', at), value.size());
+        const std::string pair = value.substr(at, next - at);
+        const std::size_t equals = pair.find('=');
+        if (equals != std::string::npos)
+            args.emplace_back(pair.substr(0, equals), resolveValue(pair.substr(equals + 1)));
+        at = next + 1;
+    }
+    return tr(std::string_view(value).substr(1, query - 1), args);
+}
+} // namespace
+std::string tr(const game::Message &message) {
+    if (message.empty())
+        return {};
+    engine::TextArgs args;
+    args.reserve(message.args.size());
+    for (const auto &[name, value] : message.args)
+        args.emplace_back(name, resolveValue(value));
+    return tr(message.key, args);
+}
+std::string cardName(game::CardKind kind) {
+    return tr("card." + std::string(game::cardKey(kind)) + ".name");
+}
+std::string enemyName(const game::EnemyDefinition &enemy) {
+    return tr("enemy." + (enemy.key.empty() ? enemy.animation : enemy.key) + ".name");
+}
+std::string eliteName(game::EliteAffix affix) {
+    return tr("elite." + std::string(game::eliteKey(affix)) + ".name");
+}
+std::string oreName(game::Ore ore, bool compact) {
+    return tr("ore." + std::string(game::oreKey(ore)) + (compact ? ".short" : ".name"));
+}
+std::string mineLayerName(const game::MineLayerDefinition &layer) {
+    return tr("minelayer." + layer.name + ".name");
+}
+std::string relicName(game::Relic relic) {
+    return tr("relic." + std::string(game::relicKey(relic)) + ".name");
 }
 std::string stageName(int id) {
     return tr("stage." + std::to_string(id) + ".name");

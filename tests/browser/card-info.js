@@ -39,8 +39,10 @@ async (page) => {
         await page.setViewportSize({width:1200,height:900});await page.goto('http://127.0.0.1:8317/');
         await wait(page,'s.width===1200');await click(36);
         await hover(1001);
-        check((await state(page)).cardInfo.details.stats.some(stat=>stat.label==='공격력'&&stat.value==='12'),'Hover displays the real attack value');
-        check((await state(page)).cardInfo.details.stats.some(stat=>stat.label==='사거리'&&stat.value==='3칸'),'Hover displays the real attack range');
+        // The gun's stats start with range, then attack.
+        /** @type {CardDetails} */ const gun=(await state(page)).cardInfo.details;
+        check(gun.stats[1]?.value==='12','Hover displays the real attack value');
+        check(parseFloat(gun.stats[0]?.value)===3&&gun.stats[0].value!=='3','Hover displays the real attack range with its unit');
         await page.screenshot({path:'.playwright-mcp/thorium-card-tooltip.png',scale:'css'});
         await page.mouse.move(2,2);await wait(page,'s.cardInfo===null');
         /** @type {Widget} */ const guard=await widget(page,1002);
@@ -55,7 +57,7 @@ async (page) => {
         await click(20);await wait(page,'s.modal===1');await hover(3007);
         await page.screenshot({path:'.playwright-mcp/thorium-card-candidates.png',scale:'css'});
         await click(3007);await wait(page,'s.modal===2&&s.offeredCard?.kind===7');
-        check((await state(page)).offeredCard.stats.some(stat=>stat.label==='체력'&&stat.value==='65'),'Incoming card includes its unit performance before replacement');
+        check((await state(page)).offeredCard.stats.some(stat=>stat.value==='65'),'Incoming card includes its unit performance before replacement');
         await page.mouse.move(2,2);await wait(page,'s.cardInfo===null');
         await page.screenshot({path:'.playwright-mcp/thorium-card-replacement.png',scale:'css'});
         await hover(2001);check((await state(page)).gold===8,'Inspecting a replacement target never pays');

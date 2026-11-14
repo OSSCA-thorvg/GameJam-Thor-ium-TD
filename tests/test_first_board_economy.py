@@ -42,7 +42,7 @@ class FirstBoardEconomyTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Read the canonical Markdown data before checking its paper calculations."""
-        self.content: str = read_document('docs/first-board-economy.md')
+        self.content: str = read_document('docs/archive/first-board-economy.md')
         self.rows: list[list[str]] = table_rows(self.content)
         self.symbols: dict[str, TileNumbers] = {
             row[0]: TileNumbers(int(row[2]), tuple(map(int, row[3:7])), row[7] == '1')

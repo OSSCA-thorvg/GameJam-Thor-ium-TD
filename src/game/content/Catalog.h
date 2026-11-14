@@ -11,7 +11,10 @@ struct EnemyDefinition {
     float interval = 0;
     int leak = 0;
     std::string animation = "oreling";
+    /** Language-independent id of the role. */
     std::string name;
+    /** Name key in the string tables, `enemy.<key>.name`; the animation key when empty. */
+    std::string key;
     /** Hit points absorbed before health; each hit absorbs at most shieldCap while it remains. */
     int shield = 0;
     int shieldCap = 0;
@@ -42,6 +45,7 @@ struct EnemyDefinition {
 };
 /** Immutable balance of one elite modifier, applied on top of the carrier's role. */
 struct EliteDefinition {
+    /** Language-independent id, `eliteKey` of the modifier; empty for the neutral entry. */
     std::string name;
     /** Multiplier of the role's maximum health. */
     float health = 1;
@@ -87,6 +91,7 @@ struct MineTileDefinition {
 };
 /** An additional authored entrance; every route ends at the same defended base. */
 struct EntranceRoute {
+    /** Language-independent id of the entrance. */
     std::string name;
     std::vector<Point> points;
     int opensAtWave = 1;
@@ -96,6 +101,7 @@ enum class StageBiome { Meadow, Obsidian, Tundra, Lava, Core, Crystal, Swamp };
 /** One row-major cutaway board; deeper layers are entered voluntarily without refilling the preparation
  * budget. */
 struct MineLayerDefinition {
+    /** Language-independent id, looked up as `minelayer.<id>.name`. */
     std::string name;
     int opensAfterWave = 3;
     int width = 5;
@@ -163,8 +169,6 @@ struct RailDefinition {
 struct TankDefinition {
     Point position;
 };
-/** Format an authored price consistently for rules and game UI. */
-std::string costLabel(const ResourceCost &cost, bool compact = false);
 /** Balance that links economy, wave transitions and permanent run upgrades. */
 struct RunBalance {
     int baseHp = 20;
@@ -309,7 +313,7 @@ struct Catalog {
     std::vector<CardKind> recruitmentBuildings;
     int width = 18;
     int height = 10;
-    std::string entranceName = "서쪽 입구";
+    std::string entranceName = "west_gate";
     std::vector<EntranceRoute> additionalRoutes;
     std::vector<MineLayerDefinition> deeperMines;
     /** One-based wave that presents a role as new in this stage, or 0 when it is not introduced here. */
@@ -376,13 +380,12 @@ const Catalog &defaultCatalog();
 /** Authored presentation metadata for an expedition stage. */
 struct StageMetadata {
     int id = 1;
+    /** String-table key of the stage name, `stage.<id>.name`. */
     std::string name;
-    std::string subtitle;
-    std::string description;
     int wavesCount = 0;
     int difficulty = 1;
     StageBiome biome = StageBiome::Meadow;
-    /** One-line summary of the stage's battlefield gimmick; empty when it has none. */
+    /** String-table key of the one-line gimmick summary, `stage.<id>.gimmick`; empty when it has none. */
     std::string gimmick;
 };
 

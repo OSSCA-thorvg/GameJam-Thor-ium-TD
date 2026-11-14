@@ -1,5 +1,6 @@
 #include "RuleGeometry.h"
 #include "Run.h"
+#include "game/content/ContentKeys.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -8,13 +9,13 @@
 namespace thorium::game {
 Result Run::startWave() {
     if (state_.phase != Phase::Ready && state_.phase != Phase::Prep)
-        return {false, "지금은 전투를 시작할 수 없어요"};
+        return {false, Message("rules.progression.wave.closed")};
     if (state_.job.active)
-        return {false, "광부가 작업을 마칠 때까지 기다려 주세요"};
+        return {false, Message("rules.progression.wave.miner_busy")};
     if (state_.expansionPending || state_.rewardOffer)
-        return {false, "먼저 맵 확장과 보상을 선택해 주세요"};
+        return {false, Message("rules.progression.wave.choice_pending")};
     if (state_.wave >= static_cast<int>(catalog_.waves.size()))
-        return {false, "마지막 웨이브를 이미 완료했어요"};
+        return {false, Message("rules.progression.wave.finished")};
     if (state_.phase == Phase::Prep)
         rebuildHand();
     ++state_.wave;
@@ -33,7 +34,7 @@ Result Run::startWave() {
     for (int index = 0; index < state_.nextExtra; ++index)
         spawns_.push_back({extraStart + index * 0.6F, EnemyKind::Normal});
     state_.nextExtra = 0;
-    return {true, "카드를 끌어다 전장에 배치하세요"};
+    return {true, Message("rules.progression.wave.started")};
 }
 
 void Run::finishWave() {
@@ -80,9 +81,9 @@ std::vector<CardKind> Run::recruitmentDraw(int turn) const {
 Result Run::rerollRecruitment() {
     const int price = catalog_.balance.rerollShards;
     if (state_.phase != Phase::Prep || !state_.recruitmentOffer)
-        return {false, "정비 중 모집이 남아 있을 때 다시 뽑을 수 있어요"};
+        return {false, Message("rules.progression.reroll.closed")};
     if (state_.shards < price)
-        return {false, "조각 " + std::to_string(price) + "개가 필요해요"};
+        return {false, Message("rules.progression.shards", {{"count", std::to_string(price)}})};
     state_.shards -= price;
     ++state_.rerolls;
     const std::vector<CardKind> previous = state_.recruitmentOffer->candidates;
@@ -91,7 +92,7 @@ Result Run::rerollRecruitment() {
         next = recruitmentDraw(state_.wave + state_.rerolls * 5 + shift);
     state_.recruitmentOffer->candidates = next;
     state_.recruitmentOffer->id = nextOffer_++;
-    return {true, "모집 후보를 새로 뽑았어요 · 조각 " + std::to_string(price)};
+    return {true, Message("rules.progression.reroll.done", {{"count", std::to_string(price)}})};
 }
 int Run::heroHealth() const {
     return static_cast<int>(std::lround(catalog_.balance.heroHp *
@@ -105,11 +106,11 @@ int Run::heroTrainCost() const {
 Result Run::trainHero() {
     const int price = heroTrainCost();
     if (state_.phase != Phase::Prep || !catalog_.hero)
-        return {false, "정비 중에 영웅을 단련할 수 있어요"};
+        return {false, Message("rules.progression.train.closed")};
     if (price == 0)
-        return {false, "영웅이 최고 단계예요"};
+        return {false, Message("rules.progression.train.max")};
     if (state_.shards < price)
-        return {false, "조각 " + std::to_string(price) + "개가 필요해요"};
+        return {false, Message("rules.progression.shards", {{"count", std::to_string(price)}})};
     state_.shards -= price;
     ++state_.heroLevel;
     for (Unit &ally : state_.units)
@@ -117,9 +118,10 @@ Result Run::trainHero() {
             ally.maxHp = heroHealth();
             ally.hp = ally.maxHp;
         }
-    return {true, "영웅 단련 Lv" + std::to_string(state_.heroLevel) + " · 체력과 공격력 +" +
-                      std::to_string(static_cast<int>(std::lround(catalog_.balance.heroLevelBonus * 100))) +
-                      "%"};
+    return {true, Message("rules.progression.train.done",
+                          {{"level", std::to_string(state_.heroLevel)},
+                           {"bonus", std::to_string(static_cast<int>(
+                                         std::lround(catalog_.balance.heroLevelBonus * 100)))}})};
 }
 int Run::nextBattleEnergy() const {
     const RunBalance &balance = catalog_.balance;
@@ -130,66 +132,68 @@ int Run::nextBattleEnergy() const {
 PurchaseQuote Run::quote(UpgradeKind kind) const {
     PurchaseQuote result;
     /** Record one rejection reason and return the finished quote. */
-    const auto reject = [&result](PurchaseFailure failure, std::string message) -> PurchaseQuote {
+    const auto reject = [&result](PurchaseFailure failure, Message message) -> PurchaseQuote {
         result.failure = failure;
         result.message = std::move(message);
         return result;
     };
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer)
-        return reject(PurchaseFailure::Closed, "정비 중에 강화할 수 있어요");
+        return reject(PurchaseFailure::Closed, Message("rules.progression.upgrade.closed"));
     const RunBalance &balance = catalog_.balance;
     switch (kind) {
     case UpgradeKind::Tool:
         result.cost = balance.tool;
         if (state_.tool >= 2)
-            return reject(PurchaseFailure::Owned, "이미 T2 곡괭이예요");
+            return reject(PurchaseFailure::Owned, Message("rules.progression.upgrade.tool_owned"));
         break;
     case UpgradeKind::Drill:
         result.cost = balance.drill;
         if (state_.tool >= 3)
-            return reject(PurchaseFailure::Owned, "이미 T3 드릴이에요");
+            return reject(PurchaseFailure::Owned, Message("rules.progression.upgrade.drill_owned"));
         if (state_.tool < 2)
-            return reject(PurchaseFailure::Requirement, "T2 곡괭이가 먼저 필요해요");
+            return reject(PurchaseFailure::Requirement, Message("rules.progression.upgrade.drill_requires"));
         break;
     case UpgradeKind::Armor:
         result.cost = balance.armor;
         if (state_.armor)
-            return reject(PurchaseFailure::Owned, "이미 장갑을 제작했어요");
+            return reject(PurchaseFailure::Owned, Message("rules.progression.upgrade.armor_owned"));
         break;
     case UpgradeKind::Slots:
         result.cost = balance.slots;
         if (state_.slots >= balance.upgradedSlots)
             return reject(PurchaseFailure::Owned,
-                          "이미 최대 " + std::to_string(balance.upgradedSlots) + "슬롯이에요");
+                          Message("rules.progression.upgrade.slots_owned",
+                                  {{"count", std::to_string(balance.upgradedSlots)}}));
         break;
     case UpgradeKind::Coil: {
         result.cost = balance.coil;
         if (state_.coil)
-            return reject(PurchaseFailure::Owned, "이미 코일을 제작했어요");
+            return reject(PurchaseFailure::Owned, Message("rules.progression.upgrade.coil_owned"));
         bool owns = false;
         for (const Card &item : state_.deck)
             owns |= item.kind == CardKind::Lightning;
         if (state_.tool < 2 || !owns)
-            return reject(PurchaseFailure::Requirement, "T2 곡괭이와 활성 덱의 전격탑이 필요해요");
+            return reject(PurchaseFailure::Requirement, Message("rules.progression.upgrade.coil_requires"));
         break;
     }
     case UpgradeKind::Hire:
         result.cost = {0, 0, 0, balance.hireGold + balance.hireStep * state_.hires};
         if (state_.hires >= balance.hireLimit)
-            return reject(PurchaseFailure::Exhausted, "이번 정비의 광부 고용을 모두 썼어요");
+            return reject(PurchaseFailure::Exhausted, Message("rules.progression.upgrade.hire_exhausted"));
         break;
     case UpgradeKind::Supply:
         result.cost = balance.supply;
         if (state_.supplied)
-            return reject(PurchaseFailure::Exhausted, "이번 정비의 보급을 이미 받았어요");
+            return reject(PurchaseFailure::Exhausted, Message("rules.progression.upgrade.supply_exhausted"));
         if (nextBattleEnergy() >= balance.energyCap)
-            return reject(PurchaseFailure::Exhausted, "다음 전투 에너지가 이미 최대예요");
+            return reject(PurchaseFailure::Exhausted, Message("rules.progression.upgrade.energy_full"));
         break;
     default:
-        return reject(PurchaseFailure::InvalidTarget, "알 수 없는 강화예요");
+        return reject(PurchaseFailure::InvalidTarget, Message("rules.progression.upgrade.unknown"));
     }
     if (!canPay(result.cost))
-        return reject(PurchaseFailure::Shortage, costLabel(result.cost) + "가 필요해요");
+        return reject(PurchaseFailure::Shortage,
+                      Message("rules.progression.cost", {{"cost", costRef(result.cost)}}));
     result.failure = PurchaseFailure::None;
     return result;
 }
@@ -203,36 +207,40 @@ Result Run::upgrade(UpgradeKind kind) {
     switch (kind) {
     case UpgradeKind::Tool:
         state_.tool = 2;
-        return {true, "단단한 지층과 수정을 캘 수 있어요"};
+        return {true, Message("rules.progression.upgrade.tool_done")};
     case UpgradeKind::Drill:
         state_.tool = 3;
         state_.digs += balance.drillDigs;
-        return {true,
-                "정비마다 굴착 +" + std::to_string(balance.drillDigs) + " · 이번 정비에도 바로 적용돼요"};
+        return {true, Message("rules.progression.upgrade.drill_done",
+                              {{"count", std::to_string(balance.drillDigs)}})};
     case UpgradeKind::Armor:
         state_.armor = true;
         for (Unit &ally : state_.units)
             if (ally.kind == CardKind::Guard && !ally.hero)
                 ally.maxHp = unitHealth(ally.kind, ally.level);
-        return {true,
-                "경비병 최대 체력 " + std::to_string(balance.armoredGuardHp) + " · 현재 체력은 유지돼요"};
+        return {true, Message("rules.progression.upgrade.armor_done",
+                              {{"hp", std::to_string(balance.armoredGuardHp)}})};
     case UpgradeKind::Slots:
         state_.slots = balance.upgradedSlots;
-        return {true, "유닛 슬롯이 " + std::to_string(balance.upgradedSlots) + "개로 늘었어요"};
+        return {true, Message("rules.progression.upgrade.slots_done",
+                              {{"count", std::to_string(balance.upgradedSlots)}})};
     case UpgradeKind::Coil:
         state_.coil = true;
-        return {true, "모든 전격탑 피해 +" +
-                          std::to_string(static_cast<int>(std::lround((balance.coilBonus - 1) * 100))) + "%"};
+        return {true,
+                Message("rules.progression.upgrade.coil_done",
+                        {{"bonus",
+                          std::to_string(static_cast<int>(std::lround((balance.coilBonus - 1) * 100)))}})};
     case UpgradeKind::Hire:
         ++state_.hires;
         ++state_.digs;
-        return {true, "광부를 고용했어요 · 이번 정비 굴착 +1"};
+        return {true, Message("rules.progression.upgrade.hire_done")};
     case UpgradeKind::Supply:
         state_.supplied = true;
         state_.bonusEnergy += balance.supplyEnergy;
-        return {true, "보급 상자 · 다음 전투 에너지 +" + std::to_string(balance.supplyEnergy)};
+        return {true, Message("rules.progression.upgrade.supply_done",
+                              {{"count", std::to_string(balance.supplyEnergy)}})};
     }
-    return {false, "알 수 없는 강화예요"};
+    return {false, Message("rules.progression.upgrade.unknown")};
 }
 
 int Run::awakenedLevel() const {
@@ -242,26 +250,27 @@ int Run::awakenedLevel() const {
 PurchaseQuote Run::awakenQuote(EntityId id) const {
     PurchaseQuote result;
     /** Record one rejection reason and return the finished quote. */
-    const auto reject = [&result](PurchaseFailure failure, std::string message) -> PurchaseQuote {
+    const auto reject = [&result](PurchaseFailure failure, Message message) -> PurchaseQuote {
         result.failure = failure;
         result.message = std::move(message);
         return result;
     };
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer)
-        return reject(PurchaseFailure::Closed, "정비 중에 각성할 수 있어요");
+        return reject(PurchaseFailure::Closed, Message("rules.progression.awaken.closed"));
     const Tower *target = tower(id);
     if (!target)
-        return reject(PurchaseFailure::InvalidTarget, "각성할 건물을 선택해 주세요");
+        return reject(PurchaseFailure::InvalidTarget, Message("rules.progression.awaken.invalid"));
     const std::array<ResourceCost, 2> &prices = catalog_.balance.awaken;
     const int step = std::max(0, target->level - CardMaxLevel);
     result.cost = prices[static_cast<std::size_t>(std::min(step, static_cast<int>(prices.size()) - 1))];
     if (target->level < CardMaxLevel)
-        return reject(PurchaseFailure::Requirement, "같은 카드로 Lv" + std::to_string(CardMaxLevel) +
-                                                        "까지 강화한 건물만 각성할 수 있어요");
+        return reject(PurchaseFailure::Requirement, Message("rules.progression.awaken.requires",
+                                                            {{"level", std::to_string(CardMaxLevel)}}));
     if (target->level >= awakenedLevel())
-        return reject(PurchaseFailure::Owned, "이미 최고 각성 단계예요");
+        return reject(PurchaseFailure::Owned, Message("rules.progression.awaken.max"));
     if (!canPay(result.cost))
-        return reject(PurchaseFailure::Shortage, costLabel(result.cost) + "가 필요해요");
+        return reject(PurchaseFailure::Shortage,
+                      Message("rules.progression.cost", {{"cost", costRef(result.cost)}}));
     result.failure = PurchaseFailure::None;
     return result;
 }
@@ -279,10 +288,11 @@ Result Run::awaken(EntityId id) {
             item.maxHp = maximum;
             const int bonus =
                 static_cast<int>(std::lround((item.level - 1) * catalog_.balance.levelBonus * 100));
-            return {true, catalog_.card(item.kind).name + " Lv" + std::to_string(item.level) +
-                              " 각성 · 기본 대비 +" + std::to_string(bonus) + "%"};
+            return {true, Message("rules.progression.awaken.done", {{"card", cardRef(item.kind)},
+                                                                    {"level", std::to_string(item.level)},
+                                                                    {"bonus", std::to_string(bonus)}})};
         }
-    return {false, "각성할 건물을 선택해 주세요"};
+    return {false, Message("rules.progression.awaken.invalid")};
 }
 
 PurchaseQuote Run::repairQuote(EntityId id) const {
@@ -293,16 +303,16 @@ PurchaseQuote Run::repairQuote(EntityId id) const {
             (building->maxHp - building->hp + catalog_.balance.repairHp - 1) / catalog_.balance.repairHp;
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer) {
         result.failure = PurchaseFailure::Closed;
-        result.message = "정비 중에 수리할 수 있어요";
+        result.message = Message("rules.progression.repair.closed");
     } else if (!building) {
         result.failure = PurchaseFailure::InvalidTarget;
-        result.message = "수리할 건물을 선택해 주세요";
+        result.message = Message("rules.progression.repair.invalid");
     } else if (building->hp >= building->maxHp) {
         result.failure = PurchaseFailure::Owned;
-        result.message = "이미 내구도가 가득해요";
+        result.message = Message("rules.progression.repair.full");
     } else if (!canPay(result.cost)) {
         result.failure = PurchaseFailure::Shortage;
-        result.message = costLabel(result.cost) + "가 필요해요";
+        result.message = Message("rules.progression.cost", {{"cost", costRef(result.cost)}});
     } else
         result.failure = PurchaseFailure::None;
     return result;
@@ -315,23 +325,24 @@ Result Run::repair(EntityId id) {
     for (Tower &item : state_.towers)
         if (item.id == id)
             item.hp = item.maxHp;
-    return {true, "건물을 수리했어요 · " + costLabel(price.cost)};
+    return {true, Message("rules.progression.repair.done", {{"cost", costRef(price.cost)}})};
 }
 PurchaseQuote Run::boulderQuote(Point position) const {
     PurchaseQuote result;
     /** Record one rejection reason and return the finished quote. */
-    const auto reject = [&result](PurchaseFailure failure, std::string message) -> PurchaseQuote {
+    const auto reject = [&result](PurchaseFailure failure, Message message) -> PurchaseQuote {
         result.failure = failure;
         result.message = std::move(message);
         return result;
     };
     result.cost = catalog_.balance.boulder;
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer)
-        return reject(PurchaseFailure::Closed, "정비 중에 바위를 치울 수 있어요");
+        return reject(PurchaseFailure::Closed, Message("rules.progression.boulder.closed"));
     if (!resolveCell(state_.boulders, position))
-        return reject(PurchaseFailure::InvalidTarget, "치울 바위를 선택해 주세요");
+        return reject(PurchaseFailure::InvalidTarget, Message("rules.progression.boulder.invalid"));
     if (!canPay(result.cost))
-        return reject(PurchaseFailure::Shortage, costLabel(result.cost) + "가 필요해요");
+        return reject(PurchaseFailure::Shortage,
+                      Message("rules.progression.cost", {{"cost", costRef(result.cost)}}));
     result.failure = PurchaseFailure::None;
     return result;
 }
@@ -346,30 +357,30 @@ Result Run::clearBoulder(Point position) {
                                          [pad](Point boulder) { return distance(boulder, pad) < .01F; }),
                           state_.boulders.end());
     state_.pads.push_back(pad);
-    return {true, "바위를 치웠어요 · 이제 건물을 지을 수 있어요"};
+    return {true, Message("rules.progression.boulder.done")};
 }
 
 Result Run::heal(EntityId id) {
     if (state_.phase != Phase::Prep)
-        return {false, "정비 중에 치료할 수 있어요"};
+        return {false, Message("rules.progression.heal.closed")};
     for (Unit &ally : state_.units)
         if (ally.id == id) {
             if (ally.hero)
-                return {false, "영웅은 웨이브를 막으면 체력이 가득 차요"};
+                return {false, Message("rules.progression.heal.hero")};
             if (ally.hp == ally.maxHp)
-                return {false, "이미 체력이 가득해요"};
+                return {false, Message("rules.progression.heal.full")};
             if (!canPay(catalog_.balance.heal))
-                return {false, costLabel(catalog_.balance.heal) + "가 필요해요"};
+                return {false, Message("rules.progression.cost", {{"cost", costRef(catalog_.balance.heal)}})};
             pay(catalog_.balance.heal);
             ally.hp = std::min(ally.maxHp, ally.hp + (ally.maxHp + 1) / 2);
-            return {true, "유닛을 치료했어요"};
+            return {true, Message("rules.progression.heal.done")};
         }
-    return {false, "치료할 유닛을 선택해 주세요"};
+    return {false, Message("rules.progression.heal.invalid")};
 }
 
 Result Run::expand(int choice) {
     if (state_.phase != Phase::Prep || !state_.expansionPending || (choice != 1 && choice != 2))
-        return {false, "확장 후보를 선택해 주세요"};
+        return {false, Message("rules.progression.expand.invalid")};
     state_.branch = choice;
     const ExpansionDefinition &expansion = catalog_.expansions.at(static_cast<std::size_t>(choice - 1));
     const std::vector<Point> core = state_.route;
@@ -380,7 +391,7 @@ Result Run::expand(int choice) {
     resolveTunnels();
     state_.expansionPending = false;
     state_.rewardOffer = CardOffer{nextOffer_++, OfferSource::Expansion, {expansion.reward}, {}};
-    return {true, catalog_.card(expansion.reward).name + " 보상을 덱에 넣거나 건너뛸 수 있어요"};
+    return {true, Message("rules.progression.expand.done", {{"card", cardRef(expansion.reward)}})};
 }
 
 bool Run::canPay(const ResourceCost &cost) const {

@@ -40,7 +40,7 @@ def table_rows(content: str) -> list[list[str]]:
 
 def question_records() -> dict[str, tuple[str, str]]:
     """Read each question's status and explicit answer from the decision registry."""
-    section: str = read_document('docs/decisions.md').split(
+    section: str = read_document('docs/archive/decisions.md').split(
         '## 질문 기록과 남은 결정\n', 1
     )[1].split('\n해결된 질문', 1)[0]
     return {
@@ -77,7 +77,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_decision_definitions_and_current_references(self) -> None:
         """Keep decision IDs unique and current-plan references tied to defined records."""
-        registry: str = read_document('docs/decisions.md').split(
+        registry: str = read_document('docs/archive/decisions.md').split(
             '## 구체 규칙 제안의 검토 상태', 1
         )[0]
         identifiers: list[str] = re.findall(r'^\| ([DQ]-\d+) \|', registry, re.MULTILINE)
@@ -85,9 +85,9 @@ class PlanningDocumentTests(unittest.TestCase):
         self.assertEqual(len(identifiers), len(set(identifiers)))
         defined: set[str] = set(identifiers)
         for name in (
-            'docs/game-design.md', 'docs/prototype-plan.md',
-            'docs/preproduction-plan.md', 'docs/rule-options.md',
-            'docs/architecture.md', 'docs/interface-plan.md', 'docs/first-playable-spec.md',
+            'docs/archive/game-design.md', 'docs/archive/prototype-plan.md',
+            'docs/archive/preproduction-plan.md', 'docs/archive/rule-options.md',
+            'docs/archive/architecture.md', 'docs/archive/interface-plan.md', 'docs/archive/first-playable-spec.md',
         ):
             referenced: set[str] = set(re.findall(r'\b[DQ]-\d+\b', read_document(name)))
             with self.subTest(document=name):
@@ -97,11 +97,11 @@ class PlanningDocumentTests(unittest.TestCase):
         """Prevent research proposals from being presented as confirmed decisions."""
         statuses: dict[str, str] = {
             row[0]: row[1]
-            for row in table_rows(read_document('docs/decisions.md'))
+            for row in table_rows(read_document('docs/archive/decisions.md'))
             if len(row) >= 2 and re.fullmatch(r'D-\d+', row[0])
         }
         checked: int = 0
-        for row in table_rows(read_document('docs/game-design.md')):
+        for row in table_rows(read_document('docs/archive/game-design.md')):
             if len(row) != 3 or row[0] not in {'확정 방향', '검토 방향', '실험안'}:
                 continue
             for identifier in re.findall(r'D-\d+', row[2]):
@@ -112,7 +112,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_prototype_deck_has_eight_cards_and_three_actions(self) -> None:
         """Check deck counts, card categories, and the distinction from acquired content."""
-        content: str = read_document('docs/prototype-plan.md')
+        content: str = read_document('docs/archive/prototype-plan.md')
         section: str = content.split('## 카드 덱과 에너지', 1)[1].split('## 유닛과 건물', 1)[0]
         cards: list[list[str]] = [
             row for row in table_rows(section)
@@ -128,7 +128,7 @@ class PlanningDocumentTests(unittest.TestCase):
         """Verify the card-system examples obey their declared count and point budget."""
         examples: list[tuple[str, str, str]] = re.findall(
             r'^\| (일반[^|]+) \| (\d+) \| (\d+) \|',
-            read_document('docs/card-system.md'), re.MULTILINE,
+            read_document('docs/archive/card-system.md'), re.MULTILINE,
         )
         points: dict[str, int] = {'일반': 1, '희귀': 2, '영웅': 3}
         self.assertTrue(examples)
@@ -144,18 +144,18 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_current_prototype_is_distinct_from_preserved_history(self) -> None:
         """Keep the original numeric proposal available without labeling it current."""
-        current: str = read_document('docs/prototype-plan.md')
+        current: str = read_document('docs/archive/prototype-plan.md')
         archived: str = read_document('docs/archive/prototype-plan-v0.1.md')
         self.assertTrue(current.startswith('# 프로토타입 상세안 v0.2\n'))
         self.assertTrue(archived.startswith('# 프로토타입 상세안 v0.1 보관본\n'))
-        self.assertIn('archive/prototype-plan-v0.1.md', current)
-        self.assertIn('../prototype-plan.md', archived)
+        self.assertIn('(prototype-plan-v0.1.md)', current)
+        self.assertIn('(prototype-plan.md)', archived)
 
     def test_rule_options_cover_every_recorded_question_once(self) -> None:
         """Keep pending questions and answered alternatives discoverable without duplicates."""
         recorded_questions: set[str] = set(question_records())
         option_ids: list[str] = re.findall(
-            r'^## (Q-\d+) — ', read_document('docs/rule-options.md'), re.MULTILINE
+            r'^## (Q-\d+) — ', read_document('docs/archive/rule-options.md'), re.MULTILINE
         )
         self.assertTrue(recorded_questions)
         self.assertEqual(len(option_ids), len(set(option_ids)))
@@ -165,7 +165,7 @@ class PlanningDocumentTests(unittest.TestCase):
         """Prevent the questionnaire from contradicting recorded selections or pending scope."""
         records: dict[str, tuple[str, str]] = question_records()
         blocks: list[str] = re.split(
-            r'^## (Q-\d+) — [^\n]+\n', read_document('docs/rule-options.md'),
+            r'^## (Q-\d+) — [^\n]+\n', read_document('docs/archive/rule-options.md'),
             flags=re.MULTILINE,
         )
         for index in range(1, len(blocks), 2):
@@ -204,7 +204,7 @@ class PlanningDocumentTests(unittest.TestCase):
                 self.assertEqual(records[identifier], record)
         decisions: dict[str, str] = {
             row[0]: row[1]
-            for row in table_rows(read_document('docs/decisions.md'))
+            for row in table_rows(read_document('docs/archive/decisions.md'))
             if len(row) >= 2 and re.fullmatch(r'D-\d+', row[0])
         }
         for identifier in (
@@ -223,10 +223,10 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_playable_recommendation_pack_covers_ten_sections(self) -> None:
         """Keep a reviewable complete proposal separate from the user's confirmed answers."""
-        content: str = read_document('docs/first-playable-spec.md')
+        content: str = read_document('docs/archive/first-playable-spec.md')
         identifiers: list[str] = re.findall(r'^## (P-\d{2}) — ', content, re.MULTILINE)
         self.assertEqual(identifiers, [f'P-{number:02d}' for number in range(1, 11)])
-        options: str = read_document('docs/rule-options.md').split(
+        options: str = read_document('docs/archive/rule-options.md').split(
             '## 남은 운영 규칙의 추천 묶음', 1
         )[1].split('## Q-22 —', 1)[0]
         self.assertEqual(set(re.findall(r'P-\d{2}', options)), set(identifiers))
@@ -234,7 +234,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_fixed_world_rules_keep_free_placement_as_a_later_transition(self) -> None:
         """Keep the selected fixed rules separate from the requested future migration."""
-        section: str = read_document('docs/rule-options.md').split(
+        section: str = read_document('docs/archive/rule-options.md').split(
             '## Q-04 —', 1
         )[1].split('## Q-06 —', 1)[0]
         answers: dict[str, tuple[str, str]] = {
@@ -253,7 +253,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_mining_assistance_preserves_selected_scan_and_finish_rules(self) -> None:
         """Keep scan disclosure separate from excavation and preserve idle-only finish."""
-        section: str = read_document('docs/rule-options.md').split(
+        section: str = read_document('docs/archive/rule-options.md').split(
             '## Q-09 —', 1
         )[1].split('## Q-11 —', 1)[0]
         answers: dict[str, tuple[str, str]] = {
@@ -278,7 +278,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_mobile_ux_scope_is_separate_from_unmeasured_performance(self) -> None:
         """Keep mobile UI preparation visible without claiming a measured mobile baseline."""
-        interface_section: str = read_document('docs/interface-plan.md').split(
+        interface_section: str = read_document('docs/archive/interface-plan.md').split(
             '## 확정 범위와 제안의 경계', 1
         )[1].split('## 단계별 화면 구성', 1)[0]
         scope: dict[str, tuple[str, str]] = {
@@ -291,7 +291,7 @@ class PlanningDocumentTests(unittest.TestCase):
         self.assertEqual(scope['모바일 화면·입력'][0], '준비 범위 확정')
         self.assertEqual(scope['모바일 성능'][0], '기준 미정')
         self.assertEqual(scope['모바일 화면 방향'][0], '제안')
-        environment_section: str = read_document('docs/validation-plan.md').split(
+        environment_section: str = read_document('docs/archive/validation-plan.md').split(
             '## 데스크톱·모바일 검증 환경', 1
         )[1].split('## 성능 실험', 1)[0]
         environments: dict[str, str] = {
@@ -307,7 +307,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_unit_followup_answers_preserve_capacity_and_survivors(self) -> None:
         """Protect the six-slot growth and surviving-unit HP choices from stale retreat defaults."""
-        section: str = read_document('docs/rule-options.md').split(
+        section: str = read_document('docs/archive/rule-options.md').split(
             '## Q-19 —', 1
         )[1].split('## Q-18 —', 1)[0]
         recorded: dict[str, tuple[str, str]] = {
@@ -327,7 +327,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_currency_and_care_answers_preserve_card_recruitment(self) -> None:
         """Record the chosen card offer alongside targeted treatment and free movement."""
-        section: str = read_document('docs/rule-options.md').split(
+        section: str = read_document('docs/archive/rule-options.md').split(
             '## Q-19 —', 1
         )[1].split('## Q-18 —', 1)[0]
         recorded: dict[str, tuple[str, str]] = {
@@ -347,7 +347,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_prototype_has_a_unit_pool_for_three_card_choices(self) -> None:
         """Catch a prototype that still contains only one unit after three-choice recruitment."""
-        section: str = read_document('docs/prototype-plan.md').split(
+        section: str = read_document('docs/archive/prototype-plan.md').split(
             '## 카드 덱과 에너지', 1
         )[1].split('## 유닛과 건물', 1)[0]
         unit_definitions: set[str] = {
@@ -360,7 +360,7 @@ class PlanningDocumentTests(unittest.TestCase):
 
     def test_deck_replacement_and_hand_rebuild_answers_are_preserved(self) -> None:
         """Preserve deck, hand, and recruitment payment choices while other offer rules remain open."""
-        section: str = read_document('docs/rule-options.md').split(
+        section: str = read_document('docs/archive/rule-options.md').split(
             '## Q-20 —', 1
         )[1].split('## Q-14 —', 1)[0]
         answers: dict[str, str] = {
@@ -383,7 +383,7 @@ class PlanningDocumentTests(unittest.TestCase):
     def test_each_rule_question_has_choices_recommendation_and_answer(self) -> None:
         """Catch missing alternatives or a recommendation that does not name an offered choice."""
         blocks: list[str] = re.split(
-            r'^## (Q-\d+) — [^\n]+\n', read_document('docs/rule-options.md'),
+            r'^## (Q-\d+) — [^\n]+\n', read_document('docs/archive/rule-options.md'),
             flags=re.MULTILINE,
         )
         self.assertGreater(len(blocks), 1)

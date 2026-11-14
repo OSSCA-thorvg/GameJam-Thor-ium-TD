@@ -4,11 +4,12 @@
 
 namespace thorium::game {
 namespace {
-/** Create one enemy role with its common combat fields; special abilities are assigned afterwards. */
-EnemyDefinition role(const char *name, const char *animation, int hp, int armor, float speed, int attack,
-                     float interval, int leak) {
+/** Create one enemy role with its common combat fields, named by its animation id; special abilities are
+ *  assigned afterwards. */
+EnemyDefinition role(const char *animation, int hp, int armor, float speed, int attack, float interval,
+                     int leak) {
     EnemyDefinition result;
-    result.name = name;
+    result.name = animation;
     result.animation = animation;
     result.hp = hp;
     result.armor = armor;
@@ -21,22 +22,22 @@ EnemyDefinition role(const char *name, const char *animation, int hp, int armor,
 /** Author every enemy role in EnemyKind order. */
 std::array<EnemyDefinition, EnemyKindCount> enemyRoster() {
     std::array<EnemyDefinition, EnemyKindCount> roster{{
-        role("광석졸개", "oreling", 36, 0, 1, 8, 1, 1),
-        role("질주꾼", "dashling", 24, 0, 1.6F, 6, .8F, 1),
-        role("중장갑", "ironback", 100, 4, .65F, 16, 1.5F, 3),
-        role("자갈떼", "pebbling", 12, 0, 1.35F, 3, .6F, 1),
-        role("방패병", "shieldling", 60, 0, .8F, 10, 1.2F, 2),
-        role("치유사", "mender", 50, 0, .85F, 4, 1, 1),
-        role("분열체", "splitter", 70, 1, .8F, 10, 1.2F, 2),
-        role("굴착충", "burrower", 50, 1, 1, 8, 1, 2),
-        role("파쇄병", "sapper", 45, 0, 1.1F, 6, 1, 2),
-        role("동굴박쥐", "bat", 24, 0, 1.2F, 0, 1, 1),
-        role("그림자", "stalker", 55, 0, 1.1F, 8, 1, 2),
-        role("도약꾼", "leaper", 70, 1, .95F, 10, 1.1F, 2),
-        role("망치병", "wrecker", 85, 2, .8F, 10, 1.2F, 2),
-        role("투석꾼", "slinger", 60, 0, .85F, 6, 1.2F, 2),
-        role("수송박쥐", "carrier", 60, 0, 1, 0, 1, 1),
-        role("광석 골렘", "golem", 900, 3, .36F, 30, 1.6F, 10),
+        role("oreling", 36, 0, 1, 8, 1, 1),
+        role("dashling", 24, 0, 1.6F, 6, .8F, 1),
+        role("ironback", 100, 4, .65F, 16, 1.5F, 3),
+        role("pebbling", 12, 0, 1.35F, 3, .6F, 1),
+        role("shieldling", 60, 0, .8F, 10, 1.2F, 2),
+        role("mender", 50, 0, .85F, 4, 1, 1),
+        role("splitter", 70, 1, .8F, 10, 1.2F, 2),
+        role("burrower", 50, 1, 1, 8, 1, 2),
+        role("sapper", 45, 0, 1.1F, 6, 1, 2),
+        role("bat", 24, 0, 1.2F, 0, 1, 1),
+        role("stalker", 55, 0, 1.1F, 8, 1, 2),
+        role("leaper", 70, 1, .95F, 10, 1.1F, 2),
+        role("wrecker", 85, 2, .8F, 10, 1.2F, 2),
+        role("slinger", 60, 0, .85F, 6, 1.2F, 2),
+        role("carrier", 60, 0, 1, 0, 1, 1),
+        role("golem", 900, 3, .36F, 30, 1.6F, 10),
     }};
     EnemyDefinition &shielded = roster[static_cast<std::size_t>(EnemyKind::Shielded)];
     shielded.shield = 60;
@@ -102,11 +103,11 @@ EliteDefinition elite(const char *name, float health, int leak) {
 std::array<EliteDefinition, EliteAffixCount> eliteRoster() {
     std::array<EliteDefinition, EliteAffixCount> roster{{
         elite("", 1, 0),
-        elite("강철", 1.3F, 0),
-        elite("신속", 1.4F, 0),
-        elite("재생", 1.5F, 0),
-        elite("폭주", 1.5F, 0),
-        elite("우두머리", 5, 2),
+        elite("steel", 1.3F, 0),
+        elite("swift", 1.4F, 0),
+        elite("regen", 1.5F, 0),
+        elite("enrage", 1.5F, 0),
+        elite("leader", 5, 2),
     }};
     roster[static_cast<std::size_t>(EliteAffix::Steel)].armor = 2;
     EliteDefinition &swift = roster[static_cast<std::size_t>(EliteAffix::Swift)];
@@ -121,20 +122,6 @@ std::array<EliteDefinition, EliteAffixCount> eliteRoster() {
     leader.auraRadius = 2.2F;
     leader.auraGuard = .35F;
     return roster;
-}
-std::string costLabel(const ResourceCost &cost, bool compact) {
-    const std::array<int, 4> amounts{{cost.iron, cost.copper, cost.crystal, cost.gold}};
-    const std::array<const char *, 4> names = compact
-                                                  ? std::array<const char *, 4>{{"철", "구", "수정", "금"}}
-                                                  : std::array<const char *, 4>{{"철", "구리", "수정", "금"}};
-    std::string result;
-    for (std::size_t index = 0; index < amounts.size(); ++index)
-        if (amounts[index] > 0) {
-            if (!compact && !result.empty())
-                result += " ";
-            result += std::string(names[index]) + std::to_string(amounts[index]);
-        }
-    return result.empty() ? "무료" : result;
 }
 const CardDefinition &Catalog::card(CardKind kind) const {
     return cards.at(static_cast<std::size_t>(kind));
@@ -201,25 +188,25 @@ Catalog withGroundAttackers(Catalog content) {
 } // namespace
 const Catalog &defaultCatalog() {
     static const Catalog content = withGroundAttackers(
-        {{{{"연사탑", 3, CardCategory::Building, 3, 12, .75F},
-           {"포격탑", 4, CardCategory::Building, 3.5F, 26, 1.8F, 1.1F},
-           {"경비병", 3, CardCategory::Unit, 1.1F, 10, 1, 0, 120, 2},
-           {"서리", 2, CardCategory::Spell, 2, 0, 1, 0, 0, 0, 1, 0, 3},
-           {"폭발", 3, CardCategory::Spell, 1.5F, 38},
-           {"전격탑", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
-           {"사수", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
-           {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1},
-           {"화염방사탑", 4, CardCategory::Building, 2.2F, 6, .25F, 0, 0, 0, 1, 0, 0, 35},
-           {"저격탑", 5, CardCategory::Building, 7, 70, 2.8F},
-           {"증폭 발전기", 3, CardCategory::Building, 2.3F, 0, 1, 0, 0, 0, 1, 0, 0, 0, .3F},
-           {"타르 웅덩이", 2, CardCategory::Spell, 1.8F, 0, 1, 0, 0, 0, 1, 0, 14}}},
+        {{{{"gun", 3, CardCategory::Building, 3, 12, .75F},
+           {"cannon", 4, CardCategory::Building, 3.5F, 26, 1.8F, 1.1F},
+           {"guard", 3, CardCategory::Unit, 1.1F, 10, 1, 0, 120, 2},
+           {"frost", 2, CardCategory::Spell, 2, 0, 1, 0, 0, 0, 1, 0, 3},
+           {"blast", 3, CardCategory::Spell, 1.5F, 38},
+           {"lightning", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
+           {"shooter", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
+           {"demolition", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1},
+           {"flame", 4, CardCategory::Building, 2.2F, 6, .25F, 0, 0, 0, 1, 0, 0, 35},
+           {"sniper", 5, CardCategory::Building, 7, 70, 2.8F},
+           {"generator", 3, CardCategory::Building, 2.3F, 0, 1, 0, 0, 0, 1, 0, 0, 0, .3F},
+           {"tar", 2, CardCategory::Spell, 1.8F, 0, 1, 0, 0, 0, 1, 0, 14}}},
          enemyRoster(),
          {{CardKind::Gun, CardKind::Guard, CardKind::Cannon, CardKind::Frost, CardKind::Gun, CardKind::Guard,
            CardKind::Blast, CardKind::Gun}},
          {{4, 3}, {8, 3}, {8, 7}, {14, 7}, {14, 5}, {16, 5}},
          {{6, 4}, {9, 4}, {7, 6}, {10, 6}, {12, 8}, {15, 6}},
          {{8, 4}, {8, 6}, {10, 7}, {12, 7}, {14, 6}, {15, 5}, {9, 7}, {13, 7}},
-         {"표층 갱도",
+         {"surface_shaft",
           0,
           5,
           6,

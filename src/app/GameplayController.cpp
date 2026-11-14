@@ -1,5 +1,6 @@
 #include "GameplayController.h"
 #include "game/presentation/TerrainPresentation.h"
+#include "game/presentation/Text.h"
 #include <algorithm>
 #include <cmath>
 namespace thorium {
@@ -66,7 +67,7 @@ void GameplayController::act(const GameInput &input) {
         if (input.interaction == engine::Interaction::Kind::Drop) {
             if (!layout.world.contains(input.position)) {
                 state.play.selectedCard = 0;
-                feedback.notify({false, "배치를 취소했어요"});
+                feedback.notify({false, game::Message("app.placement.cancelled")});
                 return;
             }
             const game::Result result =
@@ -161,8 +162,10 @@ void GameplayController::act(const GameInput &input) {
             if (game::distance(unit.position, target) < 0.5F) {
                 state.play.selectedUnit = unit.id;
                 state.play.selectedTower = 0;
-                feedback.notify({true, std::string(run.catalog().card(unit.kind).name) + " · 체력 " +
-                                           std::to_string(unit.hp) + " / " + std::to_string(unit.maxHp)});
+                feedback.notify(
+                    {true, game::Message("app.unit.status", {{"name", cardName(unit.kind)},
+                                                             {"hp", std::to_string(unit.hp)},
+                                                             {"max", std::to_string(unit.maxHp)}})});
                 return;
             }
         for (const game::Tower &tower : run.state().towers)
@@ -187,9 +190,10 @@ void GameplayController::act(const GameInput &input) {
                     if (result.ok)
                         state.play.feedback.screenShake = .12F;
                 } else
-                    feedback.notify({true, "광차 레버 · 전투 중에 누르면 광차가 선로 위 지상 적에게 " +
-                                               std::to_string(run.catalog().balance.cartDamage) + " 피해"},
-                                    Sound::None);
+                    feedback.notify(
+                        {true, game::Message("app.lever.info",
+                                             {{"damage", std::to_string(run.catalog().balance.cartDamage)}})},
+                        Sound::None);
                 return;
             }
         for (std::size_t tank = 0; tank < run.catalog().tanks.size(); ++tank)
@@ -200,10 +204,10 @@ void GameplayController::act(const GameInput &input) {
                     if (result.ok)
                         state.play.feedback.screenShake = .3F;
                 } else
-                    feedback.notify({true, "가스통 · 전투 중에 누르면 폭발해 주변 적과 아군에게 " +
-                                               std::to_string(run.catalog().balance.tankDamage) +
-                                               " 피해 · 웨이브마다 다시 채워져요"},
-                                    Sound::None);
+                    feedback.notify(
+                        {true, game::Message("app.tank.info",
+                                             {{"damage", std::to_string(run.catalog().balance.tankDamage)}})},
+                        Sound::None);
                 return;
             }
         // A barricade, or the mouth of the open branch, moves the barricade between waves.
@@ -215,7 +219,7 @@ void GameplayController::act(const GameInput &input) {
             if (game::distance(run.barricade(fork), target) >= 0.6F && game::distance(mouth, target) >= 0.6F)
                 continue;
             if (battle)
-                feedback.notify({true, "바리케이드 · 정비 중에 누르면 막을 갈래를 바꿔요"}, Sound::None);
+                feedback.notify({true, game::Message("app.barricade.info")}, Sound::None);
             else
                 feedback.notify(run.switchFork(fork), Sound::Placement);
             return;
@@ -228,17 +232,20 @@ void GameplayController::act(const GameInput &input) {
                     state.play.toastTime = 0;
                 } else
                     feedback.notify(
-                        {true, std::string(run.catalog().rails.empty() ? "낙석 바위" : "수정 군집") +
-                                   " · 정비 중에 치우면 건물 패드가 돼요 · " +
-                                   game::costLabel(run.catalog().balance.boulder)},
+                        {true, game::Message("app.obstacle.info",
+                                             {{"obstacle", game::ref(run.catalog().rails.empty()
+                                                                         ? "app.obstacle.boulder"
+                                                                         : "app.obstacle.crystal")},
+                                              {"cost", costText(run.catalog().balance.boulder)}})},
                         Sound::None);
                 return;
             }
         // An empty trait pad names its bonus.
         const game::PadTrait trait = run.padTrait(target);
         if (trait != game::PadTrait::None)
-            feedback.notify({true, std::string(padTraitName(trait)) + " 패드 · 이 위의 건물 " +
-                                       padTraitEffect(trait, run.catalog().balance)},
+            feedback.notify({true, game::Message("app.pad.info",
+                                                 {{"trait", std::string(padTraitName(trait))},
+                                                  {"effect", padTraitEffect(trait, run.catalog().balance)}})},
                             Sound::None);
         break;
     }
@@ -339,10 +346,10 @@ void GameplayController::act(const GameInput &input) {
     case Scan:
         state.play.scan = !state.play.scan;
         state.play.mine = true;
-        feedback.notify({true, !state.play.scan ? "스캔 선택을 취소했어요"
-                               : run.catalog().mining == game::MiningMode::Excavate
-                                   ? "속을 비춰 볼 암벽을 눌러 주세요"
-                                   : "스캔할 경계 1칸을 눌러 주세요"});
+        feedback.notify(
+            {true, game::Message(!state.play.scan                                     ? "app.scan.cancelled"
+                                 : run.catalog().mining == game::MiningMode::Excavate ? "app.scan.wall"
+                                                                                      : "app.scan.sweep")});
         break;
     case ToolPick:
     case ToolBlast:
@@ -350,8 +357,7 @@ void GameplayController::act(const GameInput &input) {
         state.play.scan = false;
         state.play.mine = true;
         sound.play(Sound::Select);
-        feedback.notify({true, state.play.blast ? "발파: 3×3을 깎고 닿은 둥지를 깨워요"
-                                                : "곡괭이: 한 칸을 깊게, 옆 네 칸을 얕게 깎아요"},
+        feedback.notify({true, game::Message(state.play.blast ? "app.tool.blast" : "app.tool.pick")},
                         Sound::None);
         break;
     case Exchange: {
@@ -381,7 +387,7 @@ void GameplayController::act(const GameInput &input) {
                 chosen = &tower;
         }
         if (!chosen) {
-            feedback.notify({false, "Lv3 건물이 없어요 · 같은 카드로 Lv3까지 강화해 주세요"});
+            feedback.notify({false, game::Message("app.awaken.none")});
             break;
         }
         state.play.mine = false;
@@ -391,7 +397,7 @@ void GameplayController::act(const GameInput &input) {
         state.play.selectedBoulder.reset();
         state.play.movingUnit = false;
         state.play.selectedCard = 0;
-        feedback.notify({true, "각성할 건물을 고르고 각성 버튼을 눌러 주세요"});
+        feedback.notify({true, game::Message("app.awaken.pick")});
         ui.cancel();
         break;
     }
@@ -412,7 +418,7 @@ void GameplayController::act(const GameInput &input) {
         break;
     case Dismiss:
         if (!run.unit(state.play.selectedUnit) && !run.tower(state.play.selectedTower)) {
-            feedback.notify({false, "철수할 건물이나 유닛을 먼저 선택해 주세요"});
+            feedback.notify({false, game::Message("app.dismiss.none")});
             break;
         }
         state.play.modal = presentation::Modal::Withdrawal;
@@ -433,8 +439,7 @@ void GameplayController::act(const GameInput &input) {
                             run.state().heroMove <= 0;
         if (selected && (run.state().phase == game::Phase::Prep || charge)) {
             state.play.movingUnit = true;
-            feedback.notify({true, charge ? "영웅이 달려갈 배치 칸을 선택해 주세요"
-                                          : "이동할 배치 칸을 선택해 주세요. 점유 칸이면 자리를 교환해요"});
+            feedback.notify({true, game::Message(charge ? "app.move.hero" : "app.move.unit")});
         }
         break;
     }
@@ -546,8 +551,7 @@ void GameplayController::synchronize(game::Phase before) {
         state.play.scan = false;
         if (run.state().phase == game::Phase::Prep) {
             state.play.mine = true;
-            feedback.notify({true, "정비 시작! 광물을 캐서 다음 전투를 준비하세요"},
-                            presentation::Sound::None);
+            feedback.notify({true, game::Message("app.prep.started")}, presentation::Sound::None);
         }
     }
     if (state.play.selectedUnit && !run.unit(state.play.selectedUnit)) {

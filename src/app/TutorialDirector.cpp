@@ -12,7 +12,7 @@ TutorialDirector::TutorialDirector(game::Run &run, presentation::State &state, e
 bool TutorialDirector::begin() {
     game::RunCreation created = game::Run::create(game::tutorialCatalog());
     if (!created.run) {
-        feedback.notify({false, "연습 데이터를 불러오지 못했어요"});
+        feedback.notify({false, game::Message("tutorial.loadFailed")});
         return false;
     }
     if (!active()) {
@@ -113,7 +113,7 @@ void TutorialDirector::observe() {
             }
         if (!live.towers.empty()) {
             retry();
-            feedback.notify({false, "강조된 발판에 놓아 주세요. 이 단계를 복구했어요"});
+            feedback.notify({false, game::Message("tutorial.misplaced.building")});
         }
     } else if (lesson == Lesson::Unit) {
         for (const game::Unit &unit : live.units)
@@ -123,7 +123,7 @@ void TutorialDirector::observe() {
             }
         if (!live.units.empty()) {
             retry();
-            feedback.notify({false, "강조된 길 위에 놓아 주세요. 이 단계를 복구했어요"});
+            feedback.notify({false, game::Message("tutorial.misplaced.unit")});
         }
     } else if (lesson == Lesson::Combat && live.phase == game::Phase::Prep)
         enter(Lesson::Fork);

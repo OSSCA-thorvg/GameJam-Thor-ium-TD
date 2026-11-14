@@ -4,6 +4,8 @@
 #include "game/presentation/AssetKeys.h"
 #include "game/presentation/CardPresentation.h"
 #include "game/presentation/CommandPolicy.h"
+#include "game/presentation/TerrainPresentation.h"
+#include "game/presentation/Text.h"
 #include "game/presentation/Theme.h"
 #include <algorithm>
 #include <cstdlib>
@@ -89,7 +91,7 @@ void contentContracts() {
     require(!run.upgrade(UpgradeKind::Tool).ok && run.state().iron == 2,
             "recipe failure preserves every inventory entry");
     scenario(run).copper = 1;
-    require(costLabel(run.catalog().balance.tool) == "철2 구리1",
+    require(costText(run.catalog().balance.tool) == oreName(Ore::Iron) + "2 " + oreName(Ore::Copper) + "1",
             "content prices share one UI and error label");
     require(run.upgrade(UpgradeKind::Tool).ok && run.state().iron == 0 && run.state().copper == 0,
             "recipe validation and payment use the same catalog definition");
@@ -287,10 +289,12 @@ void boulderContracts() {
     const engine::ScreenPoint rock = session.layout.screenPoint({11, 5});
     session.click(World, rock);
     require(!session.state.play.selectedBoulder &&
-                session.state.play.toast.find("낙석 바위") != std::string::npos && !session.state.play.error,
+                session.state.play.toast.find(tr("app.obstacle.boulder")) != std::string::npos &&
+                !session.state.play.error,
             "a boulder tapped outside preparation explains itself without a selection");
     session.click(World, session.layout.screenPoint({9, 4}));
-    require(session.state.play.toast.find("결정 지반") != std::string::npos &&
+    require(session.state.play.toast.find(std::string(padTraitName(PadTrait::Crystal))) !=
+                    std::string::npos &&
                 session.state.play.toast.find("+20%") != std::string::npos,
             "an empty trait pad names its bonus");
     const Phase before = session.run.state().phase;
@@ -340,8 +344,13 @@ void customCategoryContracts() {
         require(session.run.state().defeated == 1 && session.run.state().enemies.empty(),
                 "click and drag both use the run catalog rather than rounding a reclassified spell");
         const CardCategory category = session.run.catalog().card(CardKind::Gun).category;
-        require(std::string(cardCategoryName(category)) == "마법" &&
-                    std::string(cardInstruction(category)).find("원하는 위치") != std::string::npos &&
+        require(category == CardCategory::Spell &&
+                    std::string(cardCategoryName(category)) ==
+                        std::string(cardCategoryName(CardCategory::Spell)) &&
+                    std::string(cardInstruction(category)) ==
+                        std::string(cardInstruction(CardCategory::Spell)) &&
+                    std::string(cardInstruction(category)) !=
+                        std::string(cardInstruction(CardCategory::Building)) &&
                     theme::accent(category).r == theme::purple.r,
                 "category labels, instructions and accents share the authoritative definition");
     }

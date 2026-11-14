@@ -1,24 +1,36 @@
 #include "RuleGeometry.h"
 #include "Run.h"
+#include "game/content/ContentKeys.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <sstream>
 #include <utility>
 
 namespace thorium::game {
+namespace {
+/** A message value holding another message with its own values, written `@key?name=value&name=value`. */
+std::string nested(const std::string &key, const MessageArgs &args) {
+    std::string value = game::ref(key);
+    for (std::size_t index = 0; index < args.size(); ++index)
+        value += (index ? "&" : "?") + args[index].first + "=" + args[index].second;
+    return value;
+}
+} // namespace
 Result Run::descentAvailability() const {
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer)
-        return {false, "정비 중 확장·보상 선택을 마친 뒤 이동할 수 있어요"};
+        return {false, Message("rules.mining.descend.closed")};
     if (state_.job.active)
-        return {false, "광부가 작업을 마칠 때까지 기다려 주세요"};
+        return {false, Message("rules.mining.descend.miner_busy")};
     if (static_cast<std::size_t>(state_.mineLayer) >= catalog_.deeperMines.size())
-        return {false, "이 구역의 마지막 지층이에요"};
+        return {false, Message("rules.mining.descend.last")};
     const MineLayerDefinition &next = catalog_.deeperMines[static_cast<std::size_t>(state_.mineLayer)];
     if (state_.wave < next.opensAfterWave)
-        return {false, std::to_string(next.opensAfterWave) + "웨이브 뒤 다음 지층이 열려요"};
+        return {false,
+                Message("rules.mining.descend.locked", {{"wave", std::to_string(next.opensAfterWave)}})};
     if (state_.tool < 2)
-        return {false, "다음 지층은 T2 곡괭이가 필요해요"};
-    return {true, "다음 지층으로 이동할 수 있어요"};
+        return {false, Message("rules.mining.descend.tool")};
+    return {true, Message("rules.mining.descend.ready")};
 }
 Result Run::descend() {
     const Result allowed = descentAvailability();
@@ -27,7 +39,7 @@ Result Run::descend() {
     const MineLayerDefinition &next = catalog_.deeperMines[static_cast<std::size_t>(state_.mineLayer)];
     initializeMine(next);
     ++state_.mineLayer;
-    return {true, next.name + " 도착 · 남은 굴착·스캔과 보유 자원은 유지돼요"};
+    return {true, Message("rules.mining.descend.done", {{"layer", mineLayerRef(next.name)}})};
 }
 bool Run::reachable(int index) const {
     if (catalog_.mining == MiningMode::Excavate) {
@@ -50,17 +62,17 @@ bool Run::reachable(int index) const {
 
 Result Run::dig(int index) {
     if (catalog_.mining == MiningMode::Excavate)
-        return {false, "이 원정은 암벽을 두드려 발굴해요"};
+        return {false, Message("rules.mining.dig.excavate_mode")};
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer)
-        return {false, "정비 중에 채굴할 수 있어요"};
+        return {false, Message("rules.mining.dig.closed")};
     if (state_.job.active)
-        return {false, "광부가 이동·굴착 중이에요"};
+        return {false, Message("rules.mining.dig.busy")};
     if (state_.digs <= 0)
-        return {false, "이번 정비의 굴착을 모두 사용했어요"};
+        return {false, Message("rules.mining.digs_used")};
     if (!reachable(index))
-        return {false, "열린 갱도 옆의 타일을 선택해 주세요"};
+        return {false, Message("rules.mining.dig.unreachable")};
     if (state_.mine[index].grade > state_.tool)
-        return {false, "단단한 지층은 T2 곡괭이가 필요해요"};
+        return {false, Message("rules.mining.dig.hard")};
     std::vector<int> previous(state_.mine.size(), -1);
     std::deque<int> visit{state_.minerCell};
     previous[state_.minerCell] = state_.minerCell;
@@ -86,7 +98,7 @@ Result Run::dig(int index) {
             }
         }
     if (work < 0)
-        return {false, "연결된 작업 위치가 없어요"};
+        return {false, Message("rules.mining.dig.no_path")};
     std::vector<int> path;
     for (int cell = work;; cell = previous[cell]) {
         path.push_back(cell);
@@ -97,17 +109,17 @@ Result Run::dig(int index) {
     state_.job = {true, index, path, 0.0F,
                   static_cast<float>(path.size() - 1) * catalog_.balance.minerStep +
                       (state_.mine[index].grade == 2 ? catalog_.balance.hardDig : catalog_.balance.softDig)};
-    return {true, "광부가 자동으로 이동해 굴착해요"};
+    return {true, Message("rules.mining.dig.started")};
 }
 
 Result Run::scan(int index) {
     if (state_.phase != Phase::Prep || state_.job.active || state_.expansionPending || state_.rewardOffer)
-        return {false, "작업이 끝난 정비 중에 스캔해 주세요"};
+        return {false, Message("rules.mining.scan.closed")};
     if (state_.scans <= 0)
-        return {false, "무료 스캔을 이미 사용했어요"};
+        return {false, Message("rules.mining.scan.used")};
     if (catalog_.mining == MiningMode::Excavate) {
         if (index < 0 || index >= static_cast<int>(state_.mine.size()))
-            return {false, "암벽 안쪽을 선택해 주세요"};
+            return {false, Message("rules.mining.inside_wall")};
         const int reach = catalog_.balance.scanReach;
         int shown = 0;
         for (int other = 0; other < static_cast<int>(state_.mine.size()); ++other) {
@@ -119,16 +131,16 @@ Result Run::scan(int index) {
             ++shown;
         }
         if (!shown)
-            return {false, "이미 속이 보이는 곳이에요"};
+            return {false, Message("rules.mining.scan.visible")};
         --state_.scans;
-        return {true, "암벽 속을 비춰 봤어요. 획득은 전부 드러낸 뒤에 가능해요"};
+        return {true, Message("rules.mining.scan.wall_done")};
     }
     if (!reachable(index) || state_.mine[index].info)
-        return {false, "아직 확인하지 않은 갱도 경계를 선택해 주세요"};
+        return {false, Message("rules.mining.scan.invalid")};
     state_.mine[index].info = true;
     state_.mine[index].clueKnown = true;
     --state_.scans;
-    return {true, "정보만 공개했어요. 광물 획득은 굴착 후 가능해요"};
+    return {true, Message("rules.mining.scan.done")};
 }
 
 std::vector<StrikeHit> Run::strikePattern(int index, StrikeTool tool) const {
@@ -174,7 +186,7 @@ void Run::strip(int index, int power) {
     }
 }
 
-std::string Run::settleWall() {
+std::vector<std::string> Run::settleWall() {
     ResourceCost gained;
     int energy = 0, woken = 0, collapses = 0;
     std::string found;
@@ -211,7 +223,8 @@ std::string Run::settleWall() {
                 energy += deposit.amount;
                 resolveSpecial(deposit.cells.front());
             } else if (deposit.special != MineSpecial::None) {
-                found = deposit.special == MineSpecial::Relic ? "유물 상자" : "카드 화석";
+                found = deposit.special == MineSpecial::Relic ? "rules.mining.found.relic"
+                                                              : "rules.mining.found.fossil";
                 resolveSpecial(deposit.cells.front());
             }
         }
@@ -221,47 +234,47 @@ std::string Run::settleWall() {
     state_.crystal += gained.crystal;
     state_.gold += gained.gold;
     state_.nextExtra += woken;
-    std::string summary;
-    const auto add = [&summary](const std::string &part) {
-        summary += (summary.empty() ? "" : " · ") + part;
-    };
+    std::vector<std::string> parts;
     if (!found.empty())
-        add(found + " 발굴");
-    if (gained.iron)
-        add("철 +" + std::to_string(gained.iron));
-    if (gained.copper)
-        add("구리 +" + std::to_string(gained.copper));
-    if (gained.crystal)
-        add("수정 +" + std::to_string(gained.crystal));
-    if (gained.gold)
-        add("금 +" + std::to_string(gained.gold));
+        parts.push_back(game::ref(found));
+    const std::array<std::pair<Ore, int>, 4> ores{{{Ore::Iron, gained.iron},
+                                                   {Ore::Copper, gained.copper},
+                                                   {Ore::Crystal, gained.crystal},
+                                                   {Ore::Gold, gained.gold}}};
+    for (const auto &[ore, amount] : ores)
+        if (amount)
+            parts.push_back(nested("rules.mining.gain.ore",
+                                   {{"ore", game::ref("ore." + std::string(oreKey(ore)) + ".name")},
+                                    {"count", std::to_string(amount)}}));
     if (energy)
-        add("다음 전투 에너지 +" + std::to_string(energy));
+        parts.push_back(nested("rules.mining.gain.energy", {{"count", std::to_string(energy)}}));
     if (collapses)
-        add("암반 붕괴");
+        parts.push_back(game::ref("rules.mining.collapse"));
     if (woken)
-        add("둥지 각성 · 다음 웨이브 +" + std::to_string(woken));
-    return summary;
+        parts.push_back(nested("rules.mining.nest", {{"count", std::to_string(woken)}}));
+    return parts;
 }
 
 Result Run::strike(int index, StrikeTool tool) {
     if (catalog_.mining != MiningMode::Excavate)
-        return {false, "이 원정은 갱도를 따라 한 칸씩 굴착해요"};
+        return {false, Message("rules.mining.strike.tunnel_mode")};
     if (state_.phase != Phase::Prep || state_.expansionPending || state_.rewardOffer)
-        return {false, "정비 중에 발굴할 수 있어요"};
+        return {false, Message("rules.mining.strike.closed")};
     if (index < 0 || index >= static_cast<int>(state_.mine.size()))
-        return {false, "암벽 안쪽을 선택해 주세요"};
+        return {false, Message("rules.mining.inside_wall")};
     if (!reachable(index))
-        return {false, "맨 윗줄이나 이미 드러난 곳 옆부터 파 들어가요"};
+        return {false, Message("rules.mining.strike.unreachable")};
     const int cost = strikeCost(tool);
     if (state_.digs < cost)
-        return {false, state_.digs > 0 ? "발파에는 굴착 " + std::to_string(cost) + "회가 필요해요"
-                                       : "이번 정비의 굴착을 모두 사용했어요"};
+        return {false, state_.digs > 0
+                           ? Message("rules.mining.strike.blast_digs", {{"count", std::to_string(cost)}})
+                           : Message("rules.mining.digs_used")};
     const std::vector<StrikeHit> hits = strikePattern(index, tool);
     if (std::none_of(hits.begin(), hits.end(), [](const StrikeHit &hit) { return hit.power > 0; })) {
         const MineCell &target = state_.mine[static_cast<std::size_t>(index)];
-        return {false, target.cover > 0 && target.grade > state_.tool ? "단단한 암반은 T2 곡괭이가 필요해요"
-                                                                      : "이미 다 드러난 곳이에요"};
+        return {false, target.cover > 0 && target.grade > state_.tool
+                           ? Message("rules.mining.strike.hard")
+                           : Message("rules.mining.strike.uncovered")};
     }
     state_.digs -= cost;
     int woken = 0;
@@ -277,11 +290,15 @@ Result Run::strike(int index, StrikeTool tool) {
         }
     }
     state_.nextExtra += woken;
-    std::string summary = settleWall();
+    std::vector<std::string> parts = settleWall();
     if (woken)
-        summary += (summary.empty() ? "" : " · ") + std::string("발파에 둥지 각성 · 다음 웨이브 +") +
-                   std::to_string(woken);
-    return {true, summary.empty() ? "암벽을 깎았어요" : summary};
+        parts.push_back(nested("rules.mining.strike.blast_nest", {{"count", std::to_string(woken)}}));
+    if (parts.empty())
+        return {true, Message("rules.mining.strike.done")};
+    MessageArgs args;
+    for (std::size_t index = 0; index < parts.size(); ++index)
+        args.emplace_back("p" + std::to_string(index + 1), parts[index]);
+    return {true, Message("rules.mining.summary." + std::to_string(parts.size()), std::move(args))};
 }
 
 void Run::revealZero(int origin) {

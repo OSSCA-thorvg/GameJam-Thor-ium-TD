@@ -1,3 +1,4 @@
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -102,9 +103,9 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                      fade(event.type == game::CombatEventKind::Heal ? healGreen : theme::red, (1 - t) * .6F));
             else if (event.type == game::CombatEventKind::Disable ||
                      event.type == game::CombatEventKind::Enrage)
-                g.text(event.type == game::CombatEventKind::Disable ? "타워 마비!" : "폭주!",
-                       {to.x, to.y - tile * .8F}, layout.compact ? 12 : 15, fade({255, 196, 140}, 1 - t),
-                       .5F);
+                g.text(
+                    tr(event.type == game::CombatEventKind::Disable ? "feedback.disable" : "feedback.enrage"),
+                    {to.x, to.y - tile * .8F}, layout.compact ? 12 : 15, fade({255, 196, 140}, 1 - t), .5F);
             else if (event.type == game::CombatEventKind::Eruption) {
                 g.circle(to, tile * event.radius, fade({255, 110, 40}, (1 - t) * .3F));
                 ring(g, to, tile * event.radius, 2, fade({255, 196, 96}, 1 - t));
@@ -269,7 +270,7 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                           fade({236, 120, 196}, 1 - t));
             }
             ring(g, to, tile * (.15F + t * .5F), 2, fade({236, 120, 196}, 1 - t));
-            g.text("분열!", {to.x, to.y - tile * (.7F + t * .3F)}, layout.compact ? 11 : 14,
+            g.text(tr("feedback.split"), {to.x, to.y - tile * (.7F + t * .3F)}, layout.compact ? 11 : 14,
                    fade({255, 196, 232}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Burrow) {
             for (int puff = 0; puff < 5; ++puff) {
@@ -293,7 +294,7 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                         {to.x + std::cos(angle) * reach, to.y + std::sin(angle) * reach}},
                        std::max(1.5F, tile * .05F), fade({92, 64, 40}, (1 - t) * .8F));
             }
-            g.text("타워 기절!", {to.x, to.y - tile * (1.3F + t * .4F)}, layout.compact ? 12 : 16,
+            g.text(tr("feedback.stun"), {to.x, to.y - tile * (1.3F + t * .4F)}, layout.compact ? 12 : 16,
                    fade({255, 214, 150}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Batter) {
             g.line({from, to}, std::max(2.0F, tile * .07F), fade({255, 214, 150}, (1 - t) * .6F));
@@ -308,7 +309,7 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
         } else if (event.type == game::CombatEventKind::Loot) {
             const float rise = tile * (.4F + t * .8F);
             g.circle({from.x, from.y - rise}, tile * .14F, fade({110, 220, 200}, 1 - t));
-            g.text("+" + std::to_string(event.amount) + " 조각",
+            g.text(tr("feedback.loot", {{"amount", std::to_string(event.amount)}}),
                    {from.x + tile * .2F, from.y - rise - tile * .16F}, layout.compact ? 11 : 13,
                    fade({170, 245, 230}, 1 - t));
         } else if (event.type == game::CombatEventKind::Breach) {
@@ -320,7 +321,7 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                 g.line({{at.x - tile * .12F, at.y}, {at.x + tile * .12F, at.y + tile * .04F}},
                        std::max(2.0F, tile * .08F), fade({150, 104, 58}, 1 - t));
             }
-            g.text("바리케이드 파괴!", {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
+            g.text(tr("feedback.barricade"), {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
                    fade({255, 150, 120}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Airdrop) {
             for (int drop = 0; drop < event.amount; ++drop) {
@@ -332,8 +333,8 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                 g.circle({from.x + spread, from.y - fall * .2F}, tile * .1F, fade({200, 90, 70}, 1 - t));
             }
             ring(g, from, tile * (.3F + t * .8F), 2, fade({255, 196, 140}, 1 - t));
-            g.text("강습!", {from.x, from.y - tile * (1.2F + t * .3F)}, layout.compact ? 12 : 15,
-                   fade({255, 196, 140}, 1 - t), .5F);
+            g.text(tr("feedback.airdrop"), {from.x, from.y - tile * (1.2F + t * .3F)},
+                   layout.compact ? 12 : 15, fade({255, 196, 140}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Wreck) {
             const float radius = tile * (.3F + .7F * (1 - std::pow(1 - t, 3.0F)));
             g.circle(to, radius, fade({120, 96, 80}, (1 - t) * .4F));
@@ -344,12 +345,12 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                         to.y + std::sin(angle) * reach - tile * .06F, tile * .12F, tile * .12F},
                        fade({110, 96, 84}, 1 - t), 1);
             }
-            g.text("건물 파괴!", {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
+            g.text(tr("feedback.wreck"), {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
                    fade({255, 150, 120}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Sabotage) {
             ring(g, to, tile * (.9F - .4F * t), std::max(1.5F, 3 * (1 - t)), fade({255, 136, 48}, 1 - t));
-            g.text("폭약 설치!", {from.x, from.y - tile * (.8F + t * .3F)}, layout.compact ? 11 : 14,
-                   fade({255, 196, 140}, 1 - t), .5F);
+            g.text(tr("feedback.sabotage"), {from.x, from.y - tile * (.8F + t * .3F)},
+                   layout.compact ? 11 : 14, fade({255, 196, 140}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Disable) {
             const float radius = tile * (.2F + .8F * (1 - std::pow(1 - t, 3.0F)));
             g.circle(to, radius, fade({255, 150, 60}, (1 - t) * .35F));
@@ -361,7 +362,7 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                         {to.x + std::cos(angle) * reach, to.y + std::sin(angle) * reach}},
                        std::max(1.5F, tile * .05F), fade({90, 70, 60}, 1 - t));
             }
-            g.text("타워 마비!", {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
+            g.text(tr("feedback.disable"), {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
                    fade({255, 214, 150}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Eruption) {
             const float radius = tile * event.radius * (.3F + .7F * (1 - std::pow(1 - t, 3.0F)));
@@ -377,8 +378,8 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             }
             g.circle(to, tile * .3F * (1 - t), fade({255, 236, 170}, 1 - t));
             if (event.amount > 0)
-                g.text("분출!", {to.x, to.y - tile * (.9F + t * .4F)}, layout.compact ? 12 : 15,
-                       fade({255, 206, 140}, 1 - t), .5F);
+                g.text(tr("feedback.eruption"), {to.x, to.y - tile * (.9F + t * .4F)},
+                       layout.compact ? 12 : 15, fade({255, 206, 140}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Detonation) {
             const float radius = tile * event.radius * (.25F + .75F * (1 - std::pow(1 - t, 3.0F)));
             g.circle(to, radius, fade({168, 210, 70}, (1 - t) * .4F));
@@ -392,8 +393,8 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                        std::max(1.5F, tile * .06F),
                        fade(shard % 2 ? engine::Color{96, 104, 70} : theme::gold, 1 - t));
             }
-            g.text("폭발!", {to.x, to.y - tile * (1.0F + t * .5F)}, layout.compact ? 13 : 17,
-                   fade({240, 250, 170}, 1 - t), .5F);
+            g.text(tr("feedback.detonation"), {to.x, to.y - tile * (1.0F + t * .5F)},
+                   layout.compact ? 13 : 17, fade({240, 250, 170}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Leap) {
             const float dx = to.x - from.x, dy = to.y - from.y;
             std::vector<engine::ScreenPoint> arc;
@@ -404,15 +405,15 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             }
             g.line(arc, std::max(1.5F, tile * .07F), fade({255, 214, 150}, (1 - t) * .8F));
             g.circle(from, tile * (.2F + t * .4F), fade({150, 130, 100}, (1 - t) * .5F));
-            g.text("도약!", {to.x, to.y - tile * (.9F + t * .3F)}, layout.compact ? 12 : 15,
+            g.text(tr("feedback.leap"), {to.x, to.y - tile * (.9F + t * .3F)}, layout.compact ? 12 : 15,
                    fade({255, 214, 150}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Cart) {
-            g.text("광차 출발!", {from.x, from.y - tile * (.8F + t * .3F)}, layout.compact ? 12 : 15,
+            g.text(tr("feedback.cart"), {from.x, from.y - tile * (.8F + t * .3F)}, layout.compact ? 12 : 15,
                    fade({255, 226, 150}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Enrage) {
             ring(g, to, tile * (.3F + t * .7F), std::max(1.5F, 3 * (1 - t)),
                  fade(theme::elite(game::EliteAffix::Enrage), 1 - t));
-            g.text("폭주!", {to.x, to.y - tile * (.8F + t * .3F)}, layout.compact ? 12 : 15,
+            g.text(tr("feedback.enrage"), {to.x, to.y - tile * (.8F + t * .3F)}, layout.compact ? 12 : 15,
                    fade(theme::elite(game::EliteAffix::Enrage), 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::ShieldBreak) {
             for (int shard = 0; shard < 7; ++shard) {
@@ -423,8 +424,8 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                 g.line({p, {p.x + std::cos(angle + 1) * tile * .1F, p.y + std::sin(angle + 1) * tile * .1F}},
                        std::max(1.5F, tile * .05F), fade({176, 212, 232}, 1 - t));
             }
-            g.text("방패 파괴!", {to.x, to.y - tile * (.75F + t * .3F)}, layout.compact ? 11 : 14,
-                   fade({190, 226, 246}, 1 - t), .5F);
+            g.text(tr("feedback.shieldBreak"), {to.x, to.y - tile * (.75F + t * .3F)},
+                   layout.compact ? 11 : 14, fade({190, 226, 246}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Defeated && event.enemy &&
                    event.enemyKind == game::EnemyKind::Boss) {
             for (int wave = 0; wave < 3; ++wave)
@@ -438,8 +439,8 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
                          tile * .14F * (1 - t),
                          fade(ray % 2 ? engine::Color{120, 214, 236} : theme::gold, 1 - t));
             }
-            g.text("보스 격파!", {to.x, to.y - tile * (1.4F + t * .6F)}, layout.compact ? 15 : 22,
-                   fade(theme::gold, std::min(1.0F, (1 - t) * 2)), .5F);
+            g.text(tr("feedback.bossDefeated"), {to.x, to.y - tile * (1.4F + t * .6F)},
+                   layout.compact ? 15 : 22, fade(theme::gold, std::min(1.0F, (1 - t) * 2)), .5F);
         } else if (event.type == game::CombatEventKind::Defeated) {
             const engine::Color debris = event.enemy ? engine::Color{248, 210, 127} : theme::blue;
             for (int ray = 0; ray < 7; ++ray) {
@@ -455,8 +456,9 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             ring(g, to, tile * (.3F + t * .6F), 2, fade(theme::blue, 1 - t));
             if (cue.age < .15F)
                 g.circle(to, tile * .45F, fade(theme::text, .35F * (1 - cue.age / .15F)));
-            g.text(event.amount > 1 ? "강화!" : "배치!", {to.x, to.y - tile * (.65F + t * .3F)},
-                   layout.compact ? 11 : 14, fade(theme::text, 1 - t), .5F);
+            g.text(tr(event.amount > 1 ? "feedback.upgrade" : "feedback.placement"),
+                   {to.x, to.y - tile * (.65F + t * .3F)}, layout.compact ? 11 : 14, fade(theme::text, 1 - t),
+                   .5F);
         } else if (event.type == game::CombatEventKind::Leak) {
             const engine::Rect area = layout.world;
             g.line({{area.x + 3, area.y + 3},
