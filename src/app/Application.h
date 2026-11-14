@@ -87,6 +87,9 @@ class Application {
     bool splashActive() const {
         return splashActive_;
     }
+    /** Unlock and select a stage on the title for a presentation; the saved unlock and stored expedition are
+     * left untouched for this session. */
+    void openDemoStage(int stage);
     /** Open a measurement-only late battle in place of the title and disable saving for this session. */
     bool startBenchmark(const BenchRequest &request);
     /** Read the active bench request, if this session opened one. */
@@ -117,6 +120,9 @@ class Application {
     /** Lowers the render density while the measured CPU work of recent frames exceeds the frame budget. */
     engine::RenderScale renderScale_;
     std::optional<BenchRequest> benchmark_;
+    /** Set for a demo session: the unlock saved before the demo raised it, and whether a demo is open. */
+    bool demo_ = false;
+    int demoSavedUnlock_ = 1;
     /** Fixed steps since the bench battle opened; the autoplayer decides a card every 30 steps. */
     std::uint64_t benchmarkSteps_ = 0;
     FeedbackChannel feedback;

@@ -398,7 +398,8 @@ void View::enemies(engine::Renderer &g, const game::Run &run, const State &state
                                : biome == game::StageBiome::Crystal ? Color{120, 240, 230}
                                : biome == game::StageBiome::Swamp   ? Color{150, 210, 90}
                                                                     : Color{200, 170, 120};
-            g.circle({p.x, p.y - size * .1F}, size * .62F, fade(glow, .12F + .08F * pulse));
+            g.glow({p.x, p.y - size * .1F}, size * .85F,
+                   {glow.r, glow.g, glow.b, static_cast<std::uint8_t>(70 + 50 * pulse)});
             ellipseOutline(g, {p.x, p.y + size * .28F}, size * .52F, size * .18F, std::max(2.0F, tile * .06F),
                            fade({214, 72, 52}, .45F + .35F * pulse));
             if (role.ability == game::EnemyAbility::Stomp && enemy->ability < 1.2F) {
@@ -410,7 +411,8 @@ void View::enemies(engine::Renderer &g, const game::Run &run, const State &state
                     const float angle = index * 6.2831853F / 40;
                     ring.push_back({p.x + std::cos(angle) * radius, p.y + std::sin(angle) * radius});
                 }
-                g.line(ring, std::max(1.5F, tile * .05F), fade({235, 96, 70}, .3F + .6F * charge));
+                g.dashedLine(ring, std::max(1.5F, tile * .05F), fade({235, 96, 70}, .3F + .6F * charge),
+                             tile * .22F, tile * .14F);
             }
         }
         if (enemy && actor->kind == game::EnemyKind::Healer) {

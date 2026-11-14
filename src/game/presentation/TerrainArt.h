@@ -295,4 +295,15 @@ inline void drawRing(engine::Renderer &g, engine::ScreenPoint p, float radius, f
     }
     g.line(points, width, color);
 }
+/** Stroke one closed circle outline as evenly spaced dashes. */
+inline void drawDashedRing(engine::Renderer &g, engine::ScreenPoint p, float radius, float width,
+                           engine::Color color) {
+    std::vector<engine::ScreenPoint> points;
+    points.reserve(61);
+    for (int step = 0; step <= 60; ++step) {
+        const float angle = step * 6.2831853F / 60;
+        points.push_back({p.x + std::cos(angle) * radius, p.y + std::sin(angle) * radius});
+    }
+    g.dashedLine(points, width, color, width * 3.0F, width * 2.0F);
+}
 } // namespace thorium::presentation

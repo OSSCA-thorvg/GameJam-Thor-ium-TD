@@ -2,89 +2,112 @@
 
 > 깊이 캐고, 끝까지 지켜라.
 
-카드로 건물·유닛·마법을 운용하고, 지하에서 확보한 자원과 발견한 카드로 방어 전략을 발전시키는 ThorVG 기반 웹 타워 디펜스 게임을 기획합니다. 다수의 적으로부터 거점을 지키는 전투가 중심이며, 채굴·제작·추리는 다음 방어의 투자와 위험 선택을 제공합니다.
+![Thor-ium TD](docs/images/thumbnail.png)
 
-2026-11-14 적 3종(날아다니는 동굴박쥐, 가까이 와야 보이는 그림자, 저지를 한 번 뛰어넘는 도약꾼)과 새 테마의 [6·7구역](docs/new-roles-and-stages.md)을 더해 **7개 구역**이 되었습니다. 6구역 공명 수정굴은 레버로 보내는 광차와 수정 군집, 7구역 부식의 늪은 적을 늦추는 늪과 눌러서 터뜨리는 가스통이 있습니다.
+**Thor-ium TD**는 카드로 건물·유닛·마법을 운용해 몰려오는 적에게서 거점을 지키고, 웨이브 사이에는 지하를 채굴해 다음 방어를 준비하는 **타워 디펜스 × 채굴** 웹 게임입니다. OSSCA × ThorVG 2026 게임잼(ThorJam) 출품작이며 화면의 모든 그래픽(게임 장면·메뉴·HUD)을 [ThorVG](https://github.com/thorvg/thorvg)로 그립니다.
 
-2026-11-13 채굴에 두 번째 방식인 [암벽 발굴](docs/excavation.md)을 더했고 설정의 원정 탭에서 기존 갱도 탐사와 바꿀 수 있습니다. 구역마다 [전장 기믹](docs/stage-gimmicks.md)(낙석 바위·특성 패드·갱도 터널·용암 분출구)이 하나씩 있고, 1구역은 30×18·입구 3개, 2구역은 34×20으로 [넓혔습니다](docs/campaign-expansion.md). 채굴 화면의 광석·도구 그림은 직접 만든 SVG이고, 5구역 후반의 [프레임 예산](docs/frame-budget.md)을 쟀습니다.
+- **플레이 (GitHub Pages):** <https://ossca-thorvg.github.io/GameJam-Thor-ium-TD/>
+- 설치 없이 브라우저에서 실행됩니다. 데스크톱 마우스·키보드와 모바일 터치를 지원합니다.
+- 처음이라면 메인 화면의 **연습 원정**(약 4분)부터 해 보세요.
+- 게임을 열면 ThorVG 스플래시(Powered by ThorVG, 공식 Lottie)가 먼저 재생됩니다. 3초 뒤부터 클릭·키로 건너뛸 수 있습니다.
 
-2026-11-12 정규 캠페인을 **5개 구역·8/10/12/14/16웨이브**로 확장했습니다. 화염방사탑·저격탑·증폭 발전기·타르 웅덩이 카드를 추가했습니다. 큰 전장과 다중 진입로, 맵 확대·이동, 추가 채굴층, 구역 해금·선택·재개를 제공합니다. 조작과 실제 범위는 [캠페인 확장 구현](docs/campaign-expansion.md)을 확인합니다.
+## 스크린샷
 
-2026-11-04 SDL3·ThorVG·공통 C++ UI의 첫 시연판을 구현했습니다. macOS 네이티브와 웹에서 카드 배치·3웨이브 전투·채굴·제작·모집을 연결했습니다. 첫 피드백으로 배치한 건물·유닛의 선택·철수와 채굴 기지 테마의 HUD·손패·정비창을 추가했습니다. 후속 피드백으로 손패 순환·등장 애니메이션과 발사·피격·처치 연출을 연결했습니다. 사운드는 23종 합성 효과음과 음소거·볼륨, MP3 파일 교체를 지원합니다. 메인·설정·플레이 방법·크레딧에서 새 원정과 현재 원정 계속하기를 사용할 수 있습니다. 실제 범위와 검증은 [구현 기록](docs/implementation-v0.1.md)을 확인합니다. 기획 전체나 밸런스·성능 목표의 완료와는 구분합니다.
+| 지상 방어 (5구역 후반 공세) | 지하 채굴 (정비) |
+| --- | --- |
+| ![전투](docs/images/screenshot-battle.png) | ![채굴](docs/images/screenshot-mining.png) |
 
-## 바로 실행
+| 출격 준비 (1구역) | ThorVG 스플래시 |
+| --- | --- |
+| ![출격 준비](docs/images/screenshot-prep.png) | ![스플래시](docs/images/screenshot-splash.png) |
 
-프로젝트 루트에서 네이티브는 `python3 tools/build.py native` 후 `./build/native/thorium`, 웹은 `python3 tools/build.py web` 후 아래 명령으로 실행합니다. 빌드 전제 조건·SDK·조작은 [실행 안내](docs/implementation-v0.1.md)에 있습니다.
+## 게임 방법
+
+1. **전투 (지상):** 손패의 카드를 끌어다 놓아 건물(패드)·유닛(길 위 칸)·마법을 배치합니다. 에너지가 시간이 지나며 차오릅니다. 같은 건물 카드를 같은 건물에 쓰면 강화, 다른 건물 카드를 쓰면 교체됩니다.
+2. **정비 (지하):** 웨이브가 끝나면 지하로 내려가 정비마다 정해진 횟수만큼 굴착합니다. 숫자는 주변 8칸의 둥지 수이고, 스캔으로 경계 한 칸을 미리 봅니다. 암벽 발굴(겹 벗기기)과 갱도 탐사 두 방식이 있고 설정의 원정 탭에서 바꿉니다.
+3. **성장:** 철·구리·수정으로 곡괭이·장비를 제작하고 금으로 부대 슬롯을 늘리거나 유닛 카드를 모집합니다. 전투에서 모은 조각으로는 영웅을 훈련하고 모집을 다시 돌립니다.
+4. **승리:** 마지막 웨이브까지 거점을 지키면 구역 클리어, 다음 구역이 열립니다. 7개 구역마다 전장 기믹(낙석 바위·특성 패드·갱도 터널·용암 분출구·광차 선로·늪·가스통)과 구역 보스 골렘이 있습니다.
+
+적은 16종(보스 포함)으로 날아다니는 박쥐, 가까이 와야 보이는 그림자, 건물을 부수는 망치병, 저지를 뛰어넘는 도약꾼처럼 저마다 대응 방식이 다릅니다. 자세한 규칙은 [문서 목차](docs/README.md)에 있습니다.
+
+## 조작법
+
+| 입력 | 동작 |
+| --- | --- |
+| 카드 클릭·탭 → 대상 클릭·탭 | 배치·마법 사용 |
+| 카드 드래그 → 전장 | 배치 (전장 밖에 놓으면 취소) |
+| 배치한 건물·유닛 클릭 | 사거리·상태 확인, 철수 |
+| 1 ~ 4 | 손패 선택 |
+| Space | 웨이브 시작 / 일시정지·계속 |
+| Esc | 선택·팝업 취소, 전투 일시정지 |
+| M | 정비 중 지상 / 지하 전환 |
+| Tab · Shift+Tab · Enter | 버튼 이동·실행 |
+| S · V | 효과음 음소거 · 볼륨 |
+| + · − · 0, 마우스 휠 | 전장 확대·축소·맞춤 |
+| 지하: 타일 클릭 | 광부가 이동해 굴착 |
+
+## 사용한 ThorVG 기능
+
+SDL3 + C++17 코드를 WebAssembly로 빌드하고 ThorVG(`SwCanvas`, 소프트웨어 렌더러)가 그린 픽셀을 캔버스에 올립니다.
+
+| 기능 | 쓰는 곳 | 코드 |
+| --- | --- | --- |
+| Lottie (`LottieAnimation`, 마커 구간) | 적 16종의 대기·이동·공격·사망 클립, 시작 시 ThorVG 스플래시 | [Renderer.cpp](src/engine/render/Renderer.cpp), [AnimationRendering.cpp](src/engine/render/AnimationRendering.cpp), [Animation.cpp](src/engine/animation/Animation.cpp) |
+| Lottie 프레임 굽기·공유 | 같은 클립의 프레임을 한 번만 래스터화해 수백 마리가 공유 | [AnimationFrameBaker.cpp](src/engine/render/AnimationFrameBaker.cpp), [AnimationCache.cpp](src/engine/render/AnimationCache.cpp) |
+| `Shape` · `Scene` | 지형·타워·유닛·사거리·HUD 전부 | [Renderer.cpp](src/engine/render/Renderer.cpp), [Battlefield.cpp](src/game/presentation/Battlefield.cpp) |
+| `LinearGradient` · `RadialGradient` | 패널·지층 음영, 보스 오라와 용암 분출구의 빛무리 | [Renderer.cpp](src/engine/render/Renderer.cpp) |
+| 점선 스트로크 (`strokeDash`) | 분출구 범위와 보스 기절 예고 원 | [Renderer.cpp](src/engine/render/Renderer.cpp), [TerrainArt.h](src/game/presentation/TerrainArt.h) |
+| `Picture` (SVG) | 채굴 화면의 광석·도구·유물 그림 | [content/art/ore-gold.svg](content/art/ore-gold.svg) 외 |
+| `Text` + TTF 로더 | 한글 UI 텍스트 (Noto Sans KR 부분 집합) | [Renderer.cpp](src/engine/render/Renderer.cpp) |
+| 클립 레이어 · 불투명도 | 패널·스크롤 영역 | [Renderer.cpp](src/engine/render/Renderer.cpp) |
+| 보관 레이어 · 배경 캐시 | 정지한 지형·배경을 다시 그리지 않고 재사용 (프레임 예산 문서 참고) | [frame-budget.md](docs/frame-budget.md) |
+
+적 Lottie 16개는 [tools/make_assets.py](tools/make_assets.py)가 만든 자체 제작 파일입니다.
+
+## 빌드와 실행
+
+Python 3.12+, C++17 컴파일러, Meson, Ninja, pkg-config가 필요하고 웹 빌드에는 Emscripten SDK(6.0.0 검증)가 더 필요합니다. 자세한 전제 조건은 [실행 안내](docs/implementation-v0.1.md)에 있습니다.
 
 ~~~sh
+python3 tools/build.py native
+./build/native/thorium
+
+python3 tools/build.py web
 python3 -m http.server 8317 --bind 127.0.0.1 --directory dist
 ~~~
 
-[로컬 시연판 열기](http://127.0.0.1:8317/). SDL·ThorVG·폰트 소스와 개발 도구 버전은 [의존성 잠금](dependencies.lock.json), 라이선스는 [서드파티 안내](THIRD_PARTY.md)에서 관리합니다.
+- 네이티브 인자: `--no-splash` 스플래시 생략.
+- 웹 주소 인자: `?nosplash` 스플래시 생략. 자동화 브라우저(Playwright 등)에서는 기본으로 생략하고 `?splash`로 켭니다.
+- 문서 검사: `python3 -m unittest discover -s tests -p 'test_*.py' -v`
+- `main` 브랜치에 푸시하면 [GitHub Actions](.github/workflows/deploy-pages.yml)가 네이티브 테스트·WASM 빌드·브라우저 E2E를 통과시킨 뒤 Pages에 배포합니다.
 
-- 등록 이슈: [OSSCA-thorvg/site #198](https://github.com/OSSCA-thorvg/site/issues/198)
-- 등록 팀원: [@hd1534](https://github.com/hd1534)
-- 개발 전 조사·설계 갱신일: 2026-11-03, Asia/Seoul
+## 팀
 
-## 문서 안내
-
-| 문서 | 내용 |
+| 역할 | 담당 |
 | --- | --- |
-| [구역별 채굴층·특수 타일](docs/mine-content.md) | 일곱 구역 B1~B3 지도·팔레트, 보물 상자·유물 4종, 카드 화석, 에너지 수정, 붕괴 암반 |
-| [캠페인 확장](docs/campaign-expansion.md) | 8~16웨이브, 2~5진입로, 지형·카메라·미니맵·추가 카드·추가 지층·원정 보존·해금 |
-| [암벽 발굴 채굴 방식](docs/excavation.md) | 다른 채굴 게임 조사, 겹 벗기기·모양 있는 매장물·파 내려가기 규칙, 곡괭이·발파, 설정 전환, 봇 측정 |
-| [후반 웨이브 프레임 예산](docs/frame-budget.md) | 측정 장면(`?bench=`), 배경·지형 보관, 화면 밖 생략, 적응형 렌더 배율, 5구역 후반 p95 |
-| [구역별 전장 기믹](docs/stage-gimmicks.md) | 낙석 바위·특성 패드·갱도 터널·용암 분출구·광차 선로·늪·가스통의 규칙과 수치, 검증, 화면, 봇 측정 |
-| [새 적과 6·7구역](docs/new-roles-and-stages.md) | 참고한 게임, 동굴박쥐·그림자·도약꾼, 수정 공명굴·부식의 늪 테마와 지도, 조정 과정, 측정과 한계 |
-| [코스트 시계 방향 회복 표시](docs/card-charge.md) | 실제 필요 에너지에 따른 코스트 원·카드 그림 회복, 강화 비용·배치 불가 구분·검증 |
-| [카드 정보·획득 비교](docs/card-information.md) | 공통 그림·역할·스탯, 호버·길게 누르기, 모집 후보와 새 카드·기존 덱 비교 |
-| [튜토리얼 구성·구현](docs/tutorial-plan.md) | 별도 연습 원정 7단계·추천 위치 강조·체크포인트 복구·정규 판 보존·상황별 힌트 후속 계획 |
-| [독립 코드 검토 후속](docs/cold-review-fixes.md) | 결과 화면 재시작 조건 공유, 안전한 광부 보간, 규칙의 배치 좌표 정규화와 회귀 검증 |
-| [카드 배치 사전 판정](docs/placement-preflight.md) | 조회·실행 공통 판정, 실제 설치/강화/교체 비용, 대상별 허용·거절 피드백 |
-| [콘텐츠 검증·오퍼·앱 접근 경계](docs/content-offers-boundary.md) | 검증 후 판 생성, 모집·보상 후보/가격 소유권, 비공개 앱 상태와 출력 전용 API |
-| [공유 프레임·물량 측정](docs/shared-animation-cache.md) | 개체별 위상차·공유 픽셀·벡터 풀·비교 설정·100/300/1000마리 실측 |
-| [Lottie·개체 애니메이션](docs/animation-system.md) | 마커 클립·재생 플레이어·대기/이동/공격/사망 상태머신·게임 시각·사망 연출 수명 |
-| [현재 구현 아키텍처](docs/current-architecture.md) | 승인 후 적용한 엔진/콘텐츠/규칙/앱 경계·폴더·소유권·검증·후속 범위 |
-| [첫 구현 v0.1](docs/implementation-v0.1.md) | 실행·조작·구현 코드 경계·네이티브/웹 검증·후속 범위 |
-| [사운드·MP3 교체](docs/audio-system.md) | 임시 비프음·음소거/볼륨·23개 효과음 파일명·MP3 교체·오디오 테스트 |
-| [원정 저장](docs/expedition-save.md) | 웨이브 사이 자동 저장, 새로고침 뒤 계속하기, 저장 형식·검증·삭제 시점, 테스트 |
-| [메인·설정·플레이 방법](docs/front-end.md) | 시작 화면·원정 계속하기·음량/피드백 설정·메뉴 중 정지·탐색과 테스트 |
-| [개발 전 시작 계획](docs/preproduction-plan.md) | 조사 결과, 먼저 고를 규칙, 첫 범위와 구현 전 통과 조건 |
-| [규칙 선택지·답변란](docs/rule-options.md) | 규칙별 A/B/C·추천·영향·검증과 답변·상태, 미정 우선 질문 |
-| [통합 기획안](docs/game-design.md) | 전체 조사 비교, 게임 정체성, 플레이 흐름, 시스템 연결, 확정·검토 구분 |
-| [프로토타입 상세안 v0.2](docs/prototype-plan.md) | 유닛·채굴·제작·카드 획득을 잇는 3웨이브 추천 범위와 완료 기준 |
-| [첫 3웨이브 플레이 사양 초안](docs/first-playable-spec.md) | 시작·카드 순환·전투·부대 정비·경로·공세의 추천 규칙과 초깃값 묶음 |
-| [카드 시스템 제안](docs/card-system.md) | 마법·건물·유닛, 플레이 중 획득, 발견 도감과 출발 편성 예산 |
-| [광물·금 재화·부대 정비 경제안](docs/economy-plan.md) | 제작 광물과 재화 광물의 역할, 슬롯·모집·치료·무료 재배치 |
-| [첫 채굴 보드·경제 수치 초안](docs/first-board-economy.md) | 5굴착×2정비의 수작업 배치·가격·네 투자 경로 계산, 미확정 수치 |
-| [명일방주 참고 조사](docs/arknights-reference.md) | 저지 수, 생존연산의 자원·방어 연결, 통합전략의 모집·편성 참고 |
-| [화면 컨셉 시안](docs/concepts/README.md) | 지상 전투·지하 채굴·전체 연결 화면 3장과 생성 프롬프트 |
-| [데스크톱·모바일 UI·UX 계획](docs/interface-plan.md) | 단계별 화면, 손패 4장, 터치·마우스 조작과 작은 화면 검증 |
-| [기술 계획](docs/technical-plan.md) | C++/WASM 후보 구조, ThorVG·Lottie 활용, Rubiks 재사용 검토 |
-| [큰 구조·폴더 배치 비교](docs/architecture-overview.md) | 엔진·게임·앱 경계 수정안, 사용자가 선택한 실행 경계 + 기능별 폴더 |
-| [SDL·데스크톱·공통 UI 제안](docs/cross-platform-ui-proposal.md) | Windows·macOS·웹, SDL3·엔진 UI·게임 화면의 구조도와 입력→출력 흐름 |
-| [코드 구조 제안](docs/architecture.md) | 기능 모듈, 상태 소유권, 입력·시간·렌더링·빌드·테스트 경계 |
-| [Rubiks·엔진 패턴 조사](docs/architecture-research.md) | 실제 로컬 코드와 공식 Unity·Unreal·Godot 문서, 채택·보류 근거 |
-| [유저 콘텐츠·샌드박스 확장](docs/user-content-plan.md) | 몬스터 제작실, 능력 프리셋·Lottie 연결, 실험 전장·팩 공유의 후속 방향 |
-| [검증 계획](docs/validation-plan.md) | 게임 규칙 테스트, 밸런스 실험, 렌더링 성능 검증 |
-| [결정 및 미정 사항](docs/decisions.md) | 확정 방향, 검토 아이디어, 미정 질문, 수치 가안 |
-| [등록 및 제출](docs/registration.md) | 등록 내용, 짧은 소개문, 행사 일정과 제출 요건 |
-| [참고 자료](docs/references.md) | 유사 게임과 공식 기술 자료 |
-| [채굴·제작·등급 조사](docs/mining-and-crafting-research.md) | 채굴 게임 사례, 광물별 제작·도구 등급·대형 지원 공격 제안 |
-| [프로토타입 v0.1 보관본](docs/archive/prototype-plan-v0.1.md) | 이전 단일 광석·고정 덱·룬·진화 수치의 비교 자료 |
+| 기획 · 개발 · 아트 · 사운드 | [@hd1534](https://github.com/hd1534) |
 
-개발 전 시작 계획 → 규칙 선택지 → 아키텍처 → 결정 기록 순서로 읽습니다. 전체 아이디어는 통합 기획안, 자원 역할은 경제안에서 확인합니다.
+등록 이슈: [OSSCA-thorvg/site #198](https://github.com/OSSCA-thorvg/site/issues/198). 구현과 문서 작성에 AI 코딩 도구(Claude Code)를 활용했고, 기획 판단과 검수는 팀원이 맡았습니다.
 
-- 전투·카드: 기본 덱 8·손패 4, 건물 설치·동종 강화·타종 교체·에너지 손패 교환, 같은 카드 반복 유닛 소환·기본 6슬롯·생존 HP 유지입니다.
-- 채굴: 구역마다 지형 팔레트가 다른 7×11 수작업 채굴층 3개(규칙 시험·연습은 5×6)와 보물 상자(원정 유물)·카드 화석·에너지 수정·붕괴 암반 특수 타일, 정비당 5굴착·무료 스캔 1회, 열린 갱도 4방향 이동·최초 둥지 8이웃 숫자입니다. 스캔은 경계 1칸의 광물·둥지·숫자만 공개하고 현재 작업 완료 뒤 조기 정비 종료가 가능합니다. 숫자 0은 정보만 연쇄 공개하고 실제 둥지 굴착만 다음 웨이브 추가 적을 예약·예고합니다.
-- 경제·획득: 철·구리·수정은 도구·공통 장비, 금은 슬롯 강화·유닛 카드 3택1 모집에 씁니다. 보유한 종류도 후보에 포함하며 제시 3종은 서로 다릅니다. 모집 후보 확인은 무료, 덱 교체 확정 시 결제, 취소는 무소모·동일 후보 유지입니다. 획득 시 1대1 교체로 활성 8장을 유지하고 정비 손패에는 최근 획득 1장을 우선 포함합니다.
-- 공간·확장: 첫 검증은 고정 경로·배치 칸, 2웨이브 뒤 지상 확장 1회입니다. 후속 자유 배치·경로 재계산·지하 중력·사다리로 전환할 경계를 준비합니다.
-- 환경·후속: 데스크톱 60 FPS 우선·모바일 UI·UX 준비입니다. 도감 선택 UI·룬 공격 방식 분기는 후속이며 실제 기기·안전 구역 크기·가격·후보 종류별 콘텐츠·재모집·치료량과 보드 경제 검증은 남았습니다.
+## Credits
 
-v0.1 가격을 현재 제작·유닛 규칙에 그대로 적용하지 않습니다. 선택한 규칙과 실제 게임·성능 검증 완료를 구분합니다. [첫 보드·경제 초안](docs/first-board-economy.md)의 네 경로는 문서 계산으로 확인했고 실제 전투 균형은 미검증입니다.
+| 항목 | 출처 · 라이선스 |
+| --- | --- |
+| ThorVG 1.0.0 | [thorvg/thorvg](https://github.com/thorvg/thorvg), MIT |
+| "Powered by ThorVG" 스플래시 Lottie | ThorVG 공식 에셋, 수정 없이 사용 ([content/animations/powered-by-thorvg.json](content/animations/powered-by-thorvg.json)) |
+| SDL 3.4.18 | [libsdl-org/SDL](https://github.com/libsdl-org/SDL), zlib |
+| Noto Sans KR | [Google Fonts](https://github.com/google/fonts/tree/main/ofl/notosanskr), SIL OFL 1.1 |
+| dr_mp3 | [mackron/dr_libs](https://github.com/mackron/dr_libs), 퍼블릭 도메인 또는 MIT-0 |
+| 배경음악 `content/audio/bgm.mp3` | Google Flow Music(AI 음악 생성)으로 이 게임을 위해 생성 |
+| 효과음 | 실행 중 합성하는 자체 제작 음 |
+| 적 Lottie · 타워·유닛·UI 그림 · 광석 SVG | 자체 제작 (생성 스크립트: [make_assets.py](tools/make_assets.py), [make_art.py](tools/make_art.py)) |
 
-## 문서 검증
+전체 목록과 고정 버전은 [THIRD_PARTY.md](THIRD_PARTY.md), [dependencies.lock.json](dependencies.lock.json)에 있습니다.
 
-프로젝트 폴더에서 `python3 -m unittest discover -s tests -p 'test_*.py' -v`로 링크·문서 연결·결정 참조·덱 구성의 일관성을 검사합니다. Python 표준 라이브러리만 사용하며 게임 로직·밸런스·렌더링 성능의 검증과 구분합니다.
+## License
 
-현재 구조의 콘텐츠·애니메이션·전투 개선과 실제 앱 출력 구간 측정은 [아키텍처 검토 후속](docs/architecture-follow-up.md)에 정리했습니다.
+소스 코드는 [MIT License](LICENSE)입니다. 위 표의 외부 구성요소와 스플래시 애니메이션은 각자의 라이선스를 따릅니다.
+
+## 문서
+
+기획·설계·구현 기록과 날짜별 변경 내역은 [docs/README.md](docs/README.md)에서 볼 수 있습니다.

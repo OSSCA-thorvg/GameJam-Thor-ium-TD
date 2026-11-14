@@ -99,6 +99,11 @@ class Renderer {
     void polygon(const std::vector<ScreenPoint> &points, Color color);
     /** Append a stroked polyline with round ends. */
     void line(const std::vector<ScreenPoint> &points, float width, Color color);
+    /** Append a stroked polyline with round ends whose stroke alternates `dash` drawn and `gap` skipped
+     * logical pixels. */
+    void dashedLine(const std::vector<ScreenPoint> &points, float width, Color color, float dash, float gap);
+    /** Append a soft round light: `color` at the centre fading to transparent at `radius`. */
+    void glow(ScreenPoint center, float radius, Color color);
     /** Append cached text; position and alignment do not mutate gameplay. */
     void text(const std::string &value, ScreenPoint position, float size, Color color, float align = 0.0F,
               float maxWidth = 0.0F);

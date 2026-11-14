@@ -89,7 +89,7 @@ void Application::restoreRun() {
     Persistence::clearRun();
 }
 void Application::syncRunSave(float elapsed, bool force) {
-    if (benchmark_ || !state.app.campaign || tutorial.active() || !state.app.navigation.hasRun())
+    if (benchmark_ || demo_ || !state.app.campaign || tutorial.active() || !state.app.navigation.hasRun())
         return;
     const game::Phase phase = run.state().phase;
     if (phase == game::Phase::Won || phase == game::Phase::Lost) {
@@ -158,7 +158,7 @@ bool Application::splashFrame(int width, int height, float density, float elapse
     }
     if (!graphics.begin(width, height, std::min(density, engine::Renderer::MaxDensity)))
         return false;
-    graphics.rect({0, 0, static_cast<float>(width), static_cast<float>(height)}, {255, 255, 255});
+    graphics.rect({0, 0, static_cast<float>(width), static_cast<float>(height)}, {0, 0, 0});
     const float scale = std::min(width / info.width, height / info.height);
     const engine::Rect bounds{(width - info.width * scale) / 2, (height - info.height * scale) / 2,
                               info.width * scale, info.height * scale};
@@ -397,7 +397,7 @@ void Application::savePersistence() {
         return;
     SaveData data;
     data.tutorialCompleted = state.app.tutorialCompleted;
-    data.highestUnlockedStage = state.app.highestUnlockedStage;
+    data.highestUnlockedStage = demo_ ? demoSavedUnlock_ : state.app.highestUnlockedStage;
     data.reducedMotion = state.app.preferences.reducedMotion;
     data.damageNumbers = state.app.preferences.damageNumbers;
     data.cachedAnimations = state.app.preferences.cachedAnimations;
@@ -406,6 +406,16 @@ void Application::savePersistence() {
     data.music = audio.settings.music;
     data.muted = audio.settings.muted;
     Persistence::save(data);
+}
+void Application::openDemoStage(int stage) {
+    if (benchmark_ || !state.app.campaign)
+        return;
+    const int target = std::clamp(stage, 1, game::TotalStages);
+    if (!demo_)
+        demoSavedUnlock_ = state.app.highestUnlockedStage;
+    demo_ = true;
+    state.app.highestUnlockedStage = std::max(state.app.highestUnlockedStage, target);
+    state.app.selectedStage = target;
 }
 bool Application::startBenchmark(const BenchRequest &request) {
     BenchScene scene = prepareBenchScene(request);

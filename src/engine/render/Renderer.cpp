@@ -361,6 +361,36 @@ void Renderer::line(const std::vector<ScreenPoint> &points, float stroke, Color 
     shape->strokeJoin(tvg::StrokeJoin::Round);
     scene_->add(shape);
 }
+void Renderer::dashedLine(const std::vector<ScreenPoint> &points, float stroke, Color color, float dash,
+                          float gap) {
+    if (points.size() < 2 || !(dash > 0) || !(gap > 0))
+        return;
+    tvg::Shape *shape = tvg::Shape::gen();
+    shape->moveTo(points[0].x, points[0].y);
+    for (std::size_t index = 1; index < points.size(); ++index)
+        shape->lineTo(points[index].x, points[index].y);
+    shape->fill(0, 0, 0, 0);
+    shape->strokeWidth(stroke);
+    shape->strokeFill(color.r, color.g, color.b, color.a);
+    shape->strokeCap(tvg::StrokeCap::Butt);
+    shape->strokeJoin(tvg::StrokeJoin::Round);
+    const float pattern[2] = {dash, gap};
+    shape->strokeDash(pattern, 2);
+    scene_->add(shape);
+}
+void Renderer::glow(ScreenPoint center, float radius, Color color) {
+    if (!(radius > 0))
+        return;
+    tvg::Shape *shape = tvg::Shape::gen();
+    shape->appendCircle(center.x, center.y, radius, radius);
+    tvg::RadialGradient *gradient = tvg::RadialGradient::gen();
+    gradient->radial(center.x, center.y, radius, center.x, center.y, 0);
+    const tvg::Fill::ColorStop stops[2] = {{0.0F, color.r, color.g, color.b, color.a},
+                                           {1.0F, color.r, color.g, color.b, 0}};
+    gradient->colorStops(stops, 2);
+    shape->fill(gradient);
+    scene_->add(shape);
+}
 void Renderer::text(const std::string &value, ScreenPoint position, float size, Color color, float align,
                     float maxWidth) {
     if (value.empty())

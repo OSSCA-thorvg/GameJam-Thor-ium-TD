@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <string>
 
 namespace thorium::presentation {
 namespace {
@@ -236,7 +237,7 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
             button(g, ui, continuing ? HomeContinue : HomeNew, {16, y, g.width - 32.0F, h},
                    continuing ? "제 " + std::to_string(state.play.currentStage) + "구역 계속하기"
                               : "작전 개시",
-                   true, true);
+                   true, continuing || state.app.tutorialCompleted);
             y += h + 10;
             button(g, ui, BeginTutorial, {16, y, g.width - 32.0F, 34},
                    state.app.tutorialCompleted ? "연습 원정 다시하기" : "연습 원정 · 처음이라면 추천", true,
@@ -289,7 +290,7 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
             button(g, ui, continuing ? HomeContinue : HomeNew, {x, y, w, 52},
                    continuing ? "제 " + std::to_string(state.play.currentStage) + "구역 계속하기"
                               : "작전 개시",
-                   true, true);
+                   true, continuing || state.app.tutorialCompleted);
             y += 62;
             button(g, ui, BeginTutorial, {x, y, w, 36},
                    state.app.tutorialCompleted ? "연습 원정 다시하기" : "연습 원정 · 처음이라면 추천", true,
@@ -315,7 +316,7 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
         g.text(std::to_string(game::TotalStages) + " STAGE CAMPAIGN  ·  OSSCA THORVG GAMEJAM",
                {g.width / 2.0F, g.height - 26.0F}, compact ? 8 : 10, theme::muted, .5F);
         if (!ui.focused)
-            ui.focused = continuing ? HomeContinue : HomeNew;
+            ui.focused = continuing ? HomeContinue : state.app.tutorialCompleted ? HomeNew : BeginTutorial;
         if (state.play.modal != presentation::Modal::None)
             overlay(g, ui, run, state, audio);
         return;
@@ -467,6 +468,25 @@ void View::frontEnd(engine::Renderer &g, engine::Ui &ui, const game::Run &run, c
             const float y = box.y + 190 + index * (compact ? 26.0F : 33.0F);
             g.line({{x, y - 10}, {x + w, y - 10}}, 1, {86, 111, 113, 90});
             g.text(credits[index], {x, y}, compact ? 12 : 16, theme::muted, 0, w);
+        }
+        // Live renderer counters followed by the ThorVG features in use; lines that would leave the panel
+        // are skipped so small screens keep the credits list alone.
+        const engine::AnimationRenderStats stats = g.animationStats();
+        const std::array<std::string, 5> showcase{
+            {"ThorVG 활용", "Lottie 적 16종 · 스플래시 · 마커 클립 · Shape · Scene · LinearGradient · clip",
+             "SVG Picture · TTF Text · 구운 애니메이션 프레임 · 방사형 그라디언트 · 점선",
+             "Lottie 벡터 " + std::to_string(stats.vectorDraws) + " · 캐시 " + std::to_string(stats.cachedDraws) +
+                 " · 대체 " + std::to_string(stats.fallbacks),
+             "캐시 레이어 재사용 " + std::to_string(g.layerReuses()) + " · 새로 그림 " +
+                 std::to_string(g.layerRasterizations())}};
+        const float showcaseTop = box.y + 190 + 7 * (compact ? 26.0F : 33.0F);
+        const float step = 20.0F;
+        for (int index = 0; index < 5; ++index) {
+            const float y = showcaseTop + index * step;
+            if (y + step > box.y + box.h)
+                break;
+            g.text(showcase[static_cast<std::size_t>(index)], {x, y}, index == 0 ? 15 : 13,
+                   index == 0 ? theme::gold : theme::muted, 0, w);
         }
         button(g, ui, NavigateBack, {left, g.height - 64.0F, width, 42}, "←  돌아가기");
     }

@@ -700,8 +700,10 @@ void View::ventReaches(engine::Renderer &g, const game::Run &run) {
     const float radius = run.catalog().balance.ventRadius * layout.tile;
     for (const game::VentDefinition &vent : run.catalog().vents) {
         const ScreenPoint p = screenPoint(vent.position);
-        if (inWorld(p, radius + layout.tile))
-            drawRing(g, p, radius, std::max(1.5F, layout.tile * .05F), {255, 138, 60, 130});
+        if (inWorld(p, radius + layout.tile)) {
+            g.glow(p, radius * .55F, {255, 120, 40, 46});
+            drawDashedRing(g, p, radius, std::max(1.5F, layout.tile * .05F), {255, 138, 60, 150});
+        }
     }
 }
 

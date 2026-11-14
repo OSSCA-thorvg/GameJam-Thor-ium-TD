@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -117,6 +118,17 @@ std::string benchQuery(int argc, char *argv[]) {
 #endif
 }
 
+/** Read the stage of a `demo=<stage>` entry in the page query or native argument list; 0 when absent. */
+int demoStage(const std::string &query) {
+    for (std::size_t at = query.find("demo="); at != std::string::npos; at = query.find("demo=", at + 1)) {
+        if (at != 0 && query[at - 1] != '?' && query[at - 1] != '&')
+            continue;
+        const long value = std::strtol(query.c_str() + at + 5, nullptr, 10);
+        return value >= 1 && value <= thorium::game::TotalStages ? static_cast<int>(value) : 0;
+    }
+    return 0;
+}
+
 /** Decide whether the ThorVG copyright animation plays first: always, except `nosplash` in the page URL or a
  * `--no-splash` argument, and except in an automated browser unless the URL says `splash`. */
 bool splashEnabled(int argc, char *argv[]) {
@@ -175,6 +187,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
             return SDL_APP_FAILURE;
         }
     }
+    if (const int demo = demoStage(benchQuery(argc, argv)))
+        state->app->openDemoStage(demo);
     if (!state->smoke && !state->app->benchmark() && splashEnabled(argc, argv))
         state->app->startSplash();
     if (!state->audio.open())
