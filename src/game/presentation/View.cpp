@@ -320,6 +320,38 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
                  p.y + tile * .42F},
                 tile * .045F, level < game::CardMaxLevel ? gold : Color{190, 150, 255});
     }
+    // While a building card is held, a building it can stack onto shows a gold upgrade ring and one it would
+    // replace an orange ring, each with a tag; the ring dims while the energy is short and a maxed building
+    // shows grey.
+    if (placingBuilding)
+        for (const game::Tower &tower : run.state().towers) {
+            const ScreenPoint p = screenPoint(tower.position);
+            if (!inWorld(p, tile * 2))
+                continue;
+            const game::PlayPreview preview = run.previewPlay(selected->id, tower.position);
+            const bool upgrade = preview.action == game::PlayAction::Upgrade;
+            const bool replace = preview.action == game::PlayAction::Replace;
+            const bool maxed = preview.failure == game::PlayFailure::MaximumLevel;
+            if (!upgrade && !replace && !maxed)
+                continue;
+            const Color accent = maxed ? Color{160, 160, 160} : upgrade ? theme::gold : Color{255, 140, 60};
+            const float pulse = state.app.preferences.reducedMotion
+                                    ? 1.0F
+                                    : .65F + .35F * std::sin(state.play.visualTime * 5.0F);
+            const std::uint8_t opacity =
+                static_cast<std::uint8_t>((preview.allowed() || maxed ? 235.0F : 120.0F) * pulse);
+            drawRing(graphics, p, tile * .52F, std::max(2.0F, tile * .09F),
+                     {accent.r, accent.g, accent.b, opacity});
+            const std::string tag = maxed     ? "최대"
+                                    : upgrade ? "강화 Lv" + std::to_string(tower.level + 1)
+                                              : "교체";
+            const float size = std::clamp(tile * .3F, 10.0F, 13.0F);
+            const float width = size * (upgrade ? 4.6F : 2.6F);
+            const engine::Rect plate{p.x - width / 2, p.y - tile * .62F - size * 1.4F, width, size * 1.4F};
+            graphics.rect(plate, {16, 24, 30, 225}, size * .4F);
+            graphics.rect({plate.x, plate.y + plate.h - 2, plate.w, 2}, accent, 1);
+            graphics.text(tag, {p.x, plate.y + size * .18F}, size, accent, .5F);
+        }
     for (const game::Unit &unit : run.state().units) {
         const ScreenPoint p = screenPoint(unit.position);
         if (!inWorld(p, tile))
