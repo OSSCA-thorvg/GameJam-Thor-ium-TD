@@ -1,5 +1,6 @@
 #include "CardPresentation.h"
 #include "CommandPolicy.h"
+#include "Text.h"
 #include "Theme.h"
 #include "View.h"
 #include <algorithm>
@@ -179,6 +180,39 @@ void View::button(engine::Renderer &g, engine::Ui &ui, engine::WidgetId id, Rect
            : primary ? Color{58, 36, 12}
                      : theme::text,
            .5F, bounds.w - 18);
+}
+
+void View::languageButton(engine::Renderer &g, engine::Ui &ui, Rect bounds) {
+    ui.add(ToggleLanguage, bounds);
+    if (ui.focused == ToggleLanguage)
+        g.rect({bounds.x - 3, bounds.y - 3, bounds.w + 6, bounds.h + 6}, theme::blue, 10);
+    const bool pressed = ui.captured == ToggleLanguage;
+    const Color face = pressed ? Color{30, 58, 66} : Color{22, 44, 52, 235};
+    g.rect(bounds, Color{70, 104, 112}, 8);
+    g.rect({bounds.x + 1.5F, bounds.y + 1.5F, bounds.w - 3, bounds.h - 3}, face, 7);
+    // Globe: a ring with an equator, two parallels and a central meridian ellipse.
+    const float r = std::min(bounds.h * .3F, 11.0F);
+    const ScreenPoint c{bounds.x + 10 + r, bounds.y + bounds.h / 2};
+    g.circle(c, r, theme::gold);
+    g.circle(c, r - 1.8F, face);
+    g.line({{c.x - r + 1, c.y}, {c.x + r - 1, c.y}}, 1.4F, theme::gold);
+    for (const float side : {-1.0F, 1.0F}) {
+        const float py = c.y + side * r * .5F, half = r * .82F;
+        g.line({{c.x - half, py}, {c.x + half, py}}, 1.1F, theme::gold);
+    }
+    std::vector<ScreenPoint> meridian;
+    for (int step = 0; step <= 16; ++step) {
+        const float a = step / 16.0F * 6.2831853F;
+        meridian.push_back({c.x + std::sin(a) * r * .42F, c.y - std::cos(a) * (r - 1)});
+    }
+    g.line(meridian, 1.3F, theme::gold);
+    const std::string &current = language();
+    const auto &list = languages();
+    const auto selected = std::find_if(list.begin(), list.end(),
+                                       [&current](const LanguageInfo &info) { return current == info.code; });
+    const float textX = c.x + r + 7;
+    g.text(selected == list.end() ? current : selected->name, {textX, bounds.y + (bounds.h - 15) / 2}, 13,
+           theme::text, 0, bounds.x + bounds.w - textX - 8);
 }
 
 void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state,
@@ -394,7 +428,7 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
         if (!dense) {
             meter(g, {x, area.y + (compact ? 53 : 129), w, 7}, static_cast<float>(unit->hp) / unit->maxHp,
                   theme::green, 10);
-            g.text("범위 " + decimal(run.catalog().card(kind).range) + "   ·   점유 1슬롯",
+            g.text("범위 " + decimal(run.catalog().card(kind).range) + "   ·   부대 1슬롯",
                    {x, area.y + (compact ? 72 : 151)}, 12, theme::muted);
         }
     }
@@ -477,8 +511,8 @@ void View::boulderInspector(engine::Renderer &g, engine::Ui &ui, const game::Run
     // The label shows the price the clear command will charge.
     const game::PurchaseQuote price = run.boulderQuote(*state.play.selectedBoulder);
     if (!dense) {
-        g.text("건물 패드를 막고 있어요", {x, area.y + (compact ? 54 : 130)}, 12, theme::muted, 0, w);
-        g.text("치우면 건물을 지을 수 있어요", {x, area.y + (compact ? 75 : 154)}, 12, theme::gold, 0, w);
+        g.text("건설 패드를 가로막은 장애물", {x, area.y + (compact ? 54 : 130)}, 12, theme::muted, 0, w);
+        g.text("제거하면 건물을 배치할 수 있습니다", {x, area.y + (compact ? 75 : 154)}, 12, theme::gold, 0, w);
     }
     float y = area.y + (dense ? 47.0F : compact ? 94.0F : 191.0F);
     const float buttonHeight = dense ? 32.0F : 40.0F;
@@ -511,14 +545,16 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
         const game::Unit *unit = run.unit(state.play.selectedUnit);
         const game::Card *card = run.card(state.play.selectedCard);
         const bool guideVisible = state.play.guideOpen && !selected && !card && !placingCard_;
-        const auto &meta = game::stageMetadata(state.play.currentStage);
-        std::string title = tower  ? run.catalog().card(tower->kind).name
-                            : unit ? run.catalog().card(unit->kind).name
-                            : card ? run.catalog().card(card->kind).name
-                            : run.state().phase == game::Phase::Ready
-                                ? meta.name + " · 대기 중"
-                                : meta.name + " · " + std::to_string(run.state().wave) + "/" +
-                                      std::to_string(run.catalog().waves.size()) + "W";
+        const std::string stage = stageName(state.play.currentStage);
+        std::string title =
+            tower  ? run.catalog().card(tower->kind).name
+            : unit ? run.catalog().card(unit->kind).name
+            : card ? run.catalog().card(card->kind).name
+            : run.state().phase == game::Phase::Ready
+                ? tr("hud.stage.waiting", {{"stage", stage}})
+                : tr("hud.stage.wave", {{"stage", stage},
+                                        {"wave", std::to_string(run.state().wave)},
+                                        {"waves", std::to_string(run.catalog().waves.size())}});
         if (card) {
             const game::PlayAvailability availability = run.playAvailability(card->id);
             title += placement_ && placement_->card == card->id
@@ -617,7 +653,7 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
             button(g, ui, Speed, {x + w - 58, controlY, 58, 38}, state.play.speed == 1 ? "1x" : "2x",
                    !guideVisible);
         } else {
-            button(g, ui, Pause, {x, controlY, half, 38}, "일시정지", !guideVisible);
+            button(g, ui, Pause, {x, controlY, half, 38}, tr("hud.pause"), !guideVisible);
             button(g, ui, Speed, {x + half + 8, controlY, half, 38},
                    state.play.speed == 1 ? "1배속" : "2배속", !guideVisible);
         }
@@ -721,7 +757,7 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
             wy += 20;
             g.text("가장자리 화살표 → 그 입구로 이동", {box.x + 14, wy}, 11, theme::muted, 0, box.w - 28);
             wy += 20;
-            g.text("웨이브를 시작하면 자동으로 닫혀요", {box.x + 14, wy}, 11, theme::muted, 0, box.w - 28);
+            g.text("웨이브가 시작되면 자동으로 닫힙니다", {box.x + 14, wy}, 11, theme::muted, 0, box.w - 28);
             contentY = box.y + box.h + 14;
         }
     }
@@ -796,8 +832,8 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
                 }
                 if (!layout.compact) {
                     g.line({{x, y + 10}, {x + w, y + 10}}, 1, theme::edge);
-                    g.text("배치한 건물·유닛을 누르면", {x, y + 37}, 12, theme::muted);
-                    g.text("상세 확인과 철수가 가능해요", {x, y + 61}, 12, theme::muted);
+                    g.text("배치된 건물·유닛을 선택하면", {x, y + 37}, 12, theme::muted);
+                    g.text("상세 정보 확인 및 철수가 가능합니다", {x, y + 61}, 12, theme::muted);
                 }
             } else {
                 g.text("웨이브 진행", {x, y}, 13, theme::muted);
@@ -824,7 +860,7 @@ void View::commandPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &ru
         button(g, ui, Speed, {x + w - 54, bottom, 54, 44}, state.play.speed == 1 ? "1x" : "2x");
     } else {
         const float half = (w - 8) / 2;
-        button(g, ui, Pause, {x, bottom, half, 44}, "일시정지");
+        button(g, ui, Pause, {x, bottom, half, 44}, tr("hud.pause"));
         button(g, ui, Speed, {x + half + 8, bottom, half, 44}, state.play.speed == 1 ? "1배속" : "2배속");
     }
     if (!layout.compact && side.h > 590)
@@ -1162,9 +1198,8 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
     g.rect({x, y, w, 3}, theme::gold, 1);
     if (terminal) {
         const bool won = run.state().phase == game::Phase::Won;
-        const auto &meta = game::stageMetadata(state.play.currentStage);
-        g.text(won ? (meta.name + " 방어 성공!") : "원정대 철수", {box.x + width / 2, y + 23},
-               layout.compact ? 22 : 28, won ? theme::gold : theme::red, .5F);
+        g.text(won ? tr("result.won", {{"stage", stageName(state.play.currentStage)}}) : tr("result.lost"),
+               {box.x + width / 2, y + 23}, layout.compact ? 22 : 28, won ? theme::gold : theme::red, .5F);
         gem(g, {box.x + width / 2, y + 109}, 35, won ? theme::gold : theme::red);
         g.text("도달 웨이브 " + std::to_string(run.state().wave) + " / " +
                    std::to_string(run.catalog().waves.size()) + "   ·   누적 격파 " +
@@ -1205,7 +1240,7 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
         g.text("다음 지층으로 내려갈까요?", {x, y + 22}, layout.compact ? 20 : 27, theme::gold);
         g.text("현재 지층의 미굴착 " + std::to_string(remaining) + "칸은 남겨 둡니다", {x, y + 82}, 12,
                theme::text, 0, w);
-        g.text("이전 지층으로 돌아올 수 없어요", {x, y + 109}, 12, theme::red, 0, w);
+        g.text("한번 내려가면 이전 지층으로 돌아올 수 없습니다", {x, y + 109}, 12, theme::red, 0, w);
         g.text("광물·장비·남은 굴착·스캔은 유지됩니다", {x, y + 138}, 11, theme::muted, 0, w);
         button(g, ui, ConfirmDescend, {x, y + 185, w, 40}, "다음 지층 진입", run.descentAvailability().ok,
                true);
@@ -1222,9 +1257,9 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
         g.text(run.catalog().card(kind).name +
                    (tower ? "  Lv. " + std::to_string(tower->level) : std::string("")),
                {box.x + width / 2, y + 144}, 15, theme::gold, .5F);
-        g.text(tower ? "건물과 강화 레벨이 사라집니다" : "전장 슬롯 1개가 비워집니다",
+        g.text(tower ? "건물과 강화 레벨이 사라집니다" : "부대 슬롯 1칸이 비워집니다",
                {box.x + width / 2, y + 172}, layout.compact ? 12 : 14, theme::muted, .5F, w);
-        g.text("사용한 에너지·광물은 반환되지 않아요", {box.x + width / 2, y + 198}, layout.compact ? 11 : 12,
+        g.text("사용한 에너지와 광물은 반환되지 않습니다", {box.x + width / 2, y + 198}, layout.compact ? 11 : 12,
                theme::red, .5F, w);
         button(g, ui, ConfirmDismiss, {x, box.y + height - 111, w, 44},
                tower ? "건물 철거 확정" : "유닛 철수 확정", true, false, true);
@@ -1233,23 +1268,24 @@ void View::overlay(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
     }
     if (state.play.modal == presentation::Modal::NewRun) {
         g.text("원정을 다시 시작할까요?", {x, y + 25}, layout.compact ? 21 : 27, theme::text);
-        g.text("현재 판의 채굴·카드·배치가 초기화돼요", {x, y + 85}, 12, theme::muted, 0, w);
+        g.text("현재 진행 중인 채굴·카드·배치 정보가 초기화됩니다", {x, y + 85}, 12, theme::muted, 0, w);
         button(g, ui, ConfirmReset, {x, y + 151, w, 44}, "새 원정 시작",
                canConfirmNewRun(run.state().phase, state), true);
         button(g, ui, Close, {x, y + 207, w, 40}, "원정 계속하기");
         return;
     }
-    g.text("작전 일시 정지", {x, y + 17}, 27, theme::gold);
-    g.text("계속하기 전까지 전투·굴착 시간이 멈춥니다", {x, y + 66}, layout.compact ? 11 : 13, theme::muted,
-           0, w);
+    const float globeWidth = layout.compact ? 96.0F : 112.0F;
+    g.text(tr("pause.title"), {x, y + 17}, layout.compact ? 22 : 27, theme::gold, 0, w - globeWidth - 12);
+    languageButton(g, ui, {x + w - globeWidth, y + 16, globeWidth, 34});
+    g.text(tr("pause.subtitle"), {x, y + 66}, layout.compact ? 11 : 13, theme::muted, 0, w);
     const float half = (w - 10) / 2;
-    button(g, ui, Resume, {x, y + 108, w, 46}, "작전 계속하기", true, true);
-    button(g, ui, OpenSettings, {x, y + 167, half, 40}, "설정");
-    button(g, ui, OpenGuide, {x + half + 10, y + 167, half, 40}, "플레이 방법");
-    button(g, ui, GoHome, {x, y + 219, half, 40}, "메인 화면");
-    button(g, ui, Reset, {x + half + 10, y + 219, half, 40}, "재도전");
-    button(g, ui, AudioMute, {x, y + 276, half, 36}, audio.muted ? "효과음 켜기" : "효과음 끄기");
+    button(g, ui, Resume, {x, y + 108, w, 46}, tr("pause.resume"), true, true);
+    button(g, ui, OpenSettings, {x, y + 167, half, 40}, tr("menu.settings"));
+    button(g, ui, OpenGuide, {x + half + 10, y + 167, half, 40}, tr("menu.guide"));
+    button(g, ui, GoHome, {x, y + 219, half, 40}, tr("pause.home"));
+    button(g, ui, Reset, {x + half + 10, y + 219, half, 40}, tr("pause.retry"));
+    button(g, ui, AudioMute, {x, y + 276, half, 36}, tr(audio.muted ? "pause.soundOn" : "pause.soundOff"));
     button(g, ui, AudioVolume, {x + half + 10, y + 276, half, 36},
-           "볼륨 " + std::to_string(static_cast<int>(audio.volume * 100)) + "%");
+           tr("pause.volume", {{"volume", std::to_string(static_cast<int>(audio.volume * 100))}}));
 }
 } // namespace thorium::presentation

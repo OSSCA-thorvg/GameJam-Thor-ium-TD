@@ -168,6 +168,7 @@ bool TutorialDirector::allows(const GameInput &input, const presentation::Layout
         case ToggleMinimap:
         case AudioMute:
         case AudioVolume:
+        case ToggleLanguage:
         case GoHome:
         case Close:
         case ClearSelection:

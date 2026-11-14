@@ -92,13 +92,13 @@ void View::cardOfferOverlay(engine::Renderer &g, engine::Ui &ui, const game::Run
                : reward                                    ? "새 카드 획득"
                                                            : "모집 카드 확인",
                {x, box.y + 17}, 21, theme::gold, 0, w);
-        g.text(active->source == game::OfferSource::Fossil ? "화석에서 나온 카드 · 기존 카드 1장과 무료 교체"
-               : reward ? "기존 카드 1장과 교체 · 활성 덱 8장 유지"
-                        : "교체 확정 시 " + game::costLabel(active->cost) + " 사용 · 활성 덱 8장 유지",
+        g.text(active->source == game::OfferSource::Fossil ? "화석에서 복원한 카드 · 기존 카드 1장과 무료 교체"
+               : reward ? "기존 카드 1장과 교체 (덱 8장 유지)"
+                        : "교체 확정 시 " + game::costLabel(active->cost) + " 소모 (덱 8장 유지)",
                {x, box.y + 47}, 11, theme::muted, 0, w);
         offerDetailsBounds_ = {box.x + 12, box.y + 70, box.w - 24, 150};
         cardDetailsPanel(g, run.catalog(), *offerCard_, offerDetailsBounds_, true);
-        g.text("교체할 기존 카드 · 호버 / 길게 눌러 비교", {x, box.y + 233}, 11, theme::text, 0, w);
+        g.text("교체할 기존 카드를 선택하세요 (호버·길게 눌러 비교)", {x, box.y + 233}, 11, theme::text, 0, w);
         const float gap = 8, cardWidth = (w - 3 * gap) / 4;
         for (int index = 0; index < 8; ++index) {
             const game::Card &card = run.state().deck[index];
@@ -116,7 +116,7 @@ void View::cardOfferOverlay(engine::Renderer &g, engine::Ui &ui, const game::Run
                    theme::cardInk, .5F, cell.w - 8);
         }
         button(g, ui, run.state().rewardOffer ? RewardSkip : Close, {x, box.y + box.h - 54, w, 42},
-               run.state().rewardOffer ? "보상 건너뛰기" : "취소 · 금을 사용하지 않아요");
+               run.state().rewardOffer ? "보상 건너뛰기" : "취소 (비용 미소모)");
         return;
     }
     g.text("카드 모집", {x, box.y + 20}, 25, theme::gold, 0, w);

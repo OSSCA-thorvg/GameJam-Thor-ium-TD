@@ -54,6 +54,11 @@ async (page) => {
         await page.keyboard.press('Escape');await wait('s.screen===2&&s.settingsTab===1');await click(41);await wait('s.screen===0');
         await click(40);await wait('s.screen===4');await fit();await click(41);await wait('s.screen===0');
         checks.push('cold title, functional audio/display settings, nested Back, guide and credits');
+        await click(88);await wait("s.screen===0&&s.language==='en'");await fit();
+        check(JSON.parse(await page.evaluate(()=>localStorage.getItem('thorium_td_save'))).language==='en','Language change is saved at once');
+        await page.reload();await wait("s.screen===0&&s.language==='en'");
+        await click(38);await wait('s.screen===2');await click(89);await wait('s.settingsTab===3');await fit();await click(4200);await wait("s.language==='ko'");await click(42);await wait('s.screen===0');
+        checks.push('home globe and settings language tab switch, save and survive a reload');
         await click(36);await wait('s.screen===1&&s.phase===0');check((await state()).reducedMotion&&!(await state()).damageNumbers,'New expedition retains presentation preferences');
         await fit();await page.screenshot({path:'.playwright-mcp/thorium-briefing-desktop.png',scale:'css'});
         await click(55);await wait('!s.guideOpen');await click(54);await wait('s.guideOpen');

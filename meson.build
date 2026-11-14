@@ -26,9 +26,11 @@ feedback = static_library('thorium-feedback', 'src/game/presentation/Feedback.cp
 graphics = static_library('thorium-graphics', 'src/engine/render/Renderer.cpp', 'src/engine/render/AnimationRendering.cpp', 'src/engine/render/AnimationCache.cpp', 'src/engine/render/AnimationFrameBaker.cpp', dependencies: thorvg_dep, include_directories: [inc, include_directories('subprojects/thorvg/src/loaders/lottie')])
 audio = static_library('thorium-audio', 'src/engine/audio/Audio.cpp', 'src/engine/audio/Mp3.cpp', include_directories: [inc, include_directories('third_party/dr_mp3')])
 
-controllers = static_library('thorium-controllers', 'src/app/AppFlow.cpp', 'src/app/MapCamera.cpp', 'src/app/MineScroll.cpp', 'src/app/GameplayController.cpp', 'src/app/FeedbackChannel.cpp', 'src/app/TutorialDirector.cpp', 'src/game/presentation/Layout.cpp', include_directories: inc)
+text = static_library('thorium-text', 'src/engine/text/Strings.cpp', 'src/game/presentation/Text.cpp', include_directories: inc)
 
-client = static_library('thorium-client', 'src/app/Application.cpp', 'src/app/BenchScene.cpp', 'src/app/Persistence.cpp', 'src/game/presentation/View.cpp', 'src/game/presentation/Placement.cpp', 'src/game/presentation/CardDetails.cpp', 'src/game/presentation/CardUi.cpp', 'src/game/presentation/GameUi.cpp', 'src/game/presentation/MineUi.cpp', 'src/game/presentation/ExcavationUi.cpp', 'src/game/presentation/CombatFeedback.cpp', 'src/game/presentation/EnemyView.cpp', 'src/game/presentation/Battlefield.cpp', 'src/game/presentation/FrontEnd.cpp', 'src/game/presentation/TutorialUi.cpp', include_directories: inc)
+controllers = static_library('thorium-controllers', 'src/app/AppFlow.cpp', 'src/app/MapCamera.cpp', 'src/app/MineScroll.cpp', 'src/app/GameplayController.cpp', 'src/app/FeedbackChannel.cpp', 'src/app/TutorialDirector.cpp', 'src/game/presentation/Layout.cpp', include_directories: inc, link_with: text)
+
+client = static_library('thorium-client', 'src/app/Application.cpp', 'src/app/BenchScene.cpp', 'src/app/Persistence.cpp', 'src/game/presentation/View.cpp', 'src/game/presentation/Placement.cpp', 'src/game/presentation/CardDetails.cpp', 'src/game/presentation/CardUi.cpp', 'src/game/presentation/GameUi.cpp', 'src/game/presentation/MineUi.cpp', 'src/game/presentation/ExcavationUi.cpp', 'src/game/presentation/CombatFeedback.cpp', 'src/game/presentation/EnemyView.cpp', 'src/game/presentation/Battlefield.cpp', 'src/game/presentation/FrontEnd.cpp', 'src/game/presentation/TutorialUi.cpp', include_directories: inc, link_with: text)
 sdl_output = static_library('thorium-sdl-output', 'src/platform/sdl/AudioDevice.cpp', 'src/platform/sdl/VideoOutput.cpp', include_directories: inc, dependencies: sdl_dep)
 client_sources = files('src/platform/sdl/main.cpp')
 client_libraries = [client, sdl_output, controllers, rules, ui, graphics, feedback, animation, audio, soundscape, profiling]
@@ -107,5 +109,7 @@ else
   executable('thorium-animation-benchmark', 'benchmarks/animation_benchmark.cpp', include_directories: inc, link_with: [graphics, animation], dependencies: thorvg_dep)
   cache_tests = executable('thorium-animation-cache-tests', 'tests/native/animation_cache_test.cpp', include_directories: inc, link_with: [graphics, animation, feedback, rules], dependencies: thorvg_dep)
   test('shared-animation-cache', cache_tests)
+  i18n_tests = executable('thorium-i18n-tests', 'tests/native/i18n_test.cpp', include_directories: inc, link_with: text)
+  test('i18n-tables', i18n_tests, args: [meson.project_source_root() / 'content/i18n'])
   test('native-render-smoke', app, args: ['--smoke-test'], env: ['SDL_VIDEODRIVER=dummy', 'SDL_RENDER_DRIVER=software', 'SDL_AUDIODRIVER=dummy'])
 endif

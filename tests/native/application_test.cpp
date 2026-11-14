@@ -32,12 +32,6 @@ static_assert(presentation::AudioMute == 34 && presentation::HomeNew == 36 &&
               presentation::OpenSettings == 38 && presentation::ToggleAnimationBackend == 53);
 static_assert(presentation::ToggleDrawer == 54 && presentation::CloseDrawer == 55 &&
               presentation::AcknowledgeDrawer == 56);
-/** Keep fresh and partial saved settings aligned with the live settings reset contract. */
-static_assert(SaveData{}.volume == engine::AudioSettings{}.volume &&
-              SaveData{}.muted == engine::AudioSettings{}.muted &&
-              SaveData{}.reducedMotion == presentation::Preferences{}.reducedMotion &&
-              SaveData{}.damageNumbers == presentation::Preferences{}.damageNumbers &&
-              SaveData{}.cachedAnimations == presentation::Preferences{}.cachedAnimations);
 /** Fail a real-render integration contract independently of assertion compiler flags. */
 void require(bool condition, const char *message) {
     ++checks;
@@ -716,6 +710,13 @@ void runSaveContracts() {
 int main() {
     char home[] = "/tmp/thorium-app-test-XXXXXX";
     require(mkdtemp(home) != nullptr && setenv("HOME", home, 1) == 0, "isolated save directory per run");
+    require(SaveData{}.volume == engine::AudioSettings{}.volume &&
+                SaveData{}.muted == engine::AudioSettings{}.muted &&
+                SaveData{}.reducedMotion == presentation::Preferences{}.reducedMotion &&
+                SaveData{}.damageNumbers == presentation::Preferences{}.damageNumbers &&
+                SaveData{}.cachedAnimations == presentation::Preferences{}.cachedAnimations &&
+                SaveData{}.language == presentation::Preferences{}.language,
+            "fresh saved settings match the live settings reset contract");
     applicationContracts();
     campaignUiContracts();
     offerUiContracts();

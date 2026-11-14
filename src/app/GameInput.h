@@ -28,7 +28,8 @@ inline std::optional<GameInput> decodeInput(engine::Interaction interaction) {
     if (id >= CandidateBase && id < CandidateBase + game::CardKindCount)
         return GameInput{InputKind::Candidate, World, id - CandidateBase, interaction.kind,
                          interaction.position};
-    if ((id >= LaneFocusBase && id < LaneFocusBase + 8) || id == MinimapFocus)
+    if ((id >= LaneFocusBase && id < LaneFocusBase + 8) || id == MinimapFocus ||
+        (id >= LanguageBase && id < LanguageBase + 16))
         return GameInput{InputKind::Control, static_cast<Action>(id), 0, interaction.kind,
                          interaction.position};
     return std::nullopt;

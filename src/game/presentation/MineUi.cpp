@@ -1072,8 +1072,8 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
                 detail = "다음 전투 시작 시";
             } else {
                 title = "붕괴!";
-                detail = cue.collapsed ? "주변 " + std::to_string(cue.collapsed) + "칸이 무너졌어요"
-                                       : "무너질 칸이 없어요";
+                detail = cue.collapsed ? "주변 " + std::to_string(cue.collapsed) + "칸이 무너졌습니다"
+                                       : "무너질 칸이 없습니다";
             }
             const float pop =
                 still ? 1.0F : std::min(1.0F, .6F + t * 3.0F) * (t < .2F ? 1.0F + (.2F - t) : 1.0F);
@@ -1146,7 +1146,7 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
                 ? run.catalog().card(cell.card).name + " 카드를 무료로 획득"
             : cell.special == game::MineSpecial::Energy
                 ? "다음 전투 시작 에너지 +" + std::to_string(cell.amount)
-                : std::string("주변 4칸이 무너져 열리지만 광물은 사라져요");
+                : std::string("주변 4칸이 무너져 열리지만 광물은 소실됩니다");
         const float size = layout.compact ? 11.0F : 12.0F;
         const float width =
             std::min(view.w - 16, std::max(labelWidth(title, size + 1), labelWidth(detail, size)) + 20);
@@ -1363,10 +1363,10 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         y += 26;
     } else {
         const bool wall = run.catalog().mining == game::MiningMode::Excavate;
-        g.text(state.play.scan ? (wall ? "속을 비춰 볼 암벽을 눌러 주세요"
-                                       : "스캔할 경계 1칸을 눌러 주세요 · 정보만 공개")
-               : wall          ? "매장물을 전부 드러내면 얻어요 · 길게 누르면 정보"
-                               : "타일을 누르면 광부가 걸어가 굴착해요",
+        g.text(state.play.scan ? (wall ? "속을 비춰 볼 암벽을 선택하세요"
+                                       : "스캔할 경계 1칸을 선택하세요 (정보만 공개)")
+               : wall          ? "매장물을 모두 드러내면 획득합니다 · 길게 누르면 정보 확인"
+                               : "타일을 선택하면 광부가 이동하여 굴착합니다",
                {area.x, y}, 11, state.play.scan ? theme::blue : theme::muted, 0, area.w);
         y += 18;
     }
@@ -1410,7 +1410,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     game::PurchaseQuote awakenPrice;
     awakenPrice.failure = game::PurchaseFailure::Requirement;
     awakenPrice.cost = balance.awaken.front();
-    awakenPrice.message = "같은 카드로 Lv" + std::to_string(game::CardMaxLevel) + "까지 강화한 건물에 써요";
+    awakenPrice.message = "동일 카드로 Lv" + std::to_string(game::CardMaxLevel) + "까지 강화한 건물에 적용 가능";
     int awakenable = 0;
     for (const game::Tower &tower : live.towers) {
         const game::PurchaseQuote price = run.awakenQuote(tower.id);
@@ -1423,15 +1423,15 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     recruitPrice.cost = live.recruitmentOffer ? live.recruitmentOffer->cost : balance.recruit;
     recruitPrice.failure =
         live.recruitmentOffer ? game::PurchaseFailure::None : game::PurchaseFailure::Exhausted;
-    recruitPrice.message = "이번 정비의 모집을 마쳤어요";
+    recruitPrice.message = "이번 정비 모집 완료";
     // Enough shards make the recruitment open even when gold is short.
     if (live.recruitmentOffer && live.recruitmentOffer->shards > 0 &&
         live.shards >= live.recruitmentOffer->shards)
         recruitPrice.cost = {};
     const std::array<Entry, 8> entries{{
         entry(Tool, drill ? "T3 드릴" : "T2 곡괭이", drill ? "T3" : "T2",
-              drill ? "정비마다 굴착 +" + std::to_string(balance.drillDigs) + " · 산 정비에도 바로"
-                    : "단단한 암반과 수정을 캘 수 있어요",
+              drill ? "정비마다 굴착 +" + std::to_string(balance.drillDigs) + " · 이번 정비부터 즉시 적용"
+                    : "단단한 암반과 수정을 채굴할 수 있습니다",
               run.quote(drill ? game::UpgradeKind::Drill : game::UpgradeKind::Tool),
               drill ? Color{240, 170, 96} : Color{200, 206, 210}, 0),
         entry(Armor, "경비병 장갑", "장갑",
@@ -1462,7 +1462,7 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         entry(Recruit, "카드 모집", "모집",
               live.recruitmentOffer && live.recruitmentOffer->candidates.size() > 3
                   ? "유닛·건물 4장 중 1장 · 금 또는 조각 " + std::to_string(live.recruitmentOffer->shards)
-                  : "후보 3장 중 1장을 덱에 넣어요",
+                  : "후보 3장 중 1장을 선택해 덱에 편입",
               recruitPrice, theme::gold, 2),
     }};
     const auto missing = [&](const game::ResourceCost &cost) -> std::array<int, 4> {

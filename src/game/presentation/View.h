@@ -181,6 +181,9 @@ class View {
     /** Draw/register a generic button with keyboard focus and an enabled state. */
     void button(engine::Renderer &graphics, engine::Ui &ui, engine::WidgetId id, engine::Rect bounds,
                 const std::string &title, bool enabled = true, bool primary = false, bool danger = false);
+    /** Draw a compact button with a globe and the selected language's name that switches to the next
+     * language. */
+    void languageButton(engine::Renderer &graphics, engine::Ui &ui, engine::Rect bounds);
     /** Paint a riveted metal panel, shared by game-specific HUD and dialogs. */
     void panel(engine::Renderer &graphics, engine::Rect bounds, bool brass = false);
     /** Draw the persistent reactor, unit, resource and wave rail; energy belongs below the hand. */

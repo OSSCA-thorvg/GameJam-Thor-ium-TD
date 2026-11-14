@@ -19,8 +19,9 @@ std::string serialize(const SaveData &data) {
        << ",\"reducedMotion\":" << (data.reducedMotion ? "true" : "false")
        << ",\"damageNumbers\":" << (data.damageNumbers ? "true" : "false")
        << ",\"cachedAnimations\":" << (data.cachedAnimations ? "true" : "false")
-       << ",\"excavation\":" << (data.excavation ? "true" : "false") << ",\"volume\":" << data.volume
-       << ",\"music\":" << data.music << ",\"muted\":" << (data.muted ? "true" : "false") << "}";
+       << ",\"excavation\":" << (data.excavation ? "true" : "false") << ",\"language\":\"" << data.language
+       << "\",\"volume\":" << data.volume << ",\"music\":" << data.music
+       << ",\"muted\":" << (data.muted ? "true" : "false") << "}";
     return ss.str();
 }
 
@@ -62,12 +63,27 @@ SaveData deserialize(const std::string &json) {
         }
     };
 
+    // Language codes are plain ASCII letters, so the value ends at the next quote.
+    auto findCode = [&](const std::string &key, std::string &out) {
+        auto pos = json.find("\"" + key + "\":\"");
+        if (pos == std::string::npos)
+            return;
+        const auto start = pos + key.length() + 4;
+        const auto end = json.find('"', start);
+        if (end == std::string::npos || end == start || end - start > 8)
+            return;
+        const std::string code = json.substr(start, end - start);
+        if (std::all_of(code.begin(), code.end(), [](char c) { return (c >= 'a' && c <= 'z') || c == '-'; }))
+            out = code;
+    };
+
     findBool("tutorialCompleted", data.tutorialCompleted);
     findInt("highestUnlockedStage", data.highestUnlockedStage);
     findBool("reducedMotion", data.reducedMotion);
     findBool("damageNumbers", data.damageNumbers);
     findBool("cachedAnimations", data.cachedAnimations);
     findBool("excavation", data.excavation);
+    findCode("language", data.language);
     findFloat("volume", data.volume);
     findFloat("music", data.music);
     findBool("muted", data.muted);

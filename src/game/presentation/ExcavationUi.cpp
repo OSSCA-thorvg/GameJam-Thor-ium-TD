@@ -368,9 +368,9 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
         std::string detail;
         Color accent{226, 210, 180};
         if (!known)
-            detail = "속이 보이지 않아요. 한 겹만 남기거나 스캔하면 보여요";
+            detail = "내부 미확인 · 암석을 한 겹만 남기거나 스캔하면 확인 가능";
         else if (!deposit || deposit->collected)
-            detail = deposit ? "이미 캐낸 자리예요" : "아무것도 묻혀 있지 않아요";
+            detail = deposit ? "이미 채굴을 마친 자리입니다" : "묻혀 있는 광물이 없습니다";
         else {
             accent = depositColor(*deposit);
             int bare = 0;
@@ -386,7 +386,7 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
             else if (deposit->special == game::MineSpecial::Energy)
                 detail = "에너지 수정 · 다음 전투 에너지 +" + std::to_string(deposit->amount);
             else if (deposit->special == game::MineSpecial::Unstable)
-                detail = "붕괴 암반 · 드러나면 주변 8칸이 한 겹씩 무너져요";
+                detail = "붕괴 암반 · 드러나면 주변 8칸이 한 겹씩 무너집니다";
             else if (deposit->nest)
                 detail = std::string("둥지 · 전부 드러나거나 발파가 닿으면 다음 웨이브 +") +
                          std::to_string(run.nestReinforcements()) + progress;
@@ -471,11 +471,11 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
         const int pick = balance.pickPower + live.tool - 1, side = live.tool >= 3 ? 2 : 1;
         const int blast = balance.blastPower + (live.tool >= 2 ? 1 : 0);
         const std::string caption =
-            state.play.scan    ? "스캔 · 3×3 칸의 바위 속을 보여줘요 · 캐지는 않아요"
+            state.play.scan    ? "스캔 · 3×3 영역의 암석 내부를 투시합니다 (암석 유지)"
             : state.play.blast ? "발파 · 굴착 " + std::to_string(run.strikeCost(game::StrikeTool::Blast)) +
-                                     "회 · 3×3을 " + std::to_string(blast) + "겹씩 · 닿은 둥지를 깨워요"
-                               : "곡괭이 · 굴착 1회 · 친 칸 " + std::to_string(pick) + "겹, 십자 4칸 " +
-                                     std::to_string(side) + "겹 · 광맥은 모두 드러나야 얻어요";
+                                     "회 소모 · 3×3 영역 " + std::to_string(blast) + "겹 제거 (닿은 둥지 각성)"
+                               : "곡괭이 · 굴착 1회 · 타격 칸 " + std::to_string(pick) + "겹, 상하좌우 " +
+                                     std::to_string(side) + "겹 제거 (광맥 전체 노출 시 획득)";
         const float size = layout.compact ? 10.0F : 11.0F;
         const float width = std::min(view.w - 12, labelWidth(caption, size) + 18);
         const Rect plate{view.x + 6, view.y + view.h - size * 2 - 6, width, size * 2};

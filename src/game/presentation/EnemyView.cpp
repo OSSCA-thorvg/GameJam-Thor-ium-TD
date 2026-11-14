@@ -138,40 +138,40 @@ std::string roleSummary(const game::Catalog &catalog, game::EnemyKind kind) {
     const game::EnemyDefinition &role = catalog.enemy(kind);
     switch (kind) {
     case game::EnemyKind::Runner:
-        return "빠르지만 체력이 낮아요";
+        return "이동 속도가 빠르지만 체력이 낮습니다";
     case game::EnemyKind::Armored:
-        return "방어력 " + std::to_string(role.armor) + " · 전격 피해는 방어를 무시해요";
+        return "방어력 " + std::to_string(role.armor) + " · 전격 공격은 방어력을 무시합니다";
     case game::EnemyKind::Swarm:
-        return "작고 빠른 무리 · 범위 공격으로 쓸어내세요";
+        return "작고 빠른 무리 · 범위 공격으로 제압하세요";
     case game::EnemyKind::Shielded:
-        return "방패는 한 번에 " + std::to_string(role.shieldCap) + " 피해만 흡수 · 연사로 깨세요";
+        return "방패가 1회당 최대 " + std::to_string(role.shieldCap) + " 피해만 흡수 · 연사로 파쇄하세요";
     case game::EnemyKind::Healer:
-        return seconds(role.abilityInterval) + "초마다 주변 적 +" + std::to_string(role.abilityAmount) +
-               " 회복 · 우선 처치하세요";
+        return seconds(role.abilityInterval) + "초마다 주변 적 체력 +" + std::to_string(role.abilityAmount) +
+               " 회복 · 우선 처치 권장";
     case game::EnemyKind::Splitter:
-        return "처치하면 " + catalog.enemy(role.minionKind).name + " " + std::to_string(role.splitCount) +
-               "마리로 갈라져요";
+        return "처치 시 " + catalog.enemy(role.minionKind).name + " " + std::to_string(role.splitCount) +
+               "마리로 분열합니다";
     case game::EnemyKind::Burrower:
-        return "땅속에 숨어 저지·공격을 피하며 빠르게 전진";
+        return "땅속으로 잠복해 저지와 공격을 피하며 빠르게 전진";
     case game::EnemyKind::Sapper:
-        return "타워 옆 " + seconds(role.abilityWindup) + "초 폭약 설치 → " + seconds(role.abilityDuration) +
-               "초 마비 · 설치 중 처치·저지";
+        return "타워 옆 " + seconds(role.abilityWindup) + "초 폭약 설치 후 " + seconds(role.abilityDuration) +
+               "초 마비 · 설치 중 저지·처치";
     case game::EnemyKind::Flyer:
-        return "날아다녀요 · 저지·포격·폭파병·타르·분출에 안 맞음 · 연사·저격·전격으로";
+        return "공중 이동 · 저지 불가, 지상 폭발·장판 면역 (연사·저격·전격으로 요격)";
     case game::EnemyKind::Stalker:
-        return seconds(role.stealth) + "칸 안에 와야 조준돼요 · 맞으면 " +
-               seconds(catalog.balance.revealTime) + "초 드러남 · 범위 공격으로";
+        return seconds(role.stealth) + "칸 이내 접근 시 조준 가능 · 피격 시 " +
+               seconds(catalog.balance.revealTime) + "초간 노출 (범위 공격 유효)";
     case game::EnemyKind::Leaper:
-        return "처음 막히면 " + seconds(role.abilityWindup) + "초 뒤 " + seconds(role.abilityRadius) +
-               "칸 뛰어넘어요 · 저지는 두 겹으로";
+        return "최초 저지 시 " + seconds(role.abilityWindup) + "초 후 " + seconds(role.abilityRadius) +
+               "칸 도약 · 2중 저지선 권장";
     case game::EnemyKind::Wrecker:
-        return seconds(role.abilityRadius) + "칸 안 건물 앞에 멈춰 " + std::to_string(role.abilityAmount) +
-               "씩 부숴요 · 유닛으로 저지";
+        return seconds(role.abilityRadius) + "칸 내 건물 앞에서 멈춰 " + std::to_string(role.abilityAmount) +
+               " 피해 · 유닛으로 사전 저지";
     case game::EnemyKind::Slinger:
-        return seconds(role.abilityRadius) + "칸 밖에서 건물에 돌을 던져요 · 사거리 밖이면 마법·저격으로";
+        return seconds(role.abilityRadius) + "칸 밖에서 건물을 원거리 타격 · 마법·저격으로 제압";
     case game::EnemyKind::Carrier:
-        return "날아와 길 중간에 " + catalog.enemy(role.minionKind).name + " " +
-               std::to_string(role.abilityAmount) + "마리를 떨궈요 · 대공으로 먼저";
+        return "비행 중 경로 중간에 " + catalog.enemy(role.minionKind).name + " " +
+               std::to_string(role.abilityAmount) + "마리 투하 · 대공 화력으로 조기 격추";
     case game::EnemyKind::Boss:
         return (role.shield > 0 ? "보호막 " + std::to_string(role.shield) + " · " : std::string()) +
                (role.armor > 3 ? "방어 " + std::to_string(role.armor) + " · " : std::string()) + "타워 " +
@@ -189,18 +189,18 @@ std::string eliteSummary(const game::Catalog &catalog, game::EliteAffix affix) {
     };
     switch (affix) {
     case game::EliteAffix::Steel:
-        return "방어력 +" + std::to_string(elite.armor) + " · 전격·포격·저격으로 뚫으세요";
+        return "방어력 +" + std::to_string(elite.armor) + " · 전격·포격·저격으로 타격하세요";
     case game::EliteAffix::Swift:
         return "주변 " + seconds(elite.auraRadius) + "칸 적 이동 속도 +" + percent(elite.auraSpeed - 1) +
-               " · 먼저 처치하세요";
+               " · 우선 처치하세요";
     case game::EliteAffix::Regen:
-        return "매초 최대 체력 " + percent(elite.regen) + " 회복 · 화력을 모으세요";
+        return "매초 최대 체력 " + percent(elite.regen) + " 재생 · 화력을 집중하세요";
     case game::EliteAffix::Enrage:
-        return "체력 " + percent(elite.enrageBelow) + " 이하에서 속도 ×" + seconds(elite.enrageSpeed) +
-               " · 감속·저지로 붙잡으세요";
+        return "체력 " + percent(elite.enrageBelow) + " 이하에서 이동 속도 ×" + seconds(elite.enrageSpeed) +
+               " · 감속·저지로 묶어 두세요";
     case game::EliteAffix::Leader:
         return "주변 " + seconds(elite.auraRadius) + "칸 적이 받는 피해 -" + percent(elite.auraGuard) +
-               " · 우두머리부터 노리세요";
+               " · 지휘 개체부터 처치하세요";
     default:
         return "";
     }
@@ -250,29 +250,29 @@ std::string gimmickSummary(const game::Catalog &catalog, Gimmick gimmick) {
     const game::RunBalance &balance = catalog.balance;
     switch (gimmick) {
     case Gimmick::Boulder:
-        return std::string(catalog.rails.empty() ? "패드를 막은 바위" : "패드를 막은 수정") +
-               " · 정비 때 눌러서 치워요 · " + game::costLabel(balance.boulder);
+        return std::string(catalog.rails.empty() ? "패드를 가로막은 바위" : "패드를 가로막은 수정") +
+               " · 정비 중 선택해 제거 (" + game::costLabel(balance.boulder) + ")";
     case Gimmick::TraitPad:
         return std::string(padTraitName(game::PadTrait::HighGround)) + " " +
                padTraitEffect(game::PadTrait::HighGround, balance) + " · " +
                padTraitName(game::PadTrait::Crystal) + " " + padTraitEffect(game::PadTrait::Crystal, balance);
     case Gimmick::Tunnel:
-        return "안에 든 적은 공격·저지할 수 없고 이동 ×" + seconds(balance.tunnelSpeed);
+        return "내부 구간에서는 공격·저지 불가, 적 이동 속도 ×" + seconds(balance.tunnelSpeed);
     case Gimmick::Vent:
-        return seconds(balance.ventPeriod) + "초마다 분출 · 반경 안 적과 아군 피해 " +
+        return seconds(balance.ventPeriod) + "초마다 분출 · 반경 내 적과 아군에게 피해 " +
                std::to_string(balance.ventDamage);
     case Gimmick::Bog:
-        return "늪을 건너는 지상 적은 이동 ×" + seconds(balance.bogSpeed) + " · 비행 적은 그대로";
+        return "늪 구간 지상 적 이동 속도 ×" + seconds(balance.bogSpeed) + " (비행 개체 제외)";
     case Gimmick::Rail:
-        return "전투 중 레버를 누르면 광차가 선로 위 지상 적에게 " + std::to_string(balance.cartDamage) +
+        return "전투 중 레버 작동 시 선로 위 지상 적에게 피해 " + std::to_string(balance.cartDamage) +
                " · 재사용 " + seconds(balance.cartCooldown) + "초";
     case Gimmick::Tank:
-        return "전투 중 누르면 폭발 · 반경 안 적과 아군 " + std::to_string(balance.tankDamage) +
-               " 피해 · 웨이브마다 다시 채워짐";
+        return "전투 중 선택 시 폭발 · 반경 내 적과 아군에게 피해 " + std::to_string(balance.tankDamage) +
+               " (웨이브마다 보충)";
     case Gimmick::Fork:
-        return "정비 중 바리케이드를 눌러 막을 갈래를 골라요 · 우회로는 더 길어요";
+        return "정비 중 바리케이드를 눌러 차단할 갈래 선택 · 우회로 유도 가능";
     case Gimmick::Mixed: {
-        std::string names = "함께 나와요";
+        std::string names = "동시 적용 지형";
         for (Gimmick part : stageGimmicks(catalog))
             if (part != Gimmick::Fork)
                 names += " · " + std::string(gimmickName(part, catalog));

@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "game/autoplay/Autoplayer.h"
 #include "game/presentation/Assets.h"
+#include "game/presentation/Text.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -133,6 +134,9 @@ Application::Application(game::Run initialRun)
     state.app.preferences.damageNumbers = saved.damageNumbers;
     state.app.preferences.cachedAnimations = saved.cachedAnimations;
     state.app.preferences.excavation = saved.excavation;
+    std::string languageError;
+    presentation::setLanguage(saved.language, languageError);
+    state.app.preferences.language = presentation::language();
     audio.settings.volume = saved.volume;
     audio.settings.music = saved.music;
     audio.settings.muted = saved.muted;
@@ -332,9 +336,13 @@ void Application::act(engine::Interaction interaction) {
         feedback.notify({false, "강조된 카드·칸부터 진행해 주세요. 다시하기로 이 단계를 복구할 수 있어요"});
         return;
     }
+    const std::string languageBefore = presentation::language();
     const FlowResult result =
         input->kind == InputKind::Control ? flow.act(input->action) : FlowResult::Unhandled;
     applyFlow(result);
+    // Store a language change right away instead of waiting for the window to lose focus.
+    if (presentation::language() != languageBefore)
+        savePersistence();
     if (result != FlowResult::Unhandled)
         camera.cancel();
     if (result == FlowResult::Unhandled)
@@ -402,6 +410,7 @@ void Application::savePersistence() {
     data.damageNumbers = state.app.preferences.damageNumbers;
     data.cachedAnimations = state.app.preferences.cachedAnimations;
     data.excavation = state.app.preferences.excavation;
+    data.language = state.app.preferences.language;
     data.volume = audio.settings.volume;
     data.music = audio.settings.music;
     data.muted = audio.settings.muted;
@@ -461,8 +470,8 @@ std::string Application::debugState() const {
               ",\"hasRun\":" + (state.app.navigation.hasRun() ? "true" : "false") +
               ",\"reducedMotion\":" + (state.app.preferences.reducedMotion ? "true" : "false") +
               ",\"damageNumbers\":" + (state.app.preferences.damageNumbers ? "true" : "false") +
-              ",\"settingsTab\":" + std::to_string(state.app.settingsTab) +
-              ",\"guidePage\":" + std::to_string(state.app.guidePage) +
+              ",\"settingsTab\":" + std::to_string(state.app.settingsTab) + ",\"language\":\"" +
+              presentation::language() + "\"" + ",\"guidePage\":" + std::to_string(state.app.guidePage) +
               ",\"mineView\":" + (state.play.mine ? "true" : "false") +
               ",\"guideOpen\":" + (state.play.guideOpen ? "true" : "false") +
               ",\"tutorial\":{\"active\":" + (tutorial.active() ? "true" : "false") +

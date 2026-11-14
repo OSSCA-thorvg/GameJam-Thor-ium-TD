@@ -1,5 +1,6 @@
 #include "AppFlow.h"
 #include "game/presentation/CommandPolicy.h"
+#include "game/presentation/Text.h"
 #include <algorithm>
 #include <cmath>
 namespace thorium {
@@ -45,6 +46,13 @@ bool AppFlow::synchronizeProgress() {
 }
 FlowResult AppFlow::act(presentation::Action action) {
     using namespace presentation;
+    if (action >= LanguageBase && action < LanguageBase + static_cast<int>(languages().size())) {
+        std::string error;
+        setLanguage(languages()[static_cast<std::size_t>(action - LanguageBase)].code, error);
+        state.app.preferences.language = language();
+        sound.play(Sound::Select);
+        return FlowResult::Handled;
+    }
     switch (action) {
     case HomeNew:
         if (state.app.navigation.current() != Screen::Home)
@@ -129,13 +137,18 @@ FlowResult AppFlow::act(presentation::Action action) {
     case SettingsDefaults:
         audio.settings = engine::AudioSettings{};
         state.app.preferences = Preferences{};
+        state.app.preferences.language = presentation::language();
         audio.stop();
         sound.play(Sound::Confirm);
         break;
     case SettingsAudio:
     case SettingsVisual:
     case SettingsGame:
-        state.app.settingsTab = action == SettingsAudio ? 0 : action == SettingsVisual ? 1 : 2;
+    case SettingsLanguage:
+        state.app.settingsTab = action == SettingsAudio    ? 0
+                                : action == SettingsVisual ? 1
+                                : action == SettingsGame   ? 2
+                                                           : 3;
         ui.cancel();
         sound.play(Sound::Select);
         break;
@@ -143,6 +156,13 @@ FlowResult AppFlow::act(presentation::Action action) {
         state.app.preferences.excavation = !state.app.preferences.excavation;
         sound.play(Sound::Select);
         break;
+    case ToggleLanguage: {
+        std::string error;
+        presentation::setLanguage(presentation::nextLanguage(), error);
+        state.app.preferences.language = presentation::language();
+        sound.play(Sound::Select);
+        break;
+    }
     case GuidePrevious:
     case GuideNext:
         state.app.guidePage = std::clamp(state.app.guidePage + (action == GuideNext ? 1 : -1), 0, 2);

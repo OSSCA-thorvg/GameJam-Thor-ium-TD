@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <vector>
 
 namespace thorium::presentation {
@@ -11,6 +12,8 @@ struct Preferences {
     bool cachedAnimations = false;
     /** New expeditions excavate a rock wall; otherwise they dig tile by tile with nest clues. */
     bool excavation = true;
+    /** Code of the interface language, a file name under `content/i18n`. */
+    std::string language = "ko";
 };
 /** Own bounded in-app navigation without serializing or mutating the game run. */
 class Navigation {

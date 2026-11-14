@@ -95,13 +95,19 @@ enum Action : engine::WidgetId {
     RerollOffer,
     /** Inspector command that trains the hero for shards. */
     TrainHero,
+    /** Settings command that switches the interface to the next supported language. */
+    ToggleLanguage,
+    /** Settings tab listing the supported languages. */
+    SettingsLanguage,
     /** Last control of the contiguous range decoded as a plain command. */
-    LastControl = TrainHero,
+    LastControl = SettingsLanguage,
     GuideBackdrop = 901,
     CardBase = 1000,
     DeckBase = 2000,
     CandidateBase = 3000,
     LaneFocusBase = 4000,
-    MinimapFocus = 4100
+    MinimapFocus = 4100,
+    /** Selects `languages()[id - LanguageBase]`. */
+    LanguageBase = 4200
 };
 } // namespace thorium::presentation
