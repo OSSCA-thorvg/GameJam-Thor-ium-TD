@@ -144,7 +144,7 @@ constexpr std::array<float, TotalStages> Opening{{.4F, .4F, .4F, .4F, .2F, .1F, 
 constexpr float RaidFocus = 2.5F;
 constexpr float RaidCap = .75F;
 /** Health and shield multiplier, then speed multiplier, of every non-boss role by stage. */
-constexpr std::array<float, TotalStages> Toughness{{1, 1.3F, 1.35F, 1.5F, 1.3F, 1.0F, .95F}};
+constexpr std::array<float, TotalStages> Toughness{{1, 1.25F, 1.35F, 1.5F, 1.3F, 1.0F, .95F}};
 constexpr std::array<float, TotalStages> Haste{{1, 1.06F, 1.06F, 1.08F, 1.04F, 1.04F, 1.05F}};
 /** Health and shield multiplier added to non-boss enemies by the last wave of each stage, rising linearly
  *  over its second half. */
@@ -705,6 +705,8 @@ Catalog makeStage(int stage) {
         laneUnitCells(content, entrance.points);
     clearTunnelCells(content);
     content.hero = true;
+    content.recruitmentBuildings = {CardKind::Cannon, CardKind::Lightning, CardKind::Flame,
+                                    CardKind::Sniper, CardKind::Generator, CardKind::Gun};
     /** Campaign recruitment and slot prices; the practice board keeps the default balance. */
     content.balance.recruit = {0, 0, 0, curve::RecruitGold};
     content.balance.slots = {0, 0, 0, curve::SlotGold};

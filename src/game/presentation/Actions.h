@@ -88,8 +88,11 @@ enum Action : engine::WidgetId {
     /** Settings steps of the music level. */
     MusicDown,
     MusicUp,
+    /** Recruitment payment in gold or in battle shards. */
+    PayGold,
+    PayShards,
     /** Last control of the contiguous range decoded as a plain command. */
-    LastControl = MusicUp,
+    LastControl = PayShards,
     GuideBackdrop = 901,
     CardBase = 1000,
     DeckBase = 2000,

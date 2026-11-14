@@ -52,10 +52,10 @@ async (page) => {
 
         await click(10);await click(12);await wait(page,'s.phase===2');
         await dig(9,4);await dig(10,3);await dig(8,2);await dig(11,1);await click(17);await dig(12,0);
-        await click(20);await wait(page,'s.modal===1');await hover(3006);
+        await click(20);await wait(page,'s.modal===1');await hover(3007);
         await page.screenshot({path:'.playwright-mcp/thorium-card-candidates.png',scale:'css'});
-        await click(3006);await wait(page,'s.modal===2&&s.offeredCard?.kind===6');
-        check((await state(page)).offeredCard.stats.some(stat=>stat.label==='체력'&&stat.value==='70'),'Incoming card includes its unit performance before replacement');
+        await click(3007);await wait(page,'s.modal===2&&s.offeredCard?.kind===7');
+        check((await state(page)).offeredCard.stats.some(stat=>stat.label==='체력'&&stat.value==='65'),'Incoming card includes its unit performance before replacement');
         await page.mouse.move(2,2);await wait(page,'s.cardInfo===null');
         await page.screenshot({path:'.playwright-mcp/thorium-card-replacement.png',scale:'css'});
         await hover(2001);check((await state(page)).gold===8,'Inspecting a replacement target never pays');
@@ -63,7 +63,7 @@ async (page) => {
         await page.setViewportSize({width:320,height:568});await wait(page,'s.width===320&&s.height===568');
         await hover(2001);
         /** @type {State} */ const comparison=await state(page);
-        check(comparison.cardInfo.y>=0&&comparison.cardInfo.y+comparison.cardInfo.h<=568&&comparison.offeredCard.kind===6,'Compact comparison keeps incoming card and inspected target in the same screen');
+        check(comparison.cardInfo.y>=0&&comparison.cardInfo.y+comparison.cardInfo.h<=568&&comparison.offeredCard.kind===7,'Compact comparison keeps incoming card and inspected target in the same screen');
         await page.screenshot({path:'.playwright-mcp/thorium-card-compare-320.png',scale:'css'});
         await click(25);await wait(page,'s.modal===0&&s.offeredCard===null&&s.cardInfo===null&&s.gold===8');
         checks.push('recruitment and incoming-card comparison show portraits, stats and free inspection before payment');

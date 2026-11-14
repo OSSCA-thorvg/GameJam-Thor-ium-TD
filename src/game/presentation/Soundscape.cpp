@@ -128,6 +128,8 @@ void Soundscape::consume(const std::vector<game::CombatEvent> &events) {
         else if (event.type == game::CombatEventKind::Detonation ||
                  event.type == game::CombatEventKind::Wreck)
             play(Sound::Blast, pan);
+        else if (event.type == game::CombatEventKind::Loot)
+            play(Sound::CardDraw, pan);
         else if (event.type == game::CombatEventKind::Breach)
             play(Sound::Blast, pan);
         else if (event.type == game::CombatEventKind::Airdrop)

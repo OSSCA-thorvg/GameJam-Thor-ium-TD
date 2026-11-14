@@ -45,6 +45,32 @@ LessonCopy lessonCopy(Lesson lesson) {
         return {"", "", ""};
     }
 }
+/** Detail lines of the mining lessons: how veins pay, what the tools do, what hides in the rock and how the
+ *  pick is upgraded. Numbers come from the catalog. */
+std::vector<std::string> lessonDetails(Lesson lesson, const game::Run &run) {
+    const game::RunBalance &balance = run.catalog().balance;
+    const std::string pick = std::to_string(balance.pickPower), blast = std::to_string(balance.blastDigs);
+    switch (lesson) {
+    case Lesson::Scan:
+        return {"· 스캔은 3×3 칸의 바위 속을 보여줘요", "· 바위가 1겹만 남아도 속이 비쳐요",
+                "· 유물·카드 화석·에너지 수정이 숨어 있어요", "· 둥지를 드러내면 다음 웨이브 적이 늘어요"};
+    case Lesson::FirstDig:
+        return {"· 곡괭이(굴착 1회): 친 칸 " + pick + "겹, 십자 4칸 1겹",
+                "· 광맥은 테두리 안 칸이 모두 드러나야 얻어요", "· 맨 윗줄이나 드러난 칸 옆만 칠 수 있어요",
+                "· 남은 굴착 횟수는 채굴 화면 위에 보여요"};
+    case Lesson::Crafting:
+        return {"· 철 4·구리 4로 'T2 제작'을 누르면 곡괭이 강화",
+                "· T2 곡괭이는 친 칸을 " + std::to_string(balance.pickPower + 1) + "겹씩 파요",
+                "· 'T2' 표시가 붙은 단단한 바위도 깰 수 있어요",
+                "· 정규 원정에선 정비 패널의 도구 버튼으로 강화"};
+    case Lesson::Investment:
+        return {"· 금은 카드 모집·부대 슬롯·건물 각성에 써요",
+                "· 발파(굴착 " + blast + "회): 3×3을 한 겹씩, T2부터 두 겹",
+                "· 발파는 넓게 깎지만 닿은 둥지를 깨워요", "· 굴착 횟수는 정비마다 다시 채워져요"};
+    default:
+        return {};
+    }
+}
 /** Draw a highlight without claiming pointer input or exposing hidden tile contents. */
 void outline(engine::Renderer &graphics, engine::Rect bounds) {
     graphics.rect({bounds.x - 3, bounds.y - 3, bounds.w + 6, bounds.h + 6}, {97, 225, 169, 70}, 7);
@@ -66,13 +92,21 @@ void View::tutorialPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &r
     g.text(copy.title, {x, area.y + 10}, dense ? 13 : 16, theme::gold, 0, width);
     g.text(copy.first, {x, area.y + (dense ? 34 : 47)}, dense ? 10 : 12, theme::text, 0, width);
     g.text(copy.second, {x, area.y + (dense ? 51 : 69)}, dense ? 10 : 12, theme::muted, 0, width);
+    const std::vector<std::string> details = lessonDetails(lesson, run);
     if (!dense && area.h > 270) {
-        g.text("연습 원정 · 정규 원정은 보존돼요", {x, area.y + 108}, 11, theme::green, 0, width);
-        g.text("잘못 놓았다면 현재 단계 다시하기", {x, area.y + 132}, 11, theme::muted, 0, width);
+        float y = area.y + 100;
+        if (details.empty()) {
+            g.text("연습 원정 · 정규 원정은 보존돼요", {x, y + 8}, 11, theme::green, 0, width);
+            g.text("잘못 놓았다면 현재 단계 다시하기", {x, y + 32}, 11, theme::muted, 0, width);
+        }
+        for (const std::string &line : details) {
+            g.text(line, {x, y}, 11, theme::text, 0, width);
+            y += 22;
+        }
         if (lesson == Lesson::Crafting)
             g.text("현재 철 " + std::to_string(run.state().iron) + " · 구리 " +
                        std::to_string(run.state().copper),
-                   {x, area.y + 163}, 12, theme::gold, 0, width);
+                   {x, y + 8}, 12, theme::gold, 0, width);
     }
     const float gap = 6, buttonWidth = (width - 2 * gap) / 3, y = area.y + area.h - 42;
     button(g, ui, TutorialRetry, {x, y, buttonWidth, 32}, "다시하기");
@@ -88,6 +122,29 @@ void View::tutorialPanel(engine::Renderer &g, engine::Ui &ui, const game::Run &r
         button(g, ui, Tool, action, "T2 제작", run.state().iron >= 4 && run.state().copper >= 4, true);
     else if (lesson == Lesson::Combat)
         button(g, ui, Pause, action, "일시정지");
+}
+void View::tutorialTips(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state) {
+    // A short sidebar has no room for the lesson details, so they sit over the cutaway and fold on tap.
+    const std::vector<std::string> details = lessonDetails(state.play.tutorial.lesson, run);
+    if (details.empty() || !state.play.mine || layout.sidebar.h >= 270 || state.play.paused)
+        return;
+    const engine::Rect view = layout.mineViewport;
+    const float size = 10, line = 15;
+    const bool folded = state.app.introFolded;
+    const engine::Rect card = folded ? engine::Rect{view.x + 6, view.y + view.h - 28, 96, 22}
+                                     : engine::Rect{view.x + 6, view.y + view.h - 12 - line * details.size(),
+                                                    view.w - 12, 8 + line * details.size()};
+    g.rect(card, {14, 24, 30, 235}, 6);
+    g.rect({card.x, card.y, 3, card.h}, theme::gold, 1);
+    if (folded)
+        g.text("채굴 도움말 · 펼치기", {card.x + 9, card.y + 5}, size, theme::gold);
+    else {
+        for (std::size_t index = 0; index < details.size(); ++index)
+            g.text(details[index], {card.x + 9, card.y + 5 + line * index}, size, theme::text, 0,
+                   card.w - 40);
+        g.text("접기", {card.x + card.w - 8, card.y + 5}, size, theme::muted, 1);
+    }
+    ui.add(ToggleIntro, card, true, false, false);
 }
 void View::tutorialOverlay(engine::Renderer &g, engine::Ui &ui, const State &state) {
     const Lesson lesson = state.play.tutorial.lesson;

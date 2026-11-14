@@ -242,14 +242,14 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
                   index == 0 ? 10 : run.state().slots);
         }
 
-        const float oreWidth = (g.width - 44.0F - 18) / 4;
-        const std::array<int, 4> amounts{
-            {run.state().iron, run.state().copper, run.state().crystal, run.state().gold}};
-        const std::array<const char *, 4> names{{"철", "구리", "수정", "금"}};
-        const std::array<Color, 4> oreColors{
-            {Color{181, 203, 206}, Color{226, 151, 103}, theme::purple, theme::gold}};
+        const float oreWidth = (g.width - 44.0F - 24) / 5;
+        const std::array<int, 5> amounts{{run.state().iron, run.state().copper, run.state().crystal,
+                                          run.state().gold, run.state().shards}};
+        const std::array<const char *, 5> names{{"철", "구리", "수정", "금", "조각"}};
+        const std::array<Color, 5> oreColors{
+            {Color{181, 203, 206}, Color{226, 151, 103}, theme::purple, theme::gold, Color{110, 220, 200}}};
         const float oreY = layout.denseMine ? 57.0F : 92.0F;
-        for (int index = 0; index < 4; ++index) {
+        for (int index = 0; index < 5; ++index) {
             const float left = 22.0F + index * (oreWidth + 6);
             g.rect({left, oreY, oreWidth, 23.0F}, {17, 33, 42}, 5);
             gem(g, {left + 12, oreY + 11}, 5.5F, oreColors[index]);
@@ -308,19 +308,19 @@ void View::hud(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const 
                {ribbonX + ribbonW / 2, 84.0F}, 11, theme::muted, .5F);
 
         // [RIGHT] Embossed Coin Badges (No web stat boxes!)
-        const float oreCardWidth = 96.0F;
+        const float oreCardWidth = 80.0F;
         const float oreStartX = g.width - 418.0F;
-        const std::array<int, 4> amounts{
-            {run.state().iron, run.state().copper, run.state().crystal, run.state().gold}};
-        const std::array<const char *, 4> names{{"철", "구리", "수정", "금"}};
-        const std::array<Color, 4> oreColors{
-            {Color{181, 203, 206}, Color{226, 151, 103}, theme::purple, theme::gold}};
+        const std::array<int, 5> amounts{{run.state().iron, run.state().copper, run.state().crystal,
+                                          run.state().gold, run.state().shards}};
+        const std::array<const char *, 5> names{{"철", "구리", "수정", "금", "조각"}};
+        const std::array<Color, 5> oreColors{
+            {Color{181, 203, 206}, Color{226, 151, 103}, theme::purple, theme::gold, Color{110, 220, 200}}};
 
-        for (int index = 0; index < 4; ++index) {
+        for (int index = 0; index < 5; ++index) {
             const float left = oreStartX + index * oreCardWidth;
             // Chunky pill token
-            g.rect({left, 30.0F, 86.0F, 48.0F}, {16, 28, 36, 210}, 12);
-            g.rect({left, 30.0F, 86.0F, 48.0F}, {45, 72, 82}, 12);
+            g.rect({left, 30.0F, 74.0F, 48.0F}, {16, 28, 36, 210}, 12);
+            g.rect({left, 30.0F, 74.0F, 48.0F}, {45, 72, 82}, 12);
             // Thick embossed coin badge
             const ScreenPoint coin{left + 22.0F, 54.0F};
             g.circle(coin, 13.0F, {10, 20, 26});
@@ -1103,6 +1103,8 @@ void View::draw(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
         hand(g, ui, run, state);
         toast(g, state);
     }
+    if (state.play.tutorial.active())
+        tutorialTips(g, ui, run, state);
     tutorialHighlights(g, ui, run, state);
     if (ui.dragging && ui.captured >= CardBase && ui.captured < DeckBase) {
         const game::Card *card = run.card(ui.captured - CardBase);

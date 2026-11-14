@@ -42,6 +42,8 @@ void Run::finishWave() {
     if (state_.heroDown > 0)
         reviveHero();
     for (Unit &ally : state_.units)
+        ally.position = homeOf(ally);
+    for (Unit &ally : state_.units)
         if (ally.hero)
             ally.hp = ally.maxHp;
     barricadeHp_.assign(catalog_.forks.size(), catalog_.balance.barricadeHp);
@@ -54,10 +56,21 @@ void Run::finishWave() {
     state_.scans = prepScanBudget();
     state_.hires = 0;
     state_.supplied = false;
-    state_.recruitmentOffer = CardOffer{
-        nextOffer_++, OfferSource::Recruitment,
-        std::vector<CardKind>(catalog_.recruitmentCandidates.begin(), catalog_.recruitmentCandidates.end()),
-        catalog_.balance.recruit};
+    // With recruitable buildings each preparation offers two of the three units and two buildings, both
+    // rotating by wave; payment is gold or shards.
+    std::vector<CardKind> candidates(catalog_.recruitmentCandidates.begin(),
+                                     catalog_.recruitmentCandidates.end());
+    const std::vector<CardKind> &buildings = catalog_.recruitmentBuildings;
+    if (!buildings.empty()) {
+        const std::size_t wave = static_cast<std::size_t>(state_.wave);
+        candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(wave % candidates.size()));
+        candidates.push_back(buildings[wave % buildings.size()]);
+        candidates.push_back(buildings[(wave + buildings.size() / 2 + 1) % buildings.size()]);
+        if (candidates[2] == candidates[3])
+            candidates[3] = buildings[(wave + 1) % buildings.size()];
+    }
+    state_.recruitmentOffer = CardOffer{nextOffer_++, OfferSource::Recruitment, candidates,
+                                        catalog_.balance.recruit, catalog_.balance.recruitShards};
     state_.expansionPending = state_.wave == catalog_.balance.expansionWave;
 }
 

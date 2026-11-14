@@ -266,6 +266,19 @@ struct RunBalance {
     float heroRespawn = 12;
     float heroMove = 8;
     float heroRegen = .03F;
+    /** Roaming: a melee unit with no enemy held walks toward the nearest ground enemy within unitLeash tiles
+     *  of its cell, then back; tiles per second for units and for the hero. */
+    float unitLeash = 1.6F;
+    /** Tiles a unit sways around its cell while nothing draws it away. */
+    float unitSway = .12F;
+    float unitSpeed = 1.8F;
+    float heroSpeed = 3;
+    /** Spoils: each defeated enemy adds its base damage plus its elite's to the spoils, and every
+     *  spoilsPerShard spoils become one shard; a defeated boss adds bossShards more. Recruiting costs
+     *  recruitShards shards when paid in shards. */
+    int spoilsPerShard = 8;
+    int bossShards = 5;
+    int recruitShards = 12;
     /** Durability of a fork's barricade in each battle; siege enemies can break it. */
     int barricadeHp = 240;
     /** Share of maximum hit points an allied unit recovers per second while no enemy is held by it. */
@@ -286,6 +299,8 @@ struct Catalog {
     std::array<ExpansionDefinition, 2> expansions{};
     RunBalance balance;
     std::array<CardKind, 3> recruitmentCandidates{CardKind::Guard, CardKind::Shooter, CardKind::Demolition};
+    /** Buildings that join the recruitment, two per preparation in rotation; empty offers units only. */
+    std::vector<CardKind> recruitmentBuildings;
     int width = 18;
     int height = 10;
     std::string entranceName = "서쪽 입구";

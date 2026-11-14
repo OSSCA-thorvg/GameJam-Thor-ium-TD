@@ -75,6 +75,7 @@ void Feedback::consume(const std::vector<game::CombatEvent> &events) {
             : event.type == game::CombatEventKind::Wreck    ? 1.0F
             : event.type == game::CombatEventKind::Airdrop  ? 1.0F
             : event.type == game::CombatEventKind::Breach   ? 1.2F
+            : event.type == game::CombatEventKind::Loot     ? 1.1F
             : event.type == game::CombatEventKind::Cart     ? 1.0F
             : event.type == game::CombatEventKind::Sabotage ? 1.0F
             : bossDefeat                                    ? 1.2F

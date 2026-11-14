@@ -2,6 +2,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -123,6 +124,8 @@ struct CardOffer {
     OfferSource source = OfferSource::Recruitment;
     std::vector<CardKind> candidates;
     ResourceCost cost;
+    /** Price in battle shards that may be paid instead of `cost`; zero when shards are not accepted. */
+    int shards = 0;
 };
 /** Stable card instance whose identity survives hand circulation. */
 struct Card {
@@ -154,6 +157,9 @@ struct Unit {
     float mending = 0.0F;
     /** The stage's hero: free of slots, movable during battle and back after a delay when it falls. */
     bool hero = false;
+    /** The cell the unit holds and returns to while roaming; empty until it first acts, when its position at
+     *  that moment becomes its home. */
+    std::optional<Point> home;
 };
 /** One enemy progressing along the current route in logical tile units. */
 struct Enemy {
@@ -221,7 +227,10 @@ enum class CombatEventKind {
     /** A carrier drops its cargo: subject is the carrier, from is where it dropped, amount is the cargo. */
     Airdrop,
     /** A barricade breaks: subject is the fork's catalog index, from and to are the barricade. */
-    Breach
+    Breach,
+    /** A defeated enemy yields battle shards: subject is the enemy, from is where it fell, amount is the
+     *  shards gained. */
+    Loot
 };
 /** One immutable combat result, retained even when its subject was removed this tick. */
 struct CombatEvent {

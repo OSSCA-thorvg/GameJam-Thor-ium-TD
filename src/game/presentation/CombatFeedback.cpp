@@ -305,6 +305,12 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             }
             g.text("-" + std::to_string(event.amount), {to.x, to.y - tile * (.7F + t * .35F)},
                    layout.compact ? 11 : 14, fade({255, 170, 120}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Loot) {
+            const float rise = tile * (.4F + t * .8F);
+            g.circle({from.x, from.y - rise}, tile * .14F, fade({110, 220, 200}, 1 - t));
+            g.text("+" + std::to_string(event.amount) + " 조각",
+                   {from.x + tile * .2F, from.y - rise - tile * .16F}, layout.compact ? 11 : 13,
+                   fade({170, 245, 230}, 1 - t));
         } else if (event.type == game::CombatEventKind::Breach) {
             for (int plank = 0; plank < 6; ++plank) {
                 const float angle = plank * 1.047F + .3F;

@@ -119,27 +119,40 @@ void View::cardOfferOverlay(engine::Renderer &g, engine::Ui &ui, const game::Run
                run.state().rewardOffer ? "보상 건너뛰기" : "취소 · 금을 사용하지 않아요");
         return;
     }
-    g.text("용병 카드 모집", {x, box.y + 20}, 25, theme::gold, 0, w);
-    g.text("3종 중 하나 선택 · 기본 성능 · 길게 눌러 상세", {x, box.y + 61}, 11, theme::muted, 0, w);
-    const float cardWidth = (w - 20) / active->candidates.size();
+    g.text("카드 모집", {x, box.y + 20}, 25, theme::gold, 0, w);
+    g.text(std::to_string(active->candidates.size()) + "종 중 하나 선택 · 기본 성능 · 길게 눌러 상세",
+           {x, box.y + 61}, 11, theme::muted, 0, w);
+    const float gap = 10;
+    const float count = static_cast<float>(active->candidates.size());
+    const float cardWidth = (w - gap * (count - 1)) / count;
     for (std::size_t index = 0; index < active->candidates.size(); ++index) {
         const game::CardKind kind = active->candidates[index];
         const CardDetails details = cardDetails(run.catalog(), kind);
-        const engine::Rect cell{x + index * (cardWidth + 10), box.y + 100, cardWidth, 250};
+        const engine::Rect cell{x + index * (cardWidth + gap), box.y + 92, cardWidth, 212};
         ui.add(CandidateBase + static_cast<int>(kind), cell, true, false, true, true);
         g.rect(cell, theme::accent(details.category), 7);
         g.gradientRect({cell.x + 2, cell.y + 2, cell.w - 4, cell.h - 4}, {65, 100, 112}, {24, 48, 62}, 5);
         icon(g, run.catalog(), kind, {cell.x + cell.w / 2, cell.y + 43}, 48);
         g.text(details.name, {cell.x + cell.w / 2, cell.y + 85}, layout.compact ? 12 : 16, theme::text, .5F,
                cell.w - 8);
-        g.text("에너지 " + std::to_string(details.cost), {cell.x + cell.w / 2, cell.y + 110}, 11, theme::gold,
-               .5F, cell.w - 8);
-        for (std::size_t row = 0; row < details.stats.size(); ++row) {
+        g.text(std::string(run.catalog().isBuilding(kind) ? "건물" : "유닛") + " · 에너지 " +
+                   std::to_string(details.cost),
+               {cell.x + cell.w / 2, cell.y + 108}, 11, theme::gold, .5F, cell.w - 8);
+        for (std::size_t row = 0; row < details.stats.size() && row < 4; ++row) {
             const CardStat &stat = details.stats[row];
-            g.text(stat.label + " " + stat.value, {cell.x + cell.w / 2, cell.y + 136 + row * 18},
+            g.text(stat.label + " " + stat.value, {cell.x + cell.w / 2, cell.y + 132 + row * 18},
                    layout.compact ? 10 : 12, theme::text, .5F, cell.w - 10);
         }
     }
+    // Payment: gold or battle shards; the chosen one is lit and applies to the next replacement.
+    const float half = (w - 8) / 2;
+    const int shards = run.state().shards;
+    button(g, ui, PayGold, {x, box.y + box.h - 104, half, 40},
+           game::costLabel(active->cost) + " · 보유 " + std::to_string(run.state().gold), true,
+           !state.play.payShards);
+    button(g, ui, PayShards, {x + half + 8, box.y + box.h - 104, half, 40},
+           "조각 " + std::to_string(active->shards) + " · 보유 " + std::to_string(shards), active->shards > 0,
+           state.play.payShards);
     button(g, ui, Close, {x, box.y + box.h - 54, w, 42}, "나중에 계약하기");
 }
 } // namespace thorium::presentation

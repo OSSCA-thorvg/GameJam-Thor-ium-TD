@@ -236,6 +236,47 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
                {badge.x + badge.w / 2, badge.y + 1}, size, depositColor(deposit), .5F);
     }
 
+    // In practice the vein under the guided cell is outlined with how much of it is bare, since a vein pays
+    // only once every cell is exposed.
+    const int guided = state.play.tutorial.active() ? state.play.tutorial.mineCell : -1;
+    if (guided >= 0 && guided < static_cast<int>(live.mine.size()) && live.mine[guided].deposit) {
+        const game::Deposit &vein = live.deposits[static_cast<std::size_t>(live.mine[guided].deposit - 1)];
+        const auto inside = [&vein](int cell) {
+            return std::find(vein.cells.begin(), vein.cells.end(), cell) != vein.cells.end();
+        };
+        const float pulse = still ? 1.0F : .7F + .3F * std::sin(time * 4.0F);
+        const Color edge{255, 214, 110, static_cast<std::uint8_t>(255 * pulse)};
+        int bare = 0;
+        float top = 1e9F, left = 1e9F, bottom = -1e9F;
+        for (int cell : vein.cells) {
+            const Rect box = layout.mineCellBounds(cell);
+            const int column = cell % columns, row = cell / columns;
+            bare += live.mine[static_cast<std::size_t>(cell)].cover == 0 ? 1 : 0;
+            top = std::min(top, box.y);
+            bottom = std::max(bottom, box.y + tile);
+            left = std::min(left, box.x);
+            const float w = std::max(2.0F, tile * .07F);
+            if (row == 0 || !inside(cell - columns))
+                g.line({{box.x, box.y}, {box.x + tile, box.y}}, w, edge);
+            if (row + 1 >= layout.mineRows || !inside(cell + columns))
+                g.line({{box.x, box.y + tile}, {box.x + tile, box.y + tile}}, w, edge);
+            if (column == 0 || !inside(cell - 1))
+                g.line({{box.x, box.y}, {box.x, box.y + tile}}, w, edge);
+            if (column + 1 >= columns || !inside(cell + 1))
+                g.line({{box.x + tile, box.y}, {box.x + tile, box.y + tile}}, w, edge);
+        }
+        const std::string note = "광맥 " + std::to_string(bare) + "/" + std::to_string(vein.cells.size()) +
+                                 "칸 드러남 · 모두 드러나면 획득";
+        const float size = std::max(10.0F, tile * .24F);
+        const float width = labelWidth(note, size) + 14;
+        const float noteX = std::clamp(left, view.x + 4, view.x + view.w - width - 4);
+        // Above the vein unless that would cover the miner's ledge over the wall; then below it.
+        const float above = top - size * 1.6F - 4;
+        const float noteY = above < layout.mineCellBounds(0).y ? bottom + 4 : std::max(view.y + 4, above);
+        g.rect({noteX, noteY, width, size * 1.6F}, {20, 16, 12, 230}, size * .5F);
+        g.text(note, {noteX + 7, noteY + size * .25F}, size, {255, 224, 150});
+    }
+
     wallMiner(g, run, state);
 
     // Strike or scan preview under the pointer.
@@ -406,11 +447,40 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
                box.w - 30);
         x += toolW + 5;
     }
+    // Remaining digs stand out beside the tools, red once they run out.
+    const std::string digs = (narrow ? "굴착 " : "남은 굴착 ") + std::to_string(live.digs);
+    const float digsW = labelWidth(digs, 13) + 18;
+    if (x + digsW <= limit) {
+        const bool empty = live.digs <= 0;
+        g.rect({x, headerY - 1, digsW, 26}, empty ? Color{70, 22, 18, 235} : Color{60, 44, 14, 235}, 7);
+        g.rect({x, headerY + 23, digsW, 2}, empty ? theme::red : theme::gold, 1);
+        g.text(digs, {x + digsW / 2, headerY + 4}, 13, empty ? Color{255, 150, 130} : Color{255, 222, 140},
+               .5F);
+        x += digsW + 5;
+    }
     const std::string buried = (narrow ? "" : "매장물 ") + std::to_string(run.buriedDeposits());
     const float buriedW = labelWidth(buried, 11) + 16;
     if (x + buriedW <= limit) {
         g.rect({x, headerY, buriedW, 24}, {22, 18, 18, 220}, 6);
         g.text(buried, {x + buriedW / 2, headerY + 5}, 11, {226, 210, 180}, .5F);
+    }
+    // What the chosen tool does, along the bottom of the cutaway, unless a toast or the practice tips use it.
+    const bool tips = state.play.tutorial.active() && layout.sidebar.h < 270;
+    if (actionable && !tips && state.play.toastTime <= 0) {
+        const game::RunBalance &balance = run.catalog().balance;
+        const int pick = balance.pickPower + live.tool - 1, side = live.tool >= 3 ? 2 : 1;
+        const int blast = balance.blastPower + (live.tool >= 2 ? 1 : 0);
+        const std::string caption =
+            state.play.scan    ? "스캔 · 3×3 칸의 바위 속을 보여줘요 · 캐지는 않아요"
+            : state.play.blast ? "발파 · 굴착 " + std::to_string(run.strikeCost(game::StrikeTool::Blast)) +
+                                     "회 · 3×3을 " + std::to_string(blast) + "겹씩 · 닿은 둥지를 깨워요"
+                               : "곡괭이 · 굴착 1회 · 친 칸 " + std::to_string(pick) + "겹, 십자 4칸 " +
+                                     std::to_string(side) + "겹 · 광맥은 모두 드러나야 얻어요";
+        const float size = layout.compact ? 10.0F : 11.0F;
+        const float width = std::min(view.w - 12, labelWidth(caption, size) + 18);
+        const Rect plate{view.x + 6, view.y + view.h - size * 2 - 6, width, size * 2};
+        g.rect(plate, {14, 18, 22, 215}, 6);
+        g.text(caption, {plate.x + 9, plate.y + size * .45F}, size, {226, 214, 190}, 0, plate.w - 14);
     }
 }
 void View::wallMiner(engine::Renderer &g, const game::Run &run, const State &state) {

@@ -182,6 +182,13 @@ void validateGimmicks(Validator &validator, const Catalog &catalog) {
     validator.number(balance.heroRespawn, 0, 1000, "balance.heroRespawn");
     validator.number(balance.heroMove, 0, 1000, "balance.heroMove");
     validator.number(balance.heroRegen, 0, 1, "balance.heroRegen");
+    validator.number(balance.unitLeash, 0, 100, "balance.unitLeash");
+    validator.integer(balance.spoilsPerShard, 1, CatalogLimits::MaxAmount, "balance.spoilsPerShard");
+    validator.integer(balance.bossShards, 0, CatalogLimits::MaxAmount, "balance.bossShards");
+    validator.integer(balance.recruitShards, 0, CatalogLimits::MaxAmount, "balance.recruitShards");
+    validator.number(balance.unitSway, 0, 1, "balance.unitSway");
+    validator.number(balance.unitSpeed, 0, 100, "balance.unitSpeed");
+    validator.number(balance.heroSpeed, 0, 100, "balance.heroSpeed");
     validator.check(!catalog.hero || !catalog.unitCells.empty(), "hero", "a hero needs a unit cell");
     /** Check whether a point is one of the given placement tiles. */
     const auto among = [](const std::vector<Point> &points, Point point) -> bool {
@@ -477,6 +484,12 @@ CatalogValidation validateCatalog(const Catalog &catalog) {
         validator.check(cardKind(catalog.starterDeck[index], catalog),
                         "starterDeck[" + std::to_string(index) + "]", "unknown card kind");
     std::set<CardKind> candidates;
+    for (std::size_t index = 0; index < catalog.recruitmentBuildings.size(); ++index)
+        validator.check(catalog.isBuilding(catalog.recruitmentBuildings[index]),
+                        "recruitmentBuildings[" + std::to_string(index) + "]",
+                        "a recruited building must be a building");
+    validator.check(catalog.recruitmentBuildings.empty() || catalog.recruitmentBuildings.size() >= 2,
+                    "recruitmentBuildings", "recruitment offers two buildings");
     for (std::size_t index = 0; index < catalog.recruitmentCandidates.size(); ++index) {
         const CardKind kind = catalog.recruitmentCandidates[index];
         const std::string path = "recruitmentCandidates[" + std::to_string(index) + "]";

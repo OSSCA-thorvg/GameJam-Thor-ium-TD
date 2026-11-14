@@ -28,7 +28,7 @@ void writeOffer(std::ostringstream &output, const std::optional<CardOffer> &offe
     output << "{\"id\":" << offer->id << ",\"source\":" << static_cast<int>(offer->source)
            << ",\"cost\":{\"iron\":" << offer->cost.iron << ",\"copper\":" << offer->cost.copper
            << ",\"crystal\":" << offer->cost.crystal << ",\"gold\":" << offer->cost.gold
-           << "},\"candidates\":[";
+           << "},\"shards\":" << offer->shards << ",\"candidates\":[";
     for (std::size_t index = 0; index < offer->candidates.size(); ++index) {
         if (index)
             output << ',';
@@ -184,9 +184,10 @@ std::string Run::debugState() const {
            << ",\"hp\":" << state_.baseHp << ",\"energy\":" << state_.energy
            << ",\"towers\":" << state_.towers.size() << ",\"units\":" << squadSize()
            << ",\"hero\":" << (hero() ? 1 : 0) << ",\"enemies\":" << state_.enemies.size()
-           << ",\"gold\":" << state_.gold << ",\"iron\":" << state_.iron << ",\"copper\":" << state_.copper
-           << ",\"crystal\":" << state_.crystal << ",\"tool\":" << state_.tool << ",\"digs\":" << state_.digs
-           << ",\"scans\":" << state_.scans << ",\"busy\":" << (state_.job.active ? "true" : "false")
+           << ",\"gold\":" << state_.gold << ",\"shards\":" << state_.shards << ",\"iron\":" << state_.iron
+           << ",\"copper\":" << state_.copper << ",\"crystal\":" << state_.crystal
+           << ",\"tool\":" << state_.tool << ",\"digs\":" << state_.digs << ",\"scans\":" << state_.scans
+           << ",\"busy\":" << (state_.job.active ? "true" : "false")
            << ",\"mining\":" << static_cast<int>(catalog_.mining) << ",\"buried\":" << buriedDeposits()
            << ",\"deposits\":" << state_.deposits.size() << ",\"spawned\":" << state_.spawned
            << ",\"defeated\":" << state_.defeated << ",\"nextExtra\":" << state_.nextExtra

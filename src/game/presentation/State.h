@@ -57,6 +57,8 @@ struct PlayState {
     bool scan = false;
     /** Excavation strikes use the blast instead of the pick. */
     bool blast = false;
+    /** Recruitment is paid in battle shards instead of gold. */
+    bool payShards = false;
     /** Wall cell of the latest successful excavation strike, and a count of strikes so far. */
     int strikeCell = -1;
     std::uint32_t strikes = 0;

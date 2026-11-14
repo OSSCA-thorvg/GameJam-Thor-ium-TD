@@ -52,6 +52,8 @@ int count(const std::vector<CombatEvent> &events, CombatEventKind type) {
 Catalog board() {
     Catalog content = defaultCatalog();
     content.unitCells = {{6, 3}, {8, 4}, {10, 7}, {12, 7}};
+    content.balance.unitLeash = 0;
+    content.balance.unitSway = 0;
     for (EnemyDefinition &definition : content.enemies)
         definition.speed = 0;
     return content;
@@ -645,8 +647,11 @@ void heroes() {
             other = cell;
             break;
         }
-    require(run.moveUnit(id, other).ok && distance(run.unit(id)->position, other) < .01F,
-            "the hero moves during battle");
+    require(run.moveUnit(id, other).ok && run.unit(id)->home && distance(*run.unit(id)->home, other) < .01F,
+            "the hero takes a new cell during battle");
+    for (int step = 0; step < 100 && distance(run.unit(id)->position, other) > .2F; ++step)
+        run.advance(.1F);
+    require(distance(run.unit(id)->position, other) <= .2F, "the hero runs to its new cell");
     require(!run.moveUnit(id, run.state().heroCell).ok && run.state().heroMove > 0, "the next move waits");
     for (Unit &ally : scenario(run).units)
         if (ally.hero)
@@ -658,6 +663,89 @@ void heroes() {
         run.advance(.1F);
     require(run.hero() && run.hero()->hp == balance.heroHp && run.state().heroDown == 0,
             "the hero returns at full health");
+}
+/** A melee unit walks to a ground enemy near its cell, holds it there and walks back once it is gone; a
+ *  flyer or a distant enemy does not draw it. */
+void roaming() {
+    Catalog content = defaultCatalog();
+    content.unitCells = {{6, 3}, {8, 4}, {10, 7}, {12, 7}};
+    for (EnemyDefinition &definition : content.enemies)
+        definition.speed = 0;
+    Run run = battle(content);
+    const RunBalance &balance = run.catalog().balance;
+    const Point cell{10, 7};
+    scenario(run).units.push_back({650, CardKind::Guard, cell, 1000, 1000});
+    scenario(run).enemies.push_back(fixture(run, 750, EnemyKind::Normal, 9));
+    const Point target = enemy(run, 750).position;
+    require(distance(target, cell) <= balance.unitLeash && distance(target, cell) > .5F,
+            "the fixture enemy stands within the leash but out of reach");
+    for (int step = 0; step < 40 && enemy(run, 750).blocker != 650; ++step)
+        run.advance(.1F);
+    require(enemy(run, 750).blocker == 650 && distance(run.unit(650)->position, target) <= .4F,
+            "the guard walks out and holds the enemy");
+    scenario(run).enemies.clear();
+    for (int step = 0; step < 40; ++step)
+        run.advance(.1F);
+    require(distance(run.unit(650)->position, cell) <= balance.unitSway + .05F, "it walks back to its cell");
+
+    Run calm = battle(content);
+    scenario(calm).units.push_back({651, CardKind::Guard, cell, 1000, 1000});
+    scenario(calm).enemies.push_back(fixture(calm, 751, EnemyKind::Flyer, 9));
+    scenario(calm).enemies.push_back(fixture(calm, 752, EnemyKind::Normal, 1));
+    for (int step = 0; step < 20; ++step)
+        calm.advance(.1F);
+    require(distance(calm.unit(651)->position, cell) <= balance.unitSway + .05F,
+            "a flyer or an enemy beyond the leash leaves it at home");
+    require(distance(Run::homeOf(*calm.unit(651)), cell) < .01F, "its cell stays the same");
+}
+/** Defeats gather spoils into battle shards; recruitment mixes units and buildings and takes gold or shards.
+ */
+void spoils() {
+    Run run = battle(board());
+    const RunBalance &balance = run.catalog().balance;
+    for (int index = 0; index < balance.spoilsPerShard; ++index) {
+        Enemy foe = fixture(run, static_cast<EntityId>(760 + index), EnemyKind::Normal, 5);
+        foe.hp = 0;
+        scenario(run).enemies.push_back(foe);
+    }
+    run.advance(.1F);
+    const std::vector<CombatEvent> events = run.takeCombatEvents();
+    require(run.state().shards == 1 && run.state().spoils == 0 && count(events, CombatEventKind::Loot) == 1,
+            "spoils from ordinary defeats make one shard");
+    Enemy golem = fixture(run, 770, EnemyKind::Boss, 5);
+    golem.hp = 0;
+    scenario(run).enemies.push_back(golem);
+    run.advance(.1F);
+    require(run.state().shards ==
+                1 + balance.bossShards + (role(run, EnemyKind::Boss).leak / balance.spoilsPerShard),
+            "a defeated boss adds its shard bonus");
+
+    Run campaign = makeRun(stageCatalog(2));
+    require(campaign.startWave().ok, "the campaign battle starts");
+    scenario(campaign).enemies.clear();
+    for (int step = 0; step < 6000 && campaign.state().phase == Phase::Battle; ++step) {
+        scenario(campaign).enemies.clear();
+        campaign.advance(.1F);
+    }
+    require(campaign.state().phase == Phase::Prep && campaign.state().recruitmentOffer,
+            "preparation offers cards");
+    const CardOffer offer = *campaign.state().recruitmentOffer;
+    require(offer.candidates.size() == 4 && campaign.catalog().isUnit(offer.candidates[0]) &&
+                campaign.catalog().isUnit(offer.candidates[1]) &&
+                campaign.catalog().isBuilding(offer.candidates[2]) &&
+                campaign.catalog().isBuilding(offer.candidates[3]) &&
+                offer.candidates[2] != offer.candidates[3] && offer.shards == balance.recruitShards,
+            "recruitment offers two units and two buildings for gold or shards");
+    scenario(campaign).gold = 0;
+    scenario(campaign).shards = offer.shards - 1;
+    const CardId replaced = campaign.state().deck[0].id;
+    require(!campaign.acceptOffer(offer.id, offer.candidates[2], replaced, true).ok,
+            "too few shards recruit nothing");
+    scenario(campaign).shards = offer.shards;
+    require(campaign.acceptOffer(offer.id, offer.candidates[2], replaced, true).ok &&
+                campaign.state().shards == 0 && campaign.state().deck[0].kind == offer.candidates[2] &&
+                !campaign.state().recruitmentOffer,
+            "shards buy a building card into the deck");
 }
 } // namespace
 
@@ -677,6 +765,8 @@ int main() {
     breaches();
     repairs();
     heroes();
+    roaming();
+    spoils();
     std::cout << "machines and roles: " << checks << " checks passed\n";
     return 0;
 }

@@ -97,13 +97,13 @@ async (page) => {
         await click(page,33);await click(page,14);
         checks.push('explicit preparation move and survivor withdrawal cancellation');
         /** @type {CardOffer} */ const offered=(await state(page)).offers.recruitment;
-        check(offered&&offered.candidates.join(',')==='2,6,7'&&offered.cost.gold===6,'Run publishes its actual recruitment candidates and price');
-        await click(page,20);await wait(page,'s.modal===1');await click(page,3006);await wait(page,'s.modal===2');
+        check(offered&&offered.candidates.join(',')==='2,7,5,0'&&offered.cost.gold===6&&offered.shards===12,'Run publishes its actual recruitment candidates and price');
+        await click(page,20);await wait(page,'s.modal===1');await click(page,3007);await wait(page,'s.modal===2');
         await click(page,25);await wait(page,'s.modal===0');check((await state(page)).gold===8,'Recruit cancel is free');
         check(JSON.stringify((await state(page)).offers.recruitment)===JSON.stringify(offered),'Cancel preserves the same run-owned offer, candidates and price');
-        await click(page,20);await click(page,3006);await click(page,2008);await wait(page,'s.modal===0&&s.gold===2');
+        await click(page,20);await click(page,3007);await click(page,2008);await wait(page,'s.modal===0&&s.gold===2');
         check((await state(page)).offers.recruitment===null,'Successful replacement consumes the run-owned offer');
-        await click(page,10);await wait(page,'s.phase===1&&s.wave===2');check((await state(page)).hand.includes(6),'New unit card enters next hand');check((await state(page)).cardMotion.some(card=>card.nextKind===6&&card.age<.85),'Recently recruited card is visibly dealt after preparation');
+        await click(page,10);await wait(page,'s.phase===1&&s.wave===2');check((await state(page)).hand.includes(7),'New unit card enters next hand');check((await state(page)).cardMotion.some(card=>card.nextKind===7&&card.age<.85),'Recently recruited card is visibly dealt after preparation');
         checks.push('recruit cancel and atomic card replacement');
         await click(page,24);await click(page,30);await wait(page,'s.phase===0&&s.towers===0&&s.wave===0');
 

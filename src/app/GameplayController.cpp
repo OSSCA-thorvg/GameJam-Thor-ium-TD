@@ -24,7 +24,8 @@ void GameplayController::act(const GameInput &input) {
         return;
     if (action == ConfirmDescend && modal != Modal::MineDescent)
         return;
-    if (modal == Modal::Recruit && input.kind != InputKind::Candidate)
+    if (modal == Modal::Recruit && input.kind != InputKind::Candidate &&
+        !(input.kind == InputKind::Control && (action == PayGold || action == PayShards)))
         return;
     if (modal == Modal::Replacement && input.kind != InputKind::Deck)
         return;
@@ -83,11 +84,11 @@ void GameplayController::act(const GameInput &input) {
             run.state().rewardOffer ? &*run.state().rewardOffer : run.offer(state.play.selectedOffer);
         if (!active)
             return;
-        const game::Result result =
-            run.acceptOffer(active->id,
-                            active->source != game::OfferSource::Recruitment ? active->candidates.front()
-                                                                             : state.play.candidate,
-                            input.payload);
+        const game::Result result = run.acceptOffer(
+            active->id,
+            active->source != game::OfferSource::Recruitment ? active->candidates.front()
+                                                             : state.play.candidate,
+            input.payload, active->source == game::OfferSource::Recruitment && state.play.payShards);
         feedback.notify(result, Sound::Reward);
         if (result.ok) {
             state.play.modal = presentation::Modal::None;
@@ -240,6 +241,11 @@ void GameplayController::act(const GameInput &input) {
                             Sound::None);
         break;
     }
+    case PayGold:
+    case PayShards:
+        state.play.payShards = action == PayShards;
+        sound.play(Sound::Select);
+        break;
     case Repair:
         feedback.notify(run.repair(state.play.selectedTower), Sound::Upgrade);
         break;

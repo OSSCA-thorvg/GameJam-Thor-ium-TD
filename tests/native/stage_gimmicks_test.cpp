@@ -52,6 +52,8 @@ bool among(const std::vector<Point> &points, Point point) {
 Catalog board() {
     Catalog content = defaultCatalog();
     content.unitCells = {{6, 3}, {8, 4}, {10, 7}, {12, 7}};
+    content.balance.unitLeash = 0;
+    content.balance.unitSway = 0;
     return content;
 }
 /** Start a battle whose scheduled spawns are still seconds away, so fixtures act alone. */

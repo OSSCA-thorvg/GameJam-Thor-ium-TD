@@ -361,13 +361,17 @@ class AverageBot : public Bot {
             autoplay::buy(run, &ledger, autoplay::Sink::Supply, UpgradeKind::Supply);
         if (run.state().recruitmentOffer && chance(.5F)) {
             const CardOffer offer = *run.state().recruitmentOffer;
-            const CardKind candidate = offer.candidates[static_cast<std::size_t>(random_() % 3)];
+            const CardKind candidate =
+                offer.candidates[static_cast<std::size_t>(random_() % offer.candidates.size())];
             const CardId replaced = duplicate(run);
-            if (autoplay::charge(run, &ledger, autoplay::Sink::Recruit,
-                                 [&run, &offer, candidate, replaced]() -> Result {
-                                     return run.acceptOffer(offer.id, candidate, replaced);
-                                 })
-                    .ok)
+            // Shards pay when they suffice, gold otherwise.
+            const bool shards = offer.shards > 0 && run.state().shards >= offer.shards;
+            if (shards ? run.acceptOffer(offer.id, candidate, replaced, true).ok
+                       : autoplay::charge(run, &ledger, autoplay::Sink::Recruit,
+                                          [&run, &offer, candidate, replaced]() -> Result {
+                                              return run.acceptOffer(offer.id, candidate, replaced);
+                                          })
+                             .ok)
                 ++recruits;
         }
     }

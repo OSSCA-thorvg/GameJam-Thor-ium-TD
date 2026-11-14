@@ -1424,6 +1424,10 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
     recruitPrice.failure =
         live.recruitmentOffer ? game::PurchaseFailure::None : game::PurchaseFailure::Exhausted;
     recruitPrice.message = "이번 정비의 모집을 마쳤어요";
+    // Enough shards make the recruitment open even when gold is short.
+    if (live.recruitmentOffer && live.recruitmentOffer->shards > 0 &&
+        live.shards >= live.recruitmentOffer->shards)
+        recruitPrice.cost = {};
     const std::array<Entry, 8> entries{{
         entry(Tool, drill ? "T3 드릴" : "T2 곡괭이", drill ? "T3" : "T2",
               drill ? "정비마다 굴착 +" + std::to_string(balance.drillDigs) + " · 산 정비에도 바로"
@@ -1455,8 +1459,11 @@ void View::prepActions(engine::Renderer &g, engine::Ui &ui, const game::Run &run
               "출격 부대 " + std::to_string(balance.initialSlots) + " → " +
                   std::to_string(balance.upgradedSlots),
               run.quote(game::UpgradeKind::Slots), theme::green, 2),
-        entry(Recruit, "유닛 카드 모집", "모집", "후보 3장 중 1장을 덱에 넣어요", recruitPrice, theme::gold,
-              2),
+        entry(Recruit, "카드 모집", "모집",
+              live.recruitmentOffer && live.recruitmentOffer->candidates.size() > 3
+                  ? "유닛·건물 4장 중 1장 · 금 또는 조각 " + std::to_string(live.recruitmentOffer->shards)
+                  : "후보 3장 중 1장을 덱에 넣어요",
+              recruitPrice, theme::gold, 2),
     }};
     const auto missing = [&](const game::ResourceCost &cost) -> std::array<int, 4> {
         return {{std::max(0, cost.iron - live.iron), std::max(0, cost.copper - live.copper),

@@ -191,6 +191,8 @@ class View {
     /** Paint compact lesson instructions and checkpoint/navigation controls without covering the map. */
     void tutorialPanel(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state);
     /** Resolve logical lesson targets against the current viewport, including cards and cutaway cells. */
+    /** Paint the mining lesson details over the cutaway when the sidebar is too short for them. */
+    void tutorialTips(engine::Renderer &graphics, engine::Ui &ui, const game::Run &run, const State &state);
     void tutorialHighlights(engine::Renderer &graphics, const engine::Ui &ui, const game::Run &run,
                             const State &state);
     /** Paint terminal practice actions after ordinary gameplay and modal layers. */

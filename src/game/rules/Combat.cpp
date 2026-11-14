@@ -365,7 +365,7 @@ void Run::markFallenHero() {
     for (const Unit &ally : state_.units)
         if (ally.hero && ally.hp <= 0) {
             state_.heroDown = catalog_.balance.heroRespawn;
-            state_.heroCell = ally.position;
+            state_.heroCell = homeOf(ally);
         }
 }
 void Run::reviveHero() {
@@ -375,7 +375,7 @@ void Run::reviveHero() {
     Point cell = state_.heroCell;
     const auto taken = [this](Point point) {
         return std::any_of(state_.units.begin(), state_.units.end(),
-                           [point](const Unit &ally) { return distance(ally.position, point) < .15F; });
+                           [point](const Unit &ally) { return distance(homeOf(ally), point) < .15F; });
     };
     if (taken(cell)) {
         float best = 1e9F;
@@ -743,26 +743,35 @@ int Run::damageEnemy(Enemy &enemy, int amount) {
 void Run::removeDefeated() {
     std::vector<Enemy> minions;
     state_.enemies.erase(
-        std::remove_if(state_.enemies.begin(), state_.enemies.end(),
-                       [this, &minions](const Enemy &enemy) {
-                           if (enemy.hp > 0)
-                               return false;
-                           ++state_.defeated;
-                           emit({CombatEventKind::Defeated, enemy.id, enemy.position, enemy.position,
-                                 CardKind::Gun, 0, true, 0, enemy.kind, enemy.affix});
-                           const EnemyDefinition &stats = catalog_.enemy(enemy.kind);
-                           const float length = routeLength(enemy.route);
-                           for (int index = 0; index < stats.splitCount; ++index) {
-                               const float offset = (index - (stats.splitCount - 1) / 2.0F) * .3F;
-                               minions.push_back(
-                                   makeEnemy(stats.minionKind, enemy.route,
-                                             std::clamp(enemy.progress + offset, 0.0F, length)));
-                           }
-                           if (stats.splitCount > 0)
-                               emit({CombatEventKind::Split, enemy.id, enemy.position, enemy.position,
-                                     CardKind::Gun, stats.splitCount, true, 0, enemy.kind});
-                           return true;
-                       }),
+        std::remove_if(
+            state_.enemies.begin(), state_.enemies.end(),
+            [this, &minions](const Enemy &enemy) {
+                if (enemy.hp > 0)
+                    return false;
+                ++state_.defeated;
+                emit({CombatEventKind::Defeated, enemy.id, enemy.position, enemy.position, CardKind::Gun, 0,
+                      true, 0, enemy.kind, enemy.affix});
+                // Spoils of the defeat: its base damage plus its elite's, a boss adding more.
+                state_.spoils += catalog_.enemy(enemy.kind).leak + catalog_.elite(enemy.affix).leak;
+                int gained = enemy.kind == EnemyKind::Boss ? catalog_.balance.bossShards : 0;
+                gained += state_.spoils / catalog_.balance.spoilsPerShard;
+                state_.spoils %= catalog_.balance.spoilsPerShard;
+                state_.shards += gained;
+                if (gained > 0)
+                    emit({CombatEventKind::Loot, enemy.id, enemy.position, enemy.position, CardKind::Gun,
+                          gained, true, 0, enemy.kind, enemy.affix});
+                const EnemyDefinition &stats = catalog_.enemy(enemy.kind);
+                const float length = routeLength(enemy.route);
+                for (int index = 0; index < stats.splitCount; ++index) {
+                    const float offset = (index - (stats.splitCount - 1) / 2.0F) * .3F;
+                    minions.push_back(makeEnemy(stats.minionKind, enemy.route,
+                                                std::clamp(enemy.progress + offset, 0.0F, length)));
+                }
+                if (stats.splitCount > 0)
+                    emit({CombatEventKind::Split, enemy.id, enemy.position, enemy.position, CardKind::Gun,
+                          stats.splitCount, true, 0, enemy.kind});
+                return true;
+            }),
         state_.enemies.end());
     state_.enemies.insert(state_.enemies.end(), minions.begin(), minions.end());
 }
@@ -839,6 +848,34 @@ void Run::advanceBattle(float delta) {
             ally.mending -= static_cast<float>(whole);
         } else if (ally.hp >= ally.maxHp)
             ally.mending = 0;
+        if (!ally.home)
+            ally.home = ally.position;
+        if (!blocked) {
+            // Melee units walk to the nearest ground enemy near their cell and back; everyone sways at home.
+            const RunBalance &balance = catalog_.balance;
+            const Point home = *ally.home;
+            Point goal = home;
+            float closest = balance.unitLeash;
+            if (ally.hero || catalog_.card(ally.kind).range <= 1.5F)
+                for (const Enemy &enemy : state_.enemies) {
+                    const float gap = distance(enemy.position, home);
+                    if (enemy.hp > 0 && !underground(enemy) && !flying(enemy) && gap <= closest &&
+                        (!enemy.blocker || enemy.blocker == ally.id)) {
+                        closest = gap;
+                        goal = enemy.position;
+                    }
+                }
+            if (distance(goal, home) < .01F) {
+                const float phase = state_.battleTime * 1.2F + static_cast<float>(ally.id);
+                goal = {home.x + std::cos(phase) * balance.unitSway,
+                        home.y + std::sin(phase * 1.3F) * balance.unitSway};
+            }
+            const float gap = distance(goal, ally.position);
+            const float step = std::min(gap, (ally.hero ? balance.heroSpeed : balance.unitSpeed) * delta);
+            if (gap > .001F)
+                ally.position = {ally.position.x + (goal.x - ally.position.x) / gap * step,
+                                 ally.position.y + (goal.y - ally.position.y) / gap * step};
+        }
         for (Enemy &enemy : state_.enemies)
             if (!enemy.blocker && !underground(enemy) && !flying(enemy) &&
                 blocked < (ally.hero ? catalog_.balance.heroBlockers : catalog_.card(ally.kind).blockers) &&
@@ -1116,15 +1153,24 @@ Result Run::moveUnit(EntityId id, Point target) {
     if (!selected)
         return {false, "유닛을 선택해 주세요"};
     if (charge) {
+        // The hero runs to its new cell rather than appearing there.
         state_.heroMove = catalog_.balance.heroMove;
         for (Enemy &enemy : state_.enemies)
             if (enemy.blocker == id)
                 enemy.blocker = 0;
+        for (Unit &ally : state_.units)
+            if (ally.id != id && distance(homeOf(ally), target) < 0.15F)
+                ally.home = homeOf(*selected);
+        selected->home = target;
+        return {true, "영웅이 달려가요"};
     }
     for (Unit &ally : state_.units)
-        if (ally.id != id && distance(ally.position, target) < 0.15F)
-            ally.position = selected->position;
+        if (ally.id != id && distance(homeOf(ally), target) < 0.15F) {
+            ally.position = homeOf(*selected);
+            ally.home = ally.position;
+        }
     selected->position = target;
+    selected->home = target;
     return {true, "체력과 슬롯을 유지하며 무료로 이동했어요"};
 }
 

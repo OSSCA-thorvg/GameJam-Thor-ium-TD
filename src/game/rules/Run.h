@@ -91,7 +91,7 @@ class Run {
     /** Resolve an active offer by run-scoped identity without granting mutation access. */
     const CardOffer *offer(OfferId id) const;
     /** Commit one offered candidate and replacement; consume the offer and price exactly once. */
-    Result acceptOffer(OfferId offer, CardKind candidate, CardId replace);
+    Result acceptOffer(OfferId offer, CardKind candidate, CardId replace, bool shards = false);
     /** Skip only an active expansion reward; dialog cancellation never consumes recruitment. */
     Result skipOffer(OfferId offer);
     /** Apply one surface branch after wave two. */
@@ -127,6 +127,10 @@ class Run {
     static constexpr EntityId BarricadeBase = 0xFFFF0000U;
     /** Read a barricade's durability in this battle; zero once it is broken. */
     int barricadeHp(std::size_t fork) const;
+    /** Read the cell a unit holds: its home, or its position before it first acts. */
+    static Point homeOf(const Unit &unit) {
+        return unit.home ? *unit.home : unit.position;
+    }
     /** Read the units that take battlefield slots: every unit but the hero. */
     int squadSize() const;
     /** Read the hero, or nullptr while it is fallen or the stage has none. */

@@ -10,7 +10,7 @@ namespace thorium::game {
 namespace {
 /** First token of every snapshot; a different version is rejected rather than migrated. */
 constexpr const char *SnapshotTag = "THORIUM-RUN";
-constexpr int SnapshotVersion = 4;
+constexpr int SnapshotVersion = 5;
 /** Largest count of any stored list; longer lists mark a damaged snapshot. */
 constexpr int MaxItems = 4096;
 
@@ -120,7 +120,7 @@ void writeOffer(Writer &out, const std::optional<CardOffer> &offer) {
     out << offer->id << offer->source << static_cast<int>(offer->candidates.size());
     for (CardKind kind : offer->candidates)
         out << kind;
-    out << offer->cost.iron << offer->cost.copper << offer->cost.crystal << offer->cost.gold;
+    out << offer->cost.iron << offer->cost.copper << offer->cost.crystal << offer->cost.gold << offer->shards;
 }
 /** Read an optional card offer. */
 std::optional<CardOffer> readOffer(Reader &in) {
@@ -134,6 +134,7 @@ std::optional<CardOffer> readOffer(Reader &in) {
         offer.candidates.push_back(in.choice<CardKind>(CardKindCount));
     offer.cost = {in.integer(0, CatalogLimits::MaxAmount), in.integer(0, CatalogLimits::MaxAmount),
                   in.integer(0, CatalogLimits::MaxAmount), in.integer(0, CatalogLimits::MaxAmount)};
+    offer.shards = in.integer(0, CatalogLimits::MaxAmount);
     return offer;
 }
 /** Write a list of points with its length. */
@@ -197,11 +198,11 @@ std::string Run::snapshot() const {
         out << tower.id << tower.kind << tower.position << tower.level << tower.hp << tower.maxHp;
     out << static_cast<int>(state_.units.size());
     for (const Unit &unit : state_.units)
-        out << unit.id << unit.kind << unit.position << unit.hp << unit.maxHp << unit.hero;
+        out << unit.id << unit.kind << homeOf(unit) << unit.hp << unit.maxHp << unit.hero;
     writePoints(out, state_.pads);
     writePoints(out, state_.unitCells);
     writePoints(out, state_.boulders);
-    out << state_.heroCell;
+    out << state_.heroCell << state_.shards << state_.spoils;
     for (std::size_t fork = 0; fork < catalog_.forks.size(); ++fork)
         out << detoured(fork);
     out << nextEntity_ << nextCard_ << nextOffer_ << static_cast<int>(acquisitions_.size());
@@ -324,6 +325,8 @@ Result Run::restore(const std::string &text) {
     next.unitCells = readPoints(in);
     next.boulders = readPoints(in);
     next.heroCell = in.point();
+    next.shards = in.integer(0, CatalogLimits::MaxAmount);
+    next.spoils = in.integer(0, CatalogLimits::MaxAmount);
     next.detours.assign(catalog_.forks.size(), 0);
     for (int &detour : next.detours)
         detour = in.flag() ? 1 : 0;

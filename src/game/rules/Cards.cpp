@@ -104,7 +104,7 @@ Run::PlayPlan Run::planPlay(CardId id, Point target) const {
             return plan;
         }
         for (const Unit &unit : state_.units)
-            if (distance(unit.position, plan.target) < .15F) {
+            if (distance(homeOf(unit), plan.target) < .15F) {
                 plan.preview.failure = PlayFailure::OccupiedCell;
                 return plan;
             }
@@ -256,7 +256,7 @@ const CardOffer *Run::offer(OfferId id) const {
         return &*state_.rewardOffer;
     return nullptr;
 }
-Result Run::acceptOffer(OfferId id, CardKind candidate, CardId old) {
+Result Run::acceptOffer(OfferId id, CardKind candidate, CardId old, bool shards) {
     if (state_.phase != Phase::Prep || state_.expansionPending ||
         (state_.rewardOffer && state_.rewardOffer->id != id))
         return {false, "먼저 현재 정비의 확장과 보상을 확인해 주세요"};
@@ -266,13 +266,17 @@ Result Run::acceptOffer(OfferId id, CardKind candidate, CardId old) {
             active->candidates.end() ||
         !card(old))
         return {false, "현재 제시된 후보와 교체할 활성 덱 카드를 선택해 주세요"};
-    if (!canPay(active->cost))
+    if (shards && (active->shards <= 0 || state_.shards < active->shards))
+        return {false, "조각 " + std::to_string(active->shards) + "개가 필요해요"};
+    if (!shards && !canPay(active->cost))
         return {false, costLabel(active->cost) + "가 필요해요"};
-    const ResourceCost cost = active->cost;
+    const ResourceCost cost = shards ? ResourceCost{} : active->cost;
+    const int shardCost = shards ? active->shards : 0;
     const OfferSource source = active->source;
     Result result = replaceCard(candidate, old);
     if (result.ok) {
         pay(cost);
+        state_.shards -= shardCost;
         if (source == OfferSource::Recruitment)
             state_.recruitmentOffer.reset();
         else

@@ -53,6 +53,9 @@ struct RunState {
     std::vector<Enemy> enemies;
     std::vector<GroundField> fields;
     std::vector<Point> route;
+    /** Battle shards earned from defeated enemies, and spoils gathered toward the next shard. */
+    int shards = 0;
+    int spoils = 0;
     /** Seconds until a fallen hero returns at heroCell, zero while it stands; seconds until it may move again
      *  during battle. */
     float heroDown = 0;
