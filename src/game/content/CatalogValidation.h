@@ -14,6 +14,8 @@ struct CatalogLimits {
     static constexpr int MaxMineHeight = 24;
     static constexpr std::size_t MaxTunnels = 8;
     static constexpr std::size_t MaxVents = 16;
+    static constexpr std::size_t MaxRails = 4;
+    static constexpr std::size_t MaxTanks = 12;
 };
 /** Point to an authored field rather than losing its location in a generic load failure. */
 struct CatalogIssue {

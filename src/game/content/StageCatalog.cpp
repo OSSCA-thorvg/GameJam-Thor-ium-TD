@@ -27,7 +27,7 @@ void laneUnitCells(Catalog &content, const std::vector<Point> &path) {
 }
 /** Remove the unit cells a tunnel covers, where a unit could never block. */
 void clearTunnelCells(Catalog &content) {
-    for (const TunnelSpan &span : content.tunnels) {
+    for (const RouteSpan &span : content.tunnels) {
         const std::vector<Point> &path =
             span.route == 0 ? content.route : content.additionalRoutes[span.route - 1].points;
         float travelled = 0;
@@ -54,14 +54,20 @@ struct Introduction {
     int stage;
     int wave;
 };
-constexpr std::array<Introduction, 6> introductions{{{EnemyKind::Swarm, 1, 4},
-                                                     {EnemyKind::Shielded, 1, 6},
-                                                     {EnemyKind::Sapper, 1, 7},
-                                                     {EnemyKind::Healer, 2, 3},
-                                                     {EnemyKind::Splitter, 2, 6},
-                                                     {EnemyKind::Burrower, 3, 3}}};
+constexpr std::array<Introduction, 12> introductions{{{EnemyKind::Swarm, 1, 4},
+                                                      {EnemyKind::Shielded, 1, 6},
+                                                      {EnemyKind::Sapper, 1, 7},
+                                                      {EnemyKind::Healer, 2, 3},
+                                                      {EnemyKind::Splitter, 2, 6},
+                                                      {EnemyKind::Wrecker, 2, 8},
+                                                      {EnemyKind::Burrower, 3, 3},
+                                                      {EnemyKind::Leaper, 3, 6},
+                                                      {EnemyKind::Slinger, 3, 8},
+                                                      {EnemyKind::Stalker, 4, 3},
+                                                      {EnemyKind::Flyer, 4, 6},
+                                                      {EnemyKind::Carrier, 4, 9}}};
 /** Featured pressure of one wave on top of its common normal/runner/armored body. */
-enum class Pressure { Introduce, Swarm, Armor, Escort, Split, Burrow, Boss };
+enum class Pressure { Introduce, Swarm, Armor, Escort, Split, Burrow, Flock, Ambush, Vault, Boss };
 /** Check whether a role may appear in a stage wave according to the introduction table. */
 bool unlocked(EnemyKind kind, int stage, int wave) {
     for (const Introduction &entry : introductions)
@@ -133,16 +139,16 @@ constexpr float SecondShare = .45F;
 /** Seconds by which an entrance's enemies arrive later in the wave that first opens it. */
 constexpr float OpeningDelay = 8;
 /** Group counts start at Opening times a full wave, per stage, and reach a full wave at its middle wave. */
-constexpr std::array<float, TotalStages> Opening{{.4F, .4F, .4F, .4F, .25F}};
+constexpr std::array<float, TotalStages> Opening{{.4F, .4F, .4F, .4F, .2F, .1F, .2F}};
 /** A focused raid sends RaidFocus / (1 + open entrances) of a full wave, at most RaidCap, to one entrance. */
 constexpr float RaidFocus = 2.5F;
 constexpr float RaidCap = .75F;
 /** Health and shield multiplier, then speed multiplier, of every non-boss role by stage. */
-constexpr std::array<float, TotalStages> Toughness{{1, 1.3F, 1.35F, 1.5F, 1.3F}};
-constexpr std::array<float, TotalStages> Haste{{1, 1.06F, 1.06F, 1.08F, 1.04F}};
+constexpr std::array<float, TotalStages> Toughness{{1, 1.3F, 1.35F, 1.5F, 1.3F, 1.0F, .95F}};
+constexpr std::array<float, TotalStages> Haste{{1, 1.06F, 1.06F, 1.08F, 1.04F, 1.04F, 1.05F}};
 /** Health and shield multiplier added to non-boss enemies by the last wave of each stage, rising linearly
  *  over its second half. */
-constexpr std::array<float, TotalStages> LateVigor{{.5F, .4F, .55F, .58F, .85F}};
+constexpr std::array<float, TotalStages> LateVigor{{.5F, .4F, .55F, .62F, .78F, .8F, .74F}};
 /** Elites in the first wave after the middle of a stage, and added by its last wave. */
 constexpr float EliteBase = 2;
 constexpr float EliteRamp = 4;
@@ -154,9 +160,17 @@ constexpr int LeaderPack = 8;
 /** Campaign gold prices of one recruitment and of the unit slot expansion. */
 constexpr int RecruitGold = 6;
 constexpr int SlotGold = 6;
-/** Zone boss health: BossBase + BossPerStage per stage. */
+/** Zone boss health: BossBase + BossPerStage per stage up to the core, then BossPastCore per further stage.
+ */
 constexpr int BossBase = 1000;
 constexpr int BossPerStage = 500;
+constexpr int BossPastCore = 50;
+/** Bats per flock of the flock pressure and of mixed escorts. */
+constexpr int Flock = 5;
+/** Longest stage in waves. */
+constexpr int MaxWaves = 16;
+/** Stages whose number raises the body, pattern level and armored count of their opening waves. */
+constexpr int RampStages = 5;
 } // namespace curve
 /** Elite modifiers a stage rotates through: Steel and Swift from the first stage, Regen from the second and
  *  Enrage from the third. */
@@ -189,7 +203,8 @@ void campaignWaves(Catalog &content, int stage, int count) {
         role.speed *= curve::Haste[index];
     }
     content.enemies[static_cast<std::size_t>(EnemyKind::Boss)].hp =
-        curve::BossBase + stage * curve::BossPerStage;
+        curve::BossBase + std::min(stage, curve::RampStages) * curve::BossPerStage +
+        std::max(0, stage - curve::RampStages) * curve::BossPastCore;
     for (int wave = 1; wave <= count; ++wave) {
         if (stage == 1 && wave <= 2) {
             content.waves.push_back(introduction[static_cast<std::size_t>(wave - 1)]);
@@ -260,12 +275,22 @@ void campaignWaves(Catalog &content, int stage, int count) {
             rotation.push_back(Pressure::Split);
         if (unlocked(EnemyKind::Burrower, stage, wave))
             rotation.push_back(Pressure::Burrow);
+        /** The roles that ignore blockers, ground attacks or long range join the rotation after a stage's
+         *  first two waves. */
+        if (wave > 2 && unlocked(EnemyKind::Flyer, stage, wave))
+            rotation.push_back(Pressure::Flock);
+        if (wave > 2 && unlocked(EnemyKind::Leaper, stage, wave))
+            rotation.push_back(Pressure::Vault);
+        if (wave > 2 && unlocked(EnemyKind::Stalker, stage, wave))
+            rotation.push_back(Pressure::Ambush);
         const Pressure pressure = final ? Pressure::Boss
                                   : fresh != EnemyKind::Normal
                                       ? Pressure::Introduce
                                       : rotation[static_cast<std::size_t>((wave + stage) % rotation.size())];
-        /** Every stage restarts the economy, so stage difficulty ramps in over its first waves. */
-        const int level = wave + (stage - 1) * std::min(wave, 4) * curve::StageLevel / 4;
+        /** Every stage restarts the economy, so stage difficulty ramps in over its first waves; stages
+         * past the core use the core's ramp. */
+        const int climb = std::min(stage, curve::RampStages) - 1;
+        const int level = wave + climb * std::min(wave, 4) * curve::StageLevel / 4;
         const float spacing = wave % 3 == 0 ? .3F : 1.2F;
         const int middle = count / 2;
         const float start = curve::Opening[static_cast<std::size_t>(stage - 1)];
@@ -275,13 +300,13 @@ void campaignWaves(Catalog &content, int stage, int count) {
             (1 + curve::Growth * std::max(0, wave - middle));
         /** Scale a repeating group count by the wave's growth. */
         const auto grown = [growth](int base) -> int { return static_cast<int>(std::lround(base * growth)); };
-        const int stageBody = (stage - 1) * curve::StageBody * std::min(wave, 4) / 4;
+        const int stageBody = climb * curve::StageBody * std::min(wave, 4) / 4;
         const int body = grown(12 + wave * 4 + stageBody);
         const float veteranShare = std::min(curve::VeteranCap, curve::Veteran * std::max(0, wave - middle));
         const int veterans = static_cast<int>(body * veteranShare) / curve::VeteranRatio;
         const int normals = body - veterans * curve::VeteranRatio;
         const int runners = grown(4 + wave * 2);
-        const int armored = (wave < 3 ? 0 : grown(wave - 2 + (stage - 1) * std::min(wave, 4) / 4)) + veterans;
+        const int armored = (wave < 3 ? 0 : grown(wave - 2 + climb * std::min(wave, 4) / 4)) + veterans;
         std::vector<SpawnGroup> groups;
         spread(groups, EnemyKind::Normal, normals, 3, raid ? .45F : .8F, lanes, spacing, shares);
         spread(groups, EnemyKind::Runner, runners, 12, wave % 3 == 0 ? .35F : .6F, lanes, spacing, shares);
@@ -306,6 +331,24 @@ void campaignWaves(Catalog &content, int stage, int count) {
         if (pressure != Pressure::Burrow && unlocked(EnemyKind::Burrower, stage, wave) &&
             fresh != EnemyKind::Burrower)
             spread(groups, EnemyKind::Burrower, mixed, 20, 2.5F, lanes, spacing, shares);
+        if (pressure != Pressure::Flock && unlocked(EnemyKind::Flyer, stage, wave) &&
+            fresh != EnemyKind::Flyer)
+            spread(groups, EnemyKind::Flyer, mixed, 15, .4F, lanes, spacing, shares);
+        if (pressure != Pressure::Vault && unlocked(EnemyKind::Leaper, stage, wave) &&
+            fresh != EnemyKind::Leaper)
+            spread(groups, EnemyKind::Leaper, (mixed + 1) / 2, 14, 2.4F, lanes, spacing, shares);
+        if (pressure != Pressure::Ambush && unlocked(EnemyKind::Stalker, stage, wave) &&
+            fresh != EnemyKind::Stalker)
+            spread(groups, EnemyKind::Stalker, (mixed + 1) / 2, 17, 2.6F, lanes, spacing, shares);
+        if (pressure != Pressure::Boss && wave % 2 == 0 && unlocked(EnemyKind::Wrecker, stage, wave) &&
+            fresh != EnemyKind::Wrecker)
+            spread(groups, EnemyKind::Wrecker, (mixed + 2) / 3, 12, 2.8F, lanes, spacing, shares);
+        if (mixed > 0 && pressure != Pressure::Boss && unlocked(EnemyKind::Slinger, stage, wave) &&
+            fresh != EnemyKind::Slinger && wave % 3 == 0)
+            spread(groups, EnemyKind::Slinger, std::min(2, 1 + level / 8), 16, 3, focusLane, 0, shares);
+        if (mixed > 0 && pressure != Pressure::Boss && unlocked(EnemyKind::Carrier, stage, wave) &&
+            fresh != EnemyKind::Carrier && wave > 6 && wave % 4 == 1)
+            spread(groups, EnemyKind::Carrier, std::min(2, 1 + level / 10), 14, 4, focusLane, 0, shares);
         switch (pressure) {
         case Pressure::Introduce:
             if (fresh == EnemyKind::Swarm)
@@ -319,6 +362,18 @@ void campaignWaves(Catalog &content, int stage, int count) {
                 spread(groups, EnemyKind::Splitter, 6, 7, 1.5F, focusLane, 0, shares);
             else if (fresh == EnemyKind::Sapper)
                 spread(groups, EnemyKind::Sapper, 4, 9, 2.5F, focusLane, 0, shares);
+            else if (fresh == EnemyKind::Flyer)
+                spread(groups, EnemyKind::Flyer, 2 * curve::Flock, 7, .35F, focusLane, 0, shares);
+            else if (fresh == EnemyKind::Leaper)
+                spread(groups, EnemyKind::Leaper, 5, 7, 1.4F, focusLane, 0, shares);
+            else if (fresh == EnemyKind::Stalker)
+                spread(groups, EnemyKind::Stalker, 5, 7, 1.6F, focusLane, 0, shares);
+            else if (fresh == EnemyKind::Wrecker)
+                spread(groups, EnemyKind::Wrecker, 4, 7, 2.2F, focusLane, 0, shares);
+            else if (fresh == EnemyKind::Carrier)
+                spread(groups, EnemyKind::Carrier, 2, 8, 4, focusLane, 0, shares);
+            else if (fresh == EnemyKind::Slinger)
+                spread(groups, EnemyKind::Slinger, 2, 8, 3, focusLane, 0, shares);
             else
                 spread(groups, EnemyKind::Burrower, 6, 7, 1.2F, focusLane, 0, shares);
             break;
@@ -342,12 +397,25 @@ void campaignWaves(Catalog &content, int stage, int count) {
         case Pressure::Burrow:
             spread(groups, EnemyKind::Burrower, grown(3 + level / 2), 6, 1.1F, lanes, spacing, shares);
             break;
+        case Pressure::Flock:
+            for (int flock = 0; flock * curve::Flock < grown(4 + level / 2); ++flock)
+                spread(groups, EnemyKind::Flyer, curve::Flock, 6 + flock * 4.5F, .3F, lanes, .6F, shares);
+            break;
+        case Pressure::Vault:
+            spread(groups, EnemyKind::Leaper, grown(3 + level / 2), 6, 1.2F, lanes, spacing, shares);
+            spread(groups, EnemyKind::Armored, grown(1 + level / 4), 5, 1.6F, focusLane, 0, shares);
+            break;
+        case Pressure::Ambush:
+            spread(groups, EnemyKind::Stalker, grown(3 + level / 2), 6, 1.2F, lanes, spacing, shares);
+            break;
         case Pressure::Boss:
             groups.push_back({EnemyKind::Boss, 1, 14, 0, 0});
             spread(groups, EnemyKind::Shielded, grown(2 + stage), 13, .9F, {0}, 0, shares);
             if (unlocked(EnemyKind::Healer, stage, wave))
                 spread(groups, EnemyKind::Healer, 1 + stage / 2, 15.5F, 1.4F, {0}, 0, shares);
             clumps(groups, EnemyKind::Swarm, grown(12 + level * 2), 22, 4, lanes, shares);
+            if (unlocked(EnemyKind::Flyer, stage, wave))
+                spread(groups, EnemyKind::Flyer, 2 * curve::Flock, 26, .3F, lanes, .6F, shares);
             break;
         }
         /** The second half of a stage adds health, elites, sappers and, right after the middle, a pack
@@ -488,7 +556,7 @@ Catalog makeStage(int stage) {
         content.expansions = westExpansions(content.route.front(), CardKind::Generator, CardKind::Lightning);
         /** Vents sit inside lane bends and beside the crossing of the northern and eastern lanes. */
         content.vents = {{{21, 15}, 2}, {{10, 6}, 4}, {{25, 6}, 6}, {{26, 20}, 8}, {{31, 8}, .5F}};
-    } else {
+    } else if (stage == 5) {
         content.width = 48;
         content.height = 26;
         content.route = {{2, 4},   {9, 4},   {9, 10},  {4, 10},  {4, 20},
@@ -517,9 +585,76 @@ Catalog makeStage(int stage) {
                              {{36, 11}, PadTrait::HighGround},
                              {{26, 11}, PadTrait::Crystal},
                              {{21, 17}, PadTrait::Crystal}};
+    } else if (stage == 6) {
+        content.width = 50;
+        content.height = 26;
+        content.route = {{2, 5}, {12, 5}, {12, 11}, {6, 11}, {6, 19}, {18, 19}, {18, 13}, {36, 13}};
+        content.additionalRoutes = {
+            {"북쪽 수정맥", {{20, 1}, {20, 8}, {26, 8}, {26, 4}, {32, 4}, {32, 13}, {36, 13}}, 2},
+            {"동쪽 광차길", {{49, 2}, {37, 2}, {37, 9}, {46, 9}, {46, 16}, {40, 16}, {40, 13}, {36, 13}}, 4},
+            {"남쪽 공명굴", {{48, 24}, {30, 24}, {30, 17}, {36, 17}, {36, 13}}, 7}};
+        content.pads = {{11, 4},  {13, 8},  {9, 10},  {7, 13},  {5, 16},  {7, 18},  {10, 20}, {14, 18},
+                        {17, 16}, {19, 15}, {19, 11}, {22, 14}, {25, 12}, {28, 14}, {21, 6},  {23, 7},
+                        {25, 5},  {29, 3},  {31, 6},  {33, 9},  {34, 14}, {33, 11}, {36, 3},  {38, 6},
+                        {40, 8},  {42, 11}, {39, 12}, {44, 12}, {29, 21}, {31, 19}, {35, 18}, {37, 16},
+                        {33, 23}, {38, 25}, {15, 12}, {29, 10}, {45, 3},  {41, 3},  {40, 10}, {45, 11},
+                        {47, 13}, {43, 15}, {41, 14}};
+        content.starterDeck = {CardKind::Gun,   CardKind::Guard, CardKind::Cannon, CardKind::Frost,
+                               CardKind::Flame, CardKind::Gun,   CardKind::Blast,  CardKind::Sniper};
+        content.expansions = westExpansions(content.route.front(), CardKind::Lightning, CardKind::Generator);
+        /** Two cart rails run along the merged approach and the eastern cart road; crystal clusters block
+         *  three pads. */
+        content.rails = {{{20, 13}, {35, 13}, {27, 15}}, {{48, 2}, {38, 2}, {43, 4}}};
+        content.boulders = {{21, 12}, {27, 6}, {32, 22}};
+    } else {
+        content.width = 52;
+        content.height = 28;
+        content.route = {{2, 4}, {10, 4}, {10, 10}, {5, 10}, {5, 21}, {15, 21}, {15, 14}, {24, 14}};
+        content.additionalRoutes = {
+            {"북쪽 갈대밭", {{38, 1}, {38, 3}, {27, 3}, {27, 6}, {20, 6}, {20, 10}, {24, 10}, {24, 14}}, 2},
+            {"동쪽 산성천", {{51, 8}, {39, 8}, {39, 17}, {30, 17}, {30, 14}, {24, 14}}, 4},
+            {"남쪽 수렁",
+             {{45, 27}, {45, 25}, {37, 25}, {37, 23}, {27, 23}, {27, 19}, {24, 19}, {24, 14}},
+             7},
+            {"남서 썩은 물길",
+             {{1, 26}, {11, 26}, {11, 24}, {19, 24}, {19, 17}, {22, 17}, {22, 14}, {24, 14}},
+             11}};
+        content.pads = {{9, 3},   {11, 7},  {8, 9},   {6, 12},  {4, 15},  {6, 18},  {4, 20},  {9, 20},
+                        {13, 22}, {14, 17}, {16, 12}, {19, 13}, {21, 15}, {23, 12}, {26, 15}, {28, 13},
+                        {21, 8},  {26, 5},  {29, 2},  {33, 4},  {23, 11}, {35, 2},  {38, 10}, {40, 13},
+                        {36, 16}, {32, 18}, {29, 15}, {41, 7},  {28, 22}, {31, 24}, {36, 22}, {41, 26},
+                        {26, 20}, {23, 20}, {18, 22}, {12, 25}, {20, 19}, {25, 17}, {44, 24}, {44, 9},
+                        {47, 7},  {38, 14}, {33, 16}, {25, 11}, {21, 9},  {30, 4}};
+        content.starterDeck = {CardKind::Gun,   CardKind::Guard,     CardKind::Cannon, CardKind::Tar,
+                               CardKind::Flame, CardKind::Lightning, CardKind::Blast,  CardKind::Sniper};
+        content.expansions = westExpansions(content.route.front(), CardKind::Generator, CardKind::Lightning);
+        /** Bogs slow four lanes; six gas tanks stand beside lane bends and crossings. */
+        content.bogs = {{0, 20, 29}, {1, 16, 23}, {2, 9, 16}, {4, 13, 20}};
+        content.tanks = {{{9, 8}}, {{17, 16}}, {{28, 5}}, {{41, 15}}, {{33, 22}}, {{9, 25}}};
     }
     if (stage > 1)
         content.unitCells.clear();
+    // From stage 2 the first entrance forks at the top of its long western descent: the detour runs three
+    // tiles further west and two pads reach only it.
+    struct Fork {
+        Point split;
+        Point merge;
+        std::array<Point, 2> pads;
+    };
+    constexpr std::array<Fork, TotalStages> forks{{{},
+                                                   {{5, 8}, {5, 14}, {{{1, 10}, {1, 12}}}},
+                                                   {{6, 8}, {6, 17}, {{{2, 10}, {2, 14}}}},
+                                                   {{4, 7}, {4, 13}, {{{0, 9}, {0, 11}}}},
+                                                   {{4, 10}, {4, 20}, {{{0, 13}, {0, 17}}}},
+                                                   {{6, 11}, {6, 19}, {{{2, 13}, {2, 17}}}},
+                                                   {{5, 10}, {5, 21}, {{{1, 13}, {1, 18}}}}}};
+    if (stage >= 2) {
+        const Fork &fork = forks[static_cast<std::size_t>(stage - 1)];
+        const float west = fork.split.x - 3;
+        content.forks = {{0, fork.split, fork.merge, {{west, fork.split.y}, {west, fork.merge.y}}}};
+        content.pads.insert(content.pads.end(), fork.pads.begin(), fork.pads.end());
+        laneUnitCells(content, {fork.split, {west, fork.split.y}, {west, fork.merge.y}, fork.merge});
+    }
     laneUnitCells(content, content.route);
     for (const EntranceRoute &entrance : content.additionalRoutes)
         laneUnitCells(content, entrance.points);
@@ -530,13 +665,13 @@ Catalog makeStage(int stage) {
     content.mine = campaignMine(stage, 0);
     content.deeperMines.push_back(campaignMine(stage, 1));
     content.deeperMines.push_back(campaignMine(stage, 2));
-    campaignWaves(content, stage, 6 + stage * 2);
+    campaignWaves(content, stage, std::min(6 + stage * 2, curve::MaxWaves));
     return content;
 }
 } // namespace
 const Catalog &stageCatalog(int stageIndex) {
     static const std::array<Catalog, TotalStages> stages{
-        {makeStage(1), makeStage(2), makeStage(3), makeStage(4), makeStage(5)}};
+        {makeStage(1), makeStage(2), makeStage(3), makeStage(4), makeStage(5), makeStage(6), makeStage(7)}};
     return stages.at(static_cast<std::size_t>(std::clamp(stageIndex, 1, TotalStages) - 1));
 }
 const StageMetadata &stageMetadata(int stageIndex) {
@@ -557,6 +692,12 @@ const StageMetadata &stageMetadata(int stageIndex) {
          "사방에서 중앙의 토르륨 핵으로 몰려드는 공세를 막으세요.",
          static_cast<int>(stageCatalog(5).waves.size()), 5, StageBiome::Core,
          "터널 · 분출구 · 특성 패드 복합 지형"},
+        {6, "공명 수정굴", "제6 작전 구역 · 수정 공명굴", "수정 동굴의 네 갈래 공세를 광차로 쓸어내세요.",
+         static_cast<int>(stageCatalog(6).waves.size()), 6, StageBiome::Crystal,
+         "광차 선로 · 레버를 눌러 선로 위 적을 쓸어냄"},
+        {7, "부식의 늪", "제7 작전 구역 · 산성 늪지", "늪을 건너오는 다섯 갈래 공세를 가스통으로 끊으세요.",
+         static_cast<int>(stageCatalog(7).waves.size()), 7, StageBiome::Swamp,
+         "늪 · 적 감속 · 가스통을 눌러 폭파"},
     }};
     return metadata.at(static_cast<std::size_t>(std::clamp(stageIndex, 1, TotalStages) - 1));
 }

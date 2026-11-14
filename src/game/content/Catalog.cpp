@@ -30,6 +30,12 @@ std::array<EnemyDefinition, EnemyKindCount> enemyRoster() {
         role("분열체", "splitter", 70, 1, .8F, 10, 1.2F, 2),
         role("굴착충", "burrower", 50, 1, 1, 8, 1, 2),
         role("파쇄병", "sapper", 45, 0, 1.1F, 6, 1, 2),
+        role("동굴박쥐", "bat", 24, 0, 1.2F, 0, 1, 1),
+        role("그림자", "stalker", 55, 0, 1.1F, 8, 1, 2),
+        role("도약꾼", "leaper", 70, 1, .95F, 10, 1.1F, 2),
+        role("망치병", "wrecker", 85, 2, .8F, 10, 1.2F, 2),
+        role("투석꾼", "slinger", 60, 0, .85F, 6, 1.2F, 2),
+        role("수송박쥐", "carrier", 60, 0, 1, 0, 1, 1),
         role("광석 골렘", "golem", 900, 3, .36F, 30, 1.6F, 10),
     }};
     EnemyDefinition &shielded = roster[static_cast<std::size_t>(EnemyKind::Shielded)];
@@ -53,6 +59,29 @@ std::array<EnemyDefinition, EnemyKindCount> enemyRoster() {
     sapper.abilityAmount = 1;
     sapper.abilityDuration = 6;
     sapper.abilityWindup = 3;
+    roster[static_cast<std::size_t>(EnemyKind::Flyer)].flying = true;
+    roster[static_cast<std::size_t>(EnemyKind::Stalker)].stealth = 1.8F;
+    EnemyDefinition &leaper = roster[static_cast<std::size_t>(EnemyKind::Leaper)];
+    leaper.ability = EnemyAbility::Leap;
+    leaper.abilityRadius = 2.5F;
+    leaper.abilityAmount = 1;
+    leaper.abilityWindup = .6F;
+    EnemyDefinition &wrecker = roster[static_cast<std::size_t>(EnemyKind::Wrecker)];
+    wrecker.ability = EnemyAbility::Siege;
+    wrecker.abilityInterval = 1.2F;
+    wrecker.abilityRadius = 1.4F;
+    wrecker.abilityAmount = 12;
+    EnemyDefinition &slinger = roster[static_cast<std::size_t>(EnemyKind::Slinger)];
+    slinger.ability = EnemyAbility::Siege;
+    slinger.abilityInterval = 2;
+    slinger.abilityRadius = 3.8F;
+    slinger.abilityAmount = 12;
+    EnemyDefinition &carrier = roster[static_cast<std::size_t>(EnemyKind::Carrier)];
+    carrier.flying = true;
+    carrier.ability = EnemyAbility::Airdrop;
+    carrier.abilityRadius = .55F;
+    carrier.abilityAmount = 3;
+    carrier.minionKind = EnemyKind::Normal;
     EnemyDefinition &boss = roster[static_cast<std::size_t>(EnemyKind::Boss)];
     boss.ability = EnemyAbility::Stomp;
     boss.abilityInterval = 7;
@@ -126,6 +155,10 @@ const EnemyDefinition &Catalog::enemy(EnemyKind kind) const {
 const EliteDefinition &Catalog::elite(EliteAffix affix) const {
     return elites.at(static_cast<std::size_t>(affix));
 }
+int Catalog::towerHealth(int level) const {
+    return std::max(1, static_cast<int>(std::lround(balance.towerHp *
+                                                    (1 + balance.towerLevelHp * std::max(0, level - 1)))));
+}
 int Catalog::health(const Enemy &live) const {
     if (live.maxHp > 0)
         return live.maxHp;
@@ -158,71 +191,79 @@ int Catalog::introductionWave(EnemyKind kind) const {
                 return static_cast<int>(wave + 1);
     return 0;
 }
+namespace {
+/** Mark the attackers that reach only enemies on the ground. */
+Catalog withGroundAttackers(Catalog content) {
+    for (CardKind kind : {CardKind::Cannon, CardKind::Guard, CardKind::Demolition})
+        content.cards[static_cast<std::size_t>(kind)].ground = true;
+    return content;
+}
+} // namespace
 const Catalog &defaultCatalog() {
-    static const Catalog content{
-        {{{"연사탑", 3, CardCategory::Building, 3, 12, .75F},
-          {"포격탑", 4, CardCategory::Building, 3.5F, 26, 1.8F, 1.1F},
-          {"경비병", 3, CardCategory::Unit, 1.1F, 10, 1, 0, 120, 2},
-          {"서리", 2, CardCategory::Spell, 2, 0, 1, 0, 0, 0, 1, 0, 3},
-          {"폭발", 3, CardCategory::Spell, 1.5F, 38},
-          {"전격탑", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
-          {"사수", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
-          {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1},
-          {"화염방사탑", 4, CardCategory::Building, 2.2F, 6, .25F, 0, 0, 0, 1, 0, 0, 35},
-          {"저격탑", 5, CardCategory::Building, 7, 70, 2.8F},
-          {"증폭 발전기", 3, CardCategory::Building, 2.3F, 0, 1, 0, 0, 0, 1, 0, 0, 0, .3F},
-          {"타르 웅덩이", 2, CardCategory::Spell, 1.8F, 0, 1, 0, 0, 0, 1, 0, 14}}},
-        enemyRoster(),
-        {{CardKind::Gun, CardKind::Guard, CardKind::Cannon, CardKind::Frost, CardKind::Gun, CardKind::Guard,
-          CardKind::Blast, CardKind::Gun}},
-        {{4, 3}, {8, 3}, {8, 7}, {14, 7}, {14, 5}, {16, 5}},
-        {{6, 4}, {9, 4}, {7, 6}, {10, 6}, {12, 8}, {15, 6}},
-        {{8, 4}, {8, 6}, {10, 7}, {12, 7}, {14, 6}, {15, 5}, {9, 7}, {13, 7}},
-        {"표층 갱도",
-         0,
-         5,
-         6,
-         2,
-         {{},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Rock, 0, 1, false, true},
-          {Ore::Rock, 0, 1, false, true},
-          {},
-          {},
-          {Ore::Iron, 2, 1, false, false, true},
-          {Ore::Copper, 2, 1, false, false, true},
-          {Ore::Iron, 2, 1, false, false, true},
-          {Ore::Iron, 2},
-          {},
-          {Ore::Iron, 2},
-          {Ore::Copper, 2},
-          {Ore::Gold, 4},
-          {Ore::Gold, 8, 1, true},
-          {Ore::Iron, 4, 1, true},
-          {Ore::Gold, 4},
-          {Ore::Rock, 0, 2},
-          {Ore::Iron, 2},
-          {},
-          {},
-          {},
-          {Ore::Rock, 0, 2},
-          {Ore::Gold, 4},
-          {},
-          {},
-          {},
-          {Ore::Crystal, 2, 2},
-          {},
-          {}}},
-        {{{EnemyKind::Normal, 12, 3, 1.2F}, {EnemyKind::Runner, 4, 17.4F, .8F}},
-         {{EnemyKind::Normal, 16, 3, .8F},
-          {EnemyKind::Runner, 8, 16.2F, .6F},
-          {EnemyKind::Armored, 4, 21.6F, 2}},
-         {{EnemyKind::Normal, 24, 3, .6F},
-          {EnemyKind::Runner, 12, 18, .5F},
-          {EnemyKind::Armored, 8, 24.7F, 1.2F}}},
-        {{{{{0, 1}, {3, 1}, {3, 0}, {6, 0}, {6, 2}, {4, 2}}, {{1, 2}, {5, 1}}, {{2, 1}, {5, 0}}},
-          {{{0, 3}}, {{1, 2}, {3, 2}, {1, 4}, {3, 4}}, {{1, 3}, {3, 3}}}}},
-        {}};
+    static const Catalog content = withGroundAttackers(
+        {{{{"연사탑", 3, CardCategory::Building, 3, 12, .75F},
+           {"포격탑", 4, CardCategory::Building, 3.5F, 26, 1.8F, 1.1F},
+           {"경비병", 3, CardCategory::Unit, 1.1F, 10, 1, 0, 120, 2},
+           {"서리", 2, CardCategory::Spell, 2, 0, 1, 0, 0, 0, 1, 0, 3},
+           {"폭발", 3, CardCategory::Spell, 1.5F, 38},
+           {"전격탑", 5, CardCategory::Building, 3, 10, .8F, 0, 0, 0, 3, 2},
+           {"사수", 3, CardCategory::Unit, 3, 12, 1, 0, 70, 1},
+           {"폭파병", 4, CardCategory::Unit, 2.8F, 18, 1.8F, 1.1F, 65, 1},
+           {"화염방사탑", 4, CardCategory::Building, 2.2F, 6, .25F, 0, 0, 0, 1, 0, 0, 35},
+           {"저격탑", 5, CardCategory::Building, 7, 70, 2.8F},
+           {"증폭 발전기", 3, CardCategory::Building, 2.3F, 0, 1, 0, 0, 0, 1, 0, 0, 0, .3F},
+           {"타르 웅덩이", 2, CardCategory::Spell, 1.8F, 0, 1, 0, 0, 0, 1, 0, 14}}},
+         enemyRoster(),
+         {{CardKind::Gun, CardKind::Guard, CardKind::Cannon, CardKind::Frost, CardKind::Gun, CardKind::Guard,
+           CardKind::Blast, CardKind::Gun}},
+         {{4, 3}, {8, 3}, {8, 7}, {14, 7}, {14, 5}, {16, 5}},
+         {{6, 4}, {9, 4}, {7, 6}, {10, 6}, {12, 8}, {15, 6}},
+         {{8, 4}, {8, 6}, {10, 7}, {12, 7}, {14, 6}, {15, 5}, {9, 7}, {13, 7}},
+         {"표층 갱도",
+          0,
+          5,
+          6,
+          2,
+          {{},
+           {Ore::Rock, 0, 1, false, true},
+           {Ore::Rock, 0, 1, false, true},
+           {Ore::Rock, 0, 1, false, true},
+           {},
+           {},
+           {Ore::Iron, 2, 1, false, false, true},
+           {Ore::Copper, 2, 1, false, false, true},
+           {Ore::Iron, 2, 1, false, false, true},
+           {Ore::Iron, 2},
+           {},
+           {Ore::Iron, 2},
+           {Ore::Copper, 2},
+           {Ore::Gold, 4},
+           {Ore::Gold, 8, 1, true},
+           {Ore::Iron, 4, 1, true},
+           {Ore::Gold, 4},
+           {Ore::Rock, 0, 2},
+           {Ore::Iron, 2},
+           {},
+           {},
+           {},
+           {Ore::Rock, 0, 2},
+           {Ore::Gold, 4},
+           {},
+           {},
+           {},
+           {Ore::Crystal, 2, 2},
+           {},
+           {}}},
+         {{{EnemyKind::Normal, 12, 3, 1.2F}, {EnemyKind::Runner, 4, 17.4F, .8F}},
+          {{EnemyKind::Normal, 16, 3, .8F},
+           {EnemyKind::Runner, 8, 16.2F, .6F},
+           {EnemyKind::Armored, 4, 21.6F, 2}},
+          {{EnemyKind::Normal, 24, 3, .6F},
+           {EnemyKind::Runner, 12, 18, .5F},
+           {EnemyKind::Armored, 8, 24.7F, 1.2F}}},
+         {{{{{0, 1}, {3, 1}, {3, 0}, {6, 0}, {6, 2}, {4, 2}}, {{1, 2}, {5, 1}}, {{2, 1}, {5, 0}}},
+           {{{0, 3}}, {{1, 2}, {3, 2}, {1, 4}, {3, 4}}, {{1, 3}, {3, 3}}}}},
+         {}});
     return content;
 }
 

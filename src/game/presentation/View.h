@@ -81,6 +81,18 @@ class View {
 
   private:
     game::CardId placingCard_ = 0;
+    /** Tap area of the introduction cards painted this frame; empty when none are shown. */
+    engine::Rect introToggle_;
+    /** Excavation miner in wall cell units (row -1 is the ledge above the wall), the cells left on its walk,
+     *  the strike it answers, and the seconds of swing left once it arrives. */
+    game::Point wallMiner_{0, -1};
+    std::vector<game::Point> wallPath_;
+    std::uint32_t wallStrikes_ = 0;
+    int wallGoal_ = -1;
+    float wallSwing_ = 0;
+    float wallClock_ = -1;
+    /** Advance and paint the excavation miner, and the props it sets in opened rock. */
+    void wallMiner(engine::Renderer &graphics, const game::Run &run, const State &state);
     std::optional<PlacementPreview> placement_;
     std::optional<CardInspection> inspection_;
     std::optional<CardDetails> offerCard_;
@@ -124,6 +136,12 @@ class View {
     void ventReaches(engine::Renderer &graphics, const game::Run &run);
     /** Paint the mouths and the covered section of every tunnel over the roads. */
     void tunnelCovers(engine::Renderer &graphics, const game::Run &run, const TunnelColors &colors);
+    /** Draw bog water over the route spans that slow ground enemies. */
+    void bogPools(engine::Renderer &graphics, const game::Run &run);
+    /** Draw the cart rails laid along the routes. */
+    void railTracks(engine::Renderer &graphics, const game::Run &run);
+    /** Draw levers, running carts and gas tanks with their current battle state. */
+    void machines(engine::Renderer &graphics, const game::Run &run, const State &state);
     /** Paint lane road edges and fills; idle lanes are dimmed. */
     void roads(engine::Renderer &graphics, const game::Run &run,
                const std::vector<game::LaneForecast> &forecast, engine::Color edge, engine::Color fill,

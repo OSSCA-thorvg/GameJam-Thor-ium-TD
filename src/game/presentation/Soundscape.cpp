@@ -50,6 +50,15 @@ Soundscape::Soundscape(engine::AudioMixer &mixer, const std::string &directory) 
         }
         mixer_.setClip(static_cast<engine::SoundId>(definition.id), std::move(clip), definition.policy);
     }
+    const std::string path = directory + "/" + MusicKey + ".mp3";
+    if (std::ifstream(path, std::ios::binary).good()) {
+        std::unique_ptr<engine::MusicStream> track = std::make_unique<engine::MusicStream>();
+        std::string error;
+        if (track->open(path, error))
+            music = mixer_.setMusic(std::move(track), MusicGain);
+        else
+            assetErrors.push_back(path + ": " + error);
+    }
 }
 bool Soundscape::play(Sound sound, float pan) {
     return sound != Sound::None && mixer_.play(static_cast<engine::SoundId>(sound), pan);
@@ -111,6 +120,15 @@ void Soundscape::consume(const std::vector<game::CombatEvent> &events) {
         else if (event.type == game::CombatEventKind::Stomp || event.type == game::CombatEventKind::Disable)
             play(Sound::Blast, pan);
         else if (event.type == game::CombatEventKind::ShieldBreak)
+            play(Sound::Cannon, pan);
+        else if (event.type == game::CombatEventKind::Detonation ||
+                 event.type == game::CombatEventKind::Wreck)
+            play(Sound::Blast, pan);
+        else if (event.type == game::CombatEventKind::Airdrop)
+            play(Sound::WaveStart, pan);
+        else if (event.type == game::CombatEventKind::Batter)
+            play(Sound::Hit, pan);
+        else if (event.type == game::CombatEventKind::Cart || event.type == game::CombatEventKind::Leap)
             play(Sound::Cannon, pan);
         else if (event.type == game::CombatEventKind::Eruption) {
             // An eruption is heard only when it hits something.

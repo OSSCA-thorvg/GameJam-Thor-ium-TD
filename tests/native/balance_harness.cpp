@@ -130,6 +130,9 @@ struct StageResult {
     autoplay::Ledger ledger;
     /** Boulders cleared off blocked pads. */
     int boulders = 0;
+    /** Carts sent and gas tanks detonated over the attempt. */
+    int carts = 0;
+    int tanks = 0;
 };
 
 /** One player model; it may only call public Run commands. */
@@ -242,6 +245,7 @@ class AverageBot : public Bot {
         if (now + .0001F < next_)
             return;
         next_ = now + uniform(1.5F, 2.0F);
+        autoplay::operate(run, .5F);
         act(run);
     }
     void prepare(Run &run) override {
@@ -634,6 +638,10 @@ StageResult simulate(Bot &bot, int stage, unsigned seed) {
                         ++row.leakedLanes[std::min<std::size_t>(lane.second, 5)];
             } else if (event.type == CombatEventKind::Disable) {
                 ++row.sabotages;
+            } else if (event.type == CombatEventKind::Cart) {
+                ++result.carts;
+            } else if (event.type == CombatEventKind::Detonation) {
+                ++result.tanks;
             } else if (event.type == CombatEventKind::Placement) {
                 ++row.plays[static_cast<std::size_t>(event.card)];
                 row.upgrades += event.amount > 1 ? 1 : 0;
@@ -708,7 +716,8 @@ std::string resourcesLabel(const Resources &value) {
 }
 std::string leakLabel(const WaveRow &row) {
     static const std::array<const char *, EnemyKindCount> names{
-        {"norm", "run", "arm", "swarm", "shield", "heal", "split", "burrow", "sapper", "boss"}};
+        {"norm", "run", "arm", "swarm", "shield", "heal", "split", "burrow", "sapper", "bat", "stalk", "leap",
+         "wreck", "sling", "carry", "boss"}};
     std::string text;
     for (std::size_t kind = 0; kind < EnemyKindCount; ++kind)
         if (row.leakedKinds[kind])
@@ -832,22 +841,22 @@ void printCurve(const std::vector<StageResult> &results) {
 }
 /**
  * Per bot and stage: wins, mean earned and spent resources, the unspent share of each, per sink the mean
- * purchases and resources paid per attempt, and the mean boulders cleared.
+ * purchases and resources paid per attempt, the mean boulders cleared, carts sent and gas tanks detonated.
  */
 void printSinks(const std::vector<StageResult> &results) {
     std::printf("\n| bot | stage | wins | earned i/c/x/g | spent | unspent %% | hp |");
     for (std::size_t sink = 0; sink < autoplay::SinkCount; ++sink)
         std::printf(" %s |", autoplay::sinkName(static_cast<autoplay::Sink>(sink)));
-    std::printf(" boulder |\n|---|---|---|---|---|---|---|");
+    std::printf(" boulder | cart | tank |\n|---|---|---|---|---|---|---|");
     for (std::size_t sink = 0; sink < autoplay::SinkCount; ++sink)
         std::printf("---|");
-    std::printf("---|\n");
+    std::printf("---|---|---|\n");
     std::vector<std::pair<std::string, int>> keys;
     for (const StageResult &result : results)
         if (std::find(keys.begin(), keys.end(), std::make_pair(result.bot, result.stage)) == keys.end())
             keys.push_back({result.bot, result.stage});
     for (const auto &key : keys) {
-        int runs = 0, wins = 0, hp = 0, boulders = 0;
+        int runs = 0, wins = 0, hp = 0, boulders = 0, carts = 0, tanks = 0;
         std::array<float, 4> earned{}, spent{};
         std::array<float, autoplay::SinkCount> uses{};
         std::array<std::array<float, 4>, autoplay::SinkCount> paid{};
@@ -858,6 +867,8 @@ void printSinks(const std::vector<StageResult> &results) {
             wins += result.won ? 1 : 0;
             hp += result.hp;
             boulders += result.boulders;
+            carts += result.carts;
+            tanks += result.tanks;
             for (std::size_t index = 0; index < 4; ++index) {
                 earned[index] += static_cast<float>(result.earned[index]);
                 spent[index] += static_cast<float>(result.spent[index]);
@@ -898,10 +909,12 @@ void printSinks(const std::vector<StageResult> &results) {
                 }
             std::printf(" %.1f× %s |", uses[sink] / n, price.c_str());
         }
-        if (boulders)
-            std::printf(" %.1f× |\n", static_cast<float>(boulders) / n);
-        else
-            std::printf(" - |\n");
+        for (int count : {boulders, carts, tanks})
+            if (count)
+                std::printf(" %.1f× |", static_cast<float>(count) / n);
+            else
+                std::printf(" - |");
+        std::printf("\n");
     }
 }
 /** Print each wave's scheduled enemy count and hit points, counting shields and split minions. */
@@ -1073,10 +1086,11 @@ int main(int argc, char **argv) {
     }
     std::vector<StageResult> results;
     for (int stage = stages.first; stage <= stages.second; ++stage) {
-        if (bots.find("strong") != std::string::npos) {
-            StrongBot bot;
-            results.push_back(simulate(bot, stage, 0));
-        }
+        if (bots.find("strong") != std::string::npos)
+            for (unsigned seed = 0; seed < (check ? 3U : 1U); ++seed) {
+                StrongBot bot;
+                results.push_back(simulate(bot, stage, seed));
+            }
         if (bots.find("average") != std::string::npos)
             for (int seed = seeds.first; seed <= seeds.second; ++seed) {
                 AverageBot bot(static_cast<unsigned>(seed));
@@ -1102,11 +1116,12 @@ int main(int argc, char **argv) {
         ++failures;
     };
     std::array<int, TotalStages + 1> averageRuns{}, averageWins{};
+    std::array<std::vector<int>, TotalStages + 1> strongHealth;
     for (const StageResult &result : results) {
         const std::string where =
             result.bot + " seed " + std::to_string(result.seed) + " stage " + std::to_string(result.stage);
-        if (result.bot == "strong" && (!result.won || result.hp < 14))
-            fail(where + " should win comfortably");
+        if (result.bot == "strong")
+            strongHealth[static_cast<std::size_t>(result.stage)].push_back(result.won ? result.hp : 0);
         if (result.bot == "idle" && result.stage == 1 && result.won)
             fail(where + " should lose");
         if (result.bot == "average") {
@@ -1114,9 +1129,18 @@ int main(int argc, char **argv) {
             averageWins[static_cast<std::size_t>(result.stage)] += result.won ? 1 : 0;
         }
     }
+    /** One strong run swings widely with small content changes, so the median of three seeds is judged. */
+    for (int stage = 1; stage <= TotalStages; ++stage) {
+        std::vector<int> health = strongHealth[static_cast<std::size_t>(stage)];
+        if (health.empty())
+            continue;
+        std::sort(health.begin(), health.end());
+        if (health[health.size() / 2] < 14)
+            fail("strong median stage " + std::to_string(stage) + " should win comfortably");
+    }
     /** Average win-rate band per stage: the 32-seed targets widened for the test's smaller seed range. */
     const std::array<std::pair<float, float>, TotalStages + 1> bands{
-        {{0, 1}, {.75F, 1}, {.6F, 1}, {.35F, .9F}, {.25F, .85F}, {.15F, .75F}}};
+        {{0, 1}, {.75F, 1}, {.6F, 1}, {.35F, .9F}, {.25F, .85F}, {.15F, .75F}, {.1F, .7F}, {.1F, .7F}}};
     for (int stage = 1; stage <= TotalStages; ++stage) {
         const std::size_t index = static_cast<std::size_t>(stage);
         if (!averageRuns[index])

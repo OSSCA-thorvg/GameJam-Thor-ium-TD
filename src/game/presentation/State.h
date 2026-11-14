@@ -25,6 +25,10 @@ struct AppState {
     int settingsTab = 0;
     int guidePage = 0;
     float uiTime = 0;
+    /** Battlefield introduction cards shown as one small chip. */
+    bool introFolded = false;
+    /** Battlefield overview inset shown as one small chip. */
+    bool minimapFolded = false;
 };
 /** Contextual one-time in-game tips for regular expedition situations. */
 struct InGameHints {
@@ -51,6 +55,9 @@ struct PlayState {
     bool scan = false;
     /** Excavation strikes use the blast instead of the pick. */
     bool blast = false;
+    /** Wall cell of the latest successful excavation strike, and a count of strikes so far. */
+    int strikeCell = -1;
+    std::uint32_t strikes = 0;
     bool paused = false;
     int speed = 1;
     game::CardId selectedCard = 0;

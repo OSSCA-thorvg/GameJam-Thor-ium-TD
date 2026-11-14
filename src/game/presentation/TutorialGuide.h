@@ -1,13 +1,14 @@
 #pragma once
 
 namespace thorium::presentation {
-/** Visible lesson identity; Scan/FirstDig together form the fifth of seven lessons. */
+/** Visible lesson identity; Scan/FirstDig together form the sixth of eight lessons. */
 enum class Lesson {
     None,
     Briefing,
     Building,
     Unit,
     Combat,
+    Fork,
     Scan,
     FirstDig,
     Crafting,

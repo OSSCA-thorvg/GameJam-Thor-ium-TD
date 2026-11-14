@@ -13,7 +13,11 @@ namespace {
 constexpr std::uint32_t PortraitIds = 0xFFFF0000U;
 /** Drawn body size of each role in tiles, indexed by EnemyKind. */
 constexpr std::array<float, game::EnemyKindCount> BodyScale{
-    {.85F, .8F, 1.0F, .58F, .9F, .86F, .95F, .88F, .84F, 1.9F}};
+    {.85F, .8F, 1.0F, .58F, .9F, .86F, .95F, .88F, .84F, .72F, .86F, .9F, .96F, .84F, .82F, 1.9F}};
+/** Height in tiles a flying role hovers above its ground shadow, bobbing gently. */
+float hover(const game::EnemyDefinition &role, float time, game::EntityId id) {
+    return role.flying ? .5F + .08F * std::sin(time * 5 + static_cast<float>(id)) : 0.0F;
+}
 /** Return one role's drawn body size in tiles. */
 float bodyScale(game::EnemyKind kind) {
     return BodyScale.at(static_cast<std::size_t>(kind));
@@ -152,6 +156,22 @@ std::string roleSummary(const game::Catalog &catalog, game::EnemyKind kind) {
     case game::EnemyKind::Sapper:
         return "타워 옆 " + seconds(role.abilityWindup) + "초 폭약 설치 → " + seconds(role.abilityDuration) +
                "초 마비 · 설치 중 처치·저지";
+    case game::EnemyKind::Flyer:
+        return "날아다녀요 · 저지·포격·폭파병·타르·분출에 안 맞음 · 연사·저격·전격으로";
+    case game::EnemyKind::Stalker:
+        return seconds(role.stealth) + "칸 안에 와야 조준돼요 · 맞으면 " +
+               seconds(catalog.balance.revealTime) + "초 드러남 · 범위 공격으로";
+    case game::EnemyKind::Leaper:
+        return "처음 막히면 " + seconds(role.abilityWindup) + "초 뒤 " + seconds(role.abilityRadius) +
+               "칸 뛰어넘어요 · 저지는 두 겹으로";
+    case game::EnemyKind::Wrecker:
+        return seconds(role.abilityRadius) + "칸 안 건물 앞에 멈춰 " + std::to_string(role.abilityAmount) +
+               "씩 부숴요 · 유닛으로 저지";
+    case game::EnemyKind::Slinger:
+        return seconds(role.abilityRadius) + "칸 밖에서 건물에 돌을 던져요 · 사거리 밖이면 마법·저격으로";
+    case game::EnemyKind::Carrier:
+        return "날아와 길 중간에 " + catalog.enemy(role.minionKind).name + " " +
+               std::to_string(role.abilityAmount) + "마리를 떨궈요 · 대공으로 먼저";
     case game::EnemyKind::Boss:
         return "타워 기절 · " + catalog.enemy(role.minionKind).name + " 소환 · 기지 피해 " +
                std::to_string(role.leak);
@@ -189,7 +209,7 @@ float eliteScale(game::EliteAffix affix) {
 }
 /** Battlefield gimmicks a stage introduces with a card before its first wave; Mixed stands for a stage
  *  that combines more than two of them. */
-enum class Gimmick { None, Boulder, TraitPad, Tunnel, Vent, Mixed };
+enum class Gimmick { None, Boulder, TraitPad, Tunnel, Vent, Bog, Rail, Tank, Fork, Mixed };
 /** List the gimmicks authored in a catalog, in card order. */
 std::vector<Gimmick> stageGimmicks(const game::Catalog &catalog) {
     std::vector<Gimmick> result;
@@ -201,14 +221,26 @@ std::vector<Gimmick> stageGimmicks(const game::Catalog &catalog) {
         result.push_back(Gimmick::Tunnel);
     if (!catalog.vents.empty())
         result.push_back(Gimmick::Vent);
+    if (!catalog.bogs.empty())
+        result.push_back(Gimmick::Bog);
+    if (!catalog.rails.empty())
+        result.push_back(Gimmick::Rail);
+    if (!catalog.tanks.empty())
+        result.push_back(Gimmick::Tank);
+    if (!catalog.forks.empty())
+        result.push_back(Gimmick::Fork);
     return result;
 }
 /** Return one gimmick's localized name. */
-const char *gimmickName(Gimmick gimmick) {
-    return gimmick == Gimmick::Boulder    ? "낙석 바위"
+const char *gimmickName(Gimmick gimmick, const game::Catalog &catalog) {
+    return gimmick == Gimmick::Boulder    ? (catalog.rails.empty() ? "낙석 바위" : "수정 군집")
            : gimmick == Gimmick::TraitPad ? "특성 패드"
            : gimmick == Gimmick::Tunnel   ? "갱도 터널"
            : gimmick == Gimmick::Vent     ? "용암 분출구"
+           : gimmick == Gimmick::Bog      ? "늪"
+           : gimmick == Gimmick::Rail     ? "광차 선로"
+           : gimmick == Gimmick::Tank     ? "가스통"
+           : gimmick == Gimmick::Fork     ? "갈림길"
                                           : "복합 지형";
 }
 /** Explain one gimmick's rule from the catalog's authored numbers. */
@@ -216,7 +248,8 @@ std::string gimmickSummary(const game::Catalog &catalog, Gimmick gimmick) {
     const game::RunBalance &balance = catalog.balance;
     switch (gimmick) {
     case Gimmick::Boulder:
-        return "패드를 막은 바위 · 정비 때 눌러서 치워요 · " + game::costLabel(balance.boulder);
+        return std::string(catalog.rails.empty() ? "패드를 막은 바위" : "패드를 막은 수정") +
+               " · 정비 때 눌러서 치워요 · " + game::costLabel(balance.boulder);
     case Gimmick::TraitPad:
         return std::string(padTraitName(game::PadTrait::HighGround)) + " " +
                padTraitEffect(game::PadTrait::HighGround, balance) + " · " +
@@ -226,10 +259,21 @@ std::string gimmickSummary(const game::Catalog &catalog, Gimmick gimmick) {
     case Gimmick::Vent:
         return seconds(balance.ventPeriod) + "초마다 분출 · 반경 안 적과 아군 피해 " +
                std::to_string(balance.ventDamage);
+    case Gimmick::Bog:
+        return "늪을 건너는 지상 적은 이동 ×" + seconds(balance.bogSpeed) + " · 비행 적은 그대로";
+    case Gimmick::Rail:
+        return "전투 중 레버를 누르면 광차가 선로 위 지상 적에게 " + std::to_string(balance.cartDamage) +
+               " · 재사용 " + seconds(balance.cartCooldown) + "초";
+    case Gimmick::Tank:
+        return "전투 중 누르면 폭발 · 반경 안 적과 아군 " + std::to_string(balance.tankDamage) +
+               " 피해 · 웨이브마다 다시 채워짐";
+    case Gimmick::Fork:
+        return "정비 중 바리케이드를 눌러 막을 갈래를 골라요 · 우회로는 더 길어요";
     case Gimmick::Mixed: {
         std::string names = "함께 나와요";
         for (Gimmick part : stageGimmicks(catalog))
-            names += " · " + std::string(gimmickName(part));
+            if (part != Gimmick::Fork)
+                names += " · " + std::string(gimmickName(part, catalog));
         return names;
     }
     case Gimmick::None:
@@ -240,7 +284,9 @@ std::string gimmickSummary(const game::Catalog &catalog, Gimmick gimmick) {
 /** Draw one gimmick's emblem centred in a square of side `size`. */
 void gimmickIcon(engine::Renderer &g, Gimmick gimmick, ScreenPoint centre, float size,
                  game::StageBiome biome) {
-    if (gimmick == Gimmick::Boulder)
+    if (gimmick == Gimmick::Boulder && biome == game::StageBiome::Crystal)
+        drawCrystalCluster(g, centre, size * .8F);
+    else if (gimmick == Gimmick::Boulder)
         drawBoulder(g, centre, size * .8F);
     else if (gimmick == Gimmick::TraitPad) {
         drawPadTraitGlyph(g, game::PadTrait::HighGround, {centre.x - size * .2F, centre.y - size * .08F},
@@ -251,7 +297,28 @@ void gimmickIcon(engine::Renderer &g, Gimmick gimmick, ScreenPoint centre, float
         drawTunnelMouth(g, {centre.x, centre.y - size * .04F}, 0, 1, size * .56F, tunnelColors(biome));
     else if (gimmick == Gimmick::Vent)
         drawVentCrater(g, centre, size * .78F);
-    else if (gimmick == Gimmick::Mixed) {
+    else if (gimmick == Gimmick::Bog) {
+        g.circle(centre, size * .38F, {50, 74, 40});
+        g.circle({centre.x - size * .04F, centre.y - size * .03F}, size * .28F, {84, 112, 52});
+        g.circle({centre.x + size * .12F, centre.y + size * .06F}, size * .07F, {150, 180, 90});
+        g.circle({centre.x - size * .14F, centre.y - size * .1F}, size * .05F, {150, 180, 90});
+    } else if (gimmick == Gimmick::Rail) {
+        drawRail(g, {centre.x - size * .4F, centre.y + size * .14F},
+                 {centre.x + size * .4F, centre.y + size * .14F}, size * .4F);
+        drawCart(g, {centre.x, centre.y + size * .02F}, 1, 0, size * .62F);
+    } else if (gimmick == Gimmick::Tank)
+        drawTank(g, centre, size * .72F, false);
+    else if (gimmick == Gimmick::Fork) {
+        const Color road{196, 170, 120};
+        g.line({{centre.x, centre.y + size * .4F},
+                {centre.x, centre.y},
+                {centre.x - size * .3F, centre.y - size * .36F}},
+               size * .14F, road);
+        g.line({{centre.x, centre.y}, {centre.x + size * .3F, centre.y - size * .36F}}, size * .14F, road);
+        g.line({{centre.x + size * .14F, centre.y - size * .1F},
+                {centre.x + size * .4F, centre.y - size * .26F}},
+               size * .08F, {214, 74, 54});
+    } else if (gimmick == Gimmick::Mixed) {
         drawTunnelMouth(g, {centre.x - size * .14F, centre.y - size * .12F}, 0, 1, size * .4F,
                         tunnelColors(biome));
         drawVentCrater(g, {centre.x + size * .2F, centre.y + size * .16F}, size * .46F);
@@ -292,7 +359,7 @@ void View::enemies(engine::Renderer &g, const game::Run &run, const State &state
             live.find(actor->id);
         const game::Enemy *enemy = dying || found == live.end() ? nullptr : found->second;
         const game::EnemyDefinition &role = run.catalog().enemy(actor->kind);
-        const ScreenPoint p = screenPoint(actor->position);
+        ScreenPoint p = screenPoint(actor->position);
         const float size = tile * bodyScale(actor->kind) * eliteScale(actor->affix);
         const bool elite = actor->affix != game::EliteAffix::None;
         const Color eliteColor = theme::elite(actor->affix);
@@ -313,7 +380,9 @@ void View::enemies(engine::Renderer &g, const game::Run &run, const State &state
             continue;
         }
         if (!dying)
-            ellipse(g, {p.x, p.y + size * .3F}, size * .34F, size * .1F, {24, 44, 30, 80});
+            ellipse(g, {p.x, p.y + size * .3F}, size * (role.flying ? .26F : .34F), size * .1F,
+                    {24, 44, 30, static_cast<std::uint8_t>(role.flying ? 60 : 80)});
+        p.y -= hover(role, time, actor->id) * tile;
         if (enemy && actor->kind == game::EnemyKind::Boss) {
             const float pulse = .5F + .5F * std::sin(time * 3);
             ellipseOutline(g, {p.x, p.y + size * .28F}, size * .52F, size * .18F, std::max(2.0F, tile * .06F),
@@ -359,6 +428,22 @@ void View::enemies(engine::Renderer &g, const game::Run &run, const State &state
                      {255, 249, 221, static_cast<std::uint8_t>(170 * hit)});
         if (!enemy)
             continue;
+        if (role.stealth > 0) {
+            // A hidden stalker sits under a smoky veil with its detection radius traced faintly.
+            if (!run.revealed(*enemy)) {
+                ellipse(g, {p.x, p.y - size * .14F}, size * .42F, size * .46F, {28, 22, 46, 150});
+                dashedRing(g, p, role.stealth * tile, std::max(1.0F, tile * .025F), {150, 120, 220, 70},
+                           time * .4F);
+            } else
+                g.circle({p.x + size * .12F, p.y - size * .32F}, std::max(1.5F, size * .06F), {255, 90, 80});
+        }
+        if (role.ability == game::EnemyAbility::Leap && enemy->blocker && enemy->charges > 0) {
+            const float charge =
+                std::clamp(1 - enemy->ability / std::max(.01F, role.abilityWindup), 0.0F, 1.0F);
+            ellipseOutline(g, {p.x, p.y + size * .3F}, size * (.5F - .2F * charge),
+                           size * (.17F - .06F * charge), std::max(1.5F, tile * .05F),
+                           fade({255, 214, 120}, .5F + .5F * charge));
+        }
         if (actor->kind == game::EnemyKind::Healer)
             ellipseOutline(g, {p.x, p.y - size * .68F}, size * .2F, size * .06F, std::max(1.5F, tile * .045F),
                            {176, 246, 160});
@@ -395,7 +480,8 @@ void View::enemyMarkers(engine::Renderer &g, const game::Run &run, const State &
             continue;
         const game::Enemy *enemy = found->second;
         const game::EnemyDefinition &role = run.catalog().enemy(actor->kind);
-        const ScreenPoint p = screenPoint(actor->position);
+        ScreenPoint p = screenPoint(actor->position);
+        p.y -= hover(role, time, actor->id) * tile;
         const float size = tile * bodyScale(actor->kind) * eliteScale(actor->affix);
         const bool elite = actor->affix != game::EliteAffix::None;
         const Color eliteColor = theme::elite(actor->affix);
@@ -449,6 +535,7 @@ void View::enemyMarkers(engine::Renderer &g, const game::Run &run, const State &
 }
 
 void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &state) {
+    introToggle_ = {};
     const game::Catalog &catalog = run.catalog();
     const bool battle = run.state().phase == game::Phase::Battle;
     const bool planning = run.state().phase == game::Phase::Ready || run.state().phase == game::Phase::Prep;
@@ -651,8 +738,10 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
     // than two share one card.
     if (wave == 1) {
         std::vector<Gimmick> terrain = stageGimmicks(catalog);
+        const bool fork = !catalog.forks.empty();
         if (terrain.size() > 2)
-            terrain = {Gimmick::Mixed};
+            terrain = fork ? std::vector<Gimmick>{Gimmick::Fork, Gimmick::Mixed}
+                           : std::vector<Gimmick>{Gimmick::Mixed};
         for (std::size_t index = terrain.size(); index > 0; --index)
             intros.insert(intros.begin(),
                           {game::EnemyKind::Normal, game::EliteAffix::None, terrain[index - 1]});
@@ -663,13 +752,32 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
     const float cardW = compact ? world.w - 16 : 340.0F;
     // A narrow screen's card sits above the overview inset placed on the previous frame, when there is one.
     const float compactBottom = layout.minimap.w > 0 ? layout.minimap.y - 6 : world.y + world.h - 42;
+    if (state.app.introFolded) {
+        const float foldW = 96;
+        const Rect fold = compact ? Rect{world.x + 8, compactBottom - 30, foldW, 30}
+                                  : Rect{world.x + world.w - foldW - 8, stripY + chip + 10, foldW, 30};
+        g.rect({fold.x, fold.y + 2, fold.w, fold.h}, {0, 0, 0, 90}, 6);
+        g.rect(fold, {22, 38, 46, 235}, 6);
+        g.rect({fold.x, fold.y, 4, fold.h}, theme::gold, 2);
+        g.text("안내 " + std::to_string(intros.size()) + " · 펼치기", {fold.x + 12, fold.y + 8}, 11,
+               theme::gold);
+        introToggle_ = fold;
+        return;
+    }
     const std::size_t shown = std::min<std::size_t>(intros.size(), compact ? 1 : 2);
     for (std::size_t index = 0; index < shown; ++index) {
         const Intro intro = intros[index];
         const float offset = static_cast<float>(index) * 64;
-        const Rect card = compact
+        const Rect full = compact
                               ? Rect{world.x + 8, compactBottom - 46, cardW, 46}
                               : Rect{world.x + world.w - cardW - 8, stripY + chip + 10 + offset, cardW, 58};
+        const Rect card{full.x, full.y, full.w - 34, full.h};
+        introToggle_ = index == 0 ? full
+                                  : Rect{introToggle_.x, introToggle_.y, introToggle_.w,
+                                         full.y + full.h - introToggle_.y};
+        g.rect({card.x + card.w, full.y + 3, 34, full.h}, {0, 0, 0, 110}, 8);
+        g.rect({card.x + card.w, full.y, 34, full.h}, {14, 26, 32, 240}, 8);
+        g.text("접기", {card.x + card.w + 17, full.y + full.h / 2 - 6}, 10, theme::muted, .5F);
         const bool elite = intro.affix != game::EliteAffix::None;
         const bool ground = intro.gimmick != Gimmick::None;
         const Color accent = ground                                ? theme::green
@@ -684,7 +792,7 @@ void View::enemyHud(engine::Renderer &g, const game::Run &run, const State &stat
                         state.app.campaign ? game::stageMetadata(state.play.currentStage).biome
                                            : game::StageBiome::Meadow);
             const float textX = card.x + card.h + 6;
-            g.text(std::string("전장 지형 · ") + gimmickName(intro.gimmick),
+            g.text(std::string("전장 지형 · ") + gimmickName(intro.gimmick, catalog),
                    {textX, card.y + (compact ? 6.0F : 9.0F)}, compact ? 11 : 13, accent);
             g.text(gimmickSummary(catalog, intro.gimmick), {textX, card.y + (compact ? 24.0F : 31.0F)},
                    compact ? 9 : 11, theme::text, 0, card.x + card.w - textX - 8);

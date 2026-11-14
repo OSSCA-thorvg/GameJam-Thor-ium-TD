@@ -101,6 +101,46 @@ void assetContracts(const std::string &fixtures) {
     require(sound.assetErrors.size() == 1, "existing invalid file records one fallback diagnostic");
     require(sound.play(Sound::Error), "corrupt optional asset still has a playable beep fallback");
 }
+/** Loop a short real MP3 as music under the voices, through mute and stop. */
+void musicContracts(const std::string &fixtures) {
+    std::string error;
+    MusicStream missing;
+    require(!missing.open(fixtures + "/missing.mp3", error) && !missing.loaded() && !error.empty(),
+            "a missing music file leaves the stream unloaded");
+    require(!missing.open(fixtures + "/error.mp3", error) && !missing.loaded(),
+            "malformed music MP3 is rejected");
+    AudioMixer empty;
+    require(!empty.setMusic(std::make_unique<MusicStream>(), .4F) && !empty.music(),
+            "the mixer rejects an unloaded music stream");
+
+    const AudioClip clip = loadMp3(fixtures + "/card-use.mp3", error);
+    const std::size_t length = clip.samples.size() / clip.channels;
+    std::unique_ptr<MusicStream> track = std::make_unique<MusicStream>();
+    require(track->open(fixtures + "/card-use.mp3", error) && track->loaded() && track->loops() == 0,
+            "a real stereo MP3 opens as music");
+    AudioMixer mixer;
+    require(mixer.setMusic(std::move(track), .4F) && mixer.music(), "install looping music");
+    const std::size_t frames = length * AudioMixer::SampleRate / clip.sampleRate * 3 + 512;
+    std::vector<float> pcm(frames * AudioMixer::Channels);
+    mixer.render(pcm.data(), frames);
+    require(mixer.music()->loops() >= 2, "music restarts from its first frame after each pass");
+    const std::vector<float> tail(pcm.end() - 1024, pcm.end());
+    require(audible(pcm) && audible(tail) && mixer.activeVoices() == 0,
+            "music stays audible past its own length without any voice");
+
+    const std::uint64_t loops = mixer.music()->loops();
+    mixer.stop();
+    std::vector<float> after(1024);
+    mixer.render(after.data(), 512);
+    require(audible(after) && mixer.music()->loops() == loops, "stopping voices keeps the music playing");
+    mixer.settings.muted = true;
+    mixer.render(after.data(), 512);
+    require(std::all_of(after.begin(), after.end(), [](float value) { return value == 0; }),
+            "muted output carries no music");
+
+    Soundscape none(mixer, fixtures);
+    require(!none.music, "a directory without bgm.mp3 adds no music");
+}
 /** Check one-shot game routing, card arrival, pause cancellation and mass-hit suppression. */
 void routingContracts() {
     AudioMixer mixer;
@@ -190,6 +230,7 @@ int main(int argc, char **argv) {
     mixerContracts();
     outputContracts();
     assetContracts(argv[1]);
+    musicContracts(argv[1]);
     routingContracts();
     campaignStereoContracts();
     std::cout << checks << " audio checks passed\n";

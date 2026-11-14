@@ -67,7 +67,9 @@ void FeedbackChannel::collect() {
     if (state.play.toastTime <= 0.0F && state.app.navigation.gameplay() && !state.play.hints.boulder &&
         !run.state().boulders.empty() && run.boulderQuote(run.state().boulders.front()).allowed()) {
         state.play.hints.boulder = true;
-        state.play.toast = "철이 모였어요! 지상 화면에서 낙석 바위를 누르면 치울 수 있어요.";
+        state.play.toast = run.catalog().rails.empty()
+                               ? "철이 모였어요! 지상 화면에서 낙석 바위를 누르면 치울 수 있어요."
+                               : "철이 모였어요! 지상 화면에서 수정 군집을 누르면 치울 수 있어요.";
         state.play.toastTime = 5.0F;
         state.play.error = false;
     }

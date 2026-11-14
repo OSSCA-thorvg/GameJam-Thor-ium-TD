@@ -79,8 +79,12 @@ enum Action : engine::WidgetId {
     ToggleMining,
     /** Inspector command that clears the selected boulder. */
     ClearBoulder,
+    /** Fold or unfold the battlefield introduction cards. */
+    ToggleIntro,
+    /** Fold or unfold the overview inset on the battlefield. */
+    ToggleMinimap,
     /** Last control of the contiguous range decoded as a plain command. */
-    LastControl = ClearBoulder,
+    LastControl = ToggleMinimap,
     GuideBackdrop = 901,
     CardBase = 1000,
     DeckBase = 2000,

@@ -27,6 +27,10 @@ inline TunnelColors tunnelColors(game::StageBiome biome) {
         return {{24, 18, 18}, {66, 46, 42}, {118, 78, 60}};
     case game::StageBiome::Core:
         return {{18, 28, 38}, {52, 72, 88}, {96, 140, 140}};
+    case game::StageBiome::Crystal:
+        return {{22, 20, 40}, {58, 52, 92}, {130, 200, 230}};
+    case game::StageBiome::Swamp:
+        return {{36, 44, 30}, {78, 88, 58}, {132, 140, 90}};
     case game::StageBiome::Meadow:
         break;
     }
@@ -60,6 +64,112 @@ inline void drawBoulder(engine::Renderer &g, engine::ScreenPoint p, float size) 
         std::max(1.0F, s * .04F), {70, 66, 62});
     g.circle({p.x + s * .4F, p.y + s * .36F}, s * .09F, {132, 126, 116});
     g.circle({p.x - s * .46F, p.y + s * .34F}, s * .06F, {150, 144, 132});
+}
+/** Draw a cluster of crystal prisms about `size` wide, standing on a dark rock base. */
+inline void drawCrystalCluster(engine::Renderer &g, engine::ScreenPoint p, float size) {
+    const float s = size;
+    g.circle({p.x, p.y + s * .28F}, s * .44F, {16, 14, 30, 90});
+    g.polygon({{p.x - s * .46F, p.y + s * .3F},
+               {p.x - s * .3F, p.y + s * .06F},
+               {p.x + s * .32F, p.y + s * .04F},
+               {p.x + s * .48F, p.y + s * .3F}},
+              {54, 48, 76});
+    const struct Prism {
+        float x, lean, height, width;
+        engine::Color face, light;
+    } prisms[] = {{-.24F, -.18F, .62F, .14F, {150, 96, 210}, {214, 170, 255}},
+                  {.2F, .16F, .54F, .13F, {86, 170, 220}, {178, 232, 255}},
+                  {-.02F, .02F, .86F, .17F, {120, 140, 236}, {214, 226, 255}}};
+    for (const Prism &prism : prisms) {
+        const engine::ScreenPoint root{p.x + s * prism.x, p.y + s * .18F};
+        const engine::ScreenPoint tip{root.x + s * prism.lean, root.y - s * prism.height};
+        g.polygon({{root.x - s * prism.width, root.y},
+                   {root.x - s * prism.width * .8F + s * prism.lean * .8F, tip.y + s * .12F},
+                   tip,
+                   {root.x + s * prism.width * .8F + s * prism.lean * .8F, tip.y + s * .12F},
+                   {root.x + s * prism.width, root.y}},
+                  prism.face);
+        g.polygon({{root.x, root.y},
+                   {root.x - s * prism.width * .8F + s * prism.lean * .8F, tip.y + s * .12F},
+                   tip},
+                  prism.light);
+    }
+    g.circle({p.x - s * .02F, p.y - s * .5F}, s * .05F, {255, 255, 255, 220});
+}
+/** Draw a straight mine cart track between two screen points: sleepers under two steel rails. */
+inline void drawRail(engine::Renderer &g, engine::ScreenPoint a, engine::ScreenPoint b, float tile) {
+    const float length = std::max(1.0F, std::hypot(b.x - a.x, b.y - a.y));
+    const float ux = (b.x - a.x) / length, uy = (b.y - a.y) / length;
+    for (float along = 0; along <= length; along += tile * .45F) {
+        const engine::ScreenPoint c{a.x + ux * along, a.y + uy * along};
+        g.line({{c.x - uy * tile * .36F, c.y + ux * tile * .36F},
+                {c.x + uy * tile * .36F, c.y - ux * tile * .36F}},
+               std::max(1.5F, tile * .12F), {92, 64, 40, 230});
+    }
+    for (float side : {-.22F, .22F})
+        g.line({{a.x - uy * tile * side, a.y + ux * tile * side},
+                {b.x - uy * tile * side, b.y + ux * tile * side}},
+               std::max(1.2F, tile * .07F), {176, 184, 196, 235});
+    for (const engine::ScreenPoint end : {a, b})
+        g.rect({end.x - tile * .3F, end.y - tile * .3F, tile * .6F, tile * .6F}, {70, 52, 36, 230},
+               tile * .1F);
+}
+/** Draw a mine cart at a screen point, heading along (ux, uy), with ore heaped in its tub. */
+inline void drawCart(engine::Renderer &g, engine::ScreenPoint p, float ux, float uy, float tile) {
+    const float half = tile * .42F, depth = tile * .3F;
+    const auto at = [&](float along, float side) -> engine::ScreenPoint {
+        return {p.x + ux * along - uy * side, p.y + uy * along + ux * side};
+    };
+    g.circle({p.x, p.y + tile * .12F}, tile * .5F, {10, 10, 14, 80});
+    for (float along : {-half * .6F, half * .6F})
+        for (float side : {-depth, depth})
+            g.circle(at(along, side), tile * .1F, {40, 36, 40});
+    g.polygon({at(-half, -depth), at(half, -depth), at(half, depth), at(-half, depth)}, {120, 74, 44});
+    g.polygon({at(-half * .8F, -depth * .7F), at(half * .8F, -depth * .7F), at(half * .8F, depth * .7F),
+               at(-half * .8F, depth * .7F)},
+              {82, 52, 32});
+    g.circle(at(-half * .2F, 0), tile * .16F, {241, 192, 102});
+    g.circle(at(half * .25F, -depth * .2F), tile * .13F, {150, 170, 180});
+}
+/** Draw a cart lever on its post, thrown forward when `ready`, with a charge ring filled to `charge`. */
+inline void drawLever(engine::Renderer &g, engine::ScreenPoint p, float tile, bool ready, float charge) {
+    g.circle({p.x, p.y + tile * .1F}, tile * .42F, {12, 12, 18, 90});
+    g.circle(p, tile * .38F, ready ? engine::Color{88, 70, 34} : engine::Color{56, 50, 46});
+    g.rect({p.x - tile * .26F, p.y + tile * .04F, tile * .52F, tile * .16F}, {130, 132, 140}, tile * .05F);
+    const float lean = ready ? .28F : -.28F;
+    g.line({{p.x, p.y + tile * .1F}, {p.x + tile * lean, p.y - tile * .36F}}, std::max(1.5F, tile * .09F),
+           {176, 184, 196});
+    g.circle({p.x + tile * lean, p.y - tile * .38F}, tile * .1F,
+             ready ? engine::Color{232, 72, 56} : engine::Color{120, 80, 74});
+    if (charge < 1) {
+        std::vector<engine::ScreenPoint> arc;
+        const int steps = std::max(2, static_cast<int>(32 * charge));
+        for (int step = 0; step <= steps; ++step) {
+            const float angle = -1.5707963F + 6.2831853F * charge * step / steps;
+            arc.push_back({p.x + std::cos(angle) * tile * .5F, p.y + std::sin(angle) * tile * .5F});
+        }
+        g.line(arc, std::max(1.5F, tile * .07F), {255, 214, 120, 220});
+    }
+}
+/** Draw a gas tank: a riveted green cylinder with a warning band, dimmed and split open once spent. */
+inline void drawTank(engine::Renderer &g, engine::ScreenPoint p, float tile, bool spent) {
+    g.circle({p.x, p.y + tile * .26F}, tile * .4F, {12, 14, 10, 90});
+    if (spent) {
+        g.polygon({{p.x - tile * .3F, p.y + tile * .3F},
+                   {p.x - tile * .26F, p.y - tile * .04F},
+                   {p.x - tile * .04F, p.y + tile * .1F},
+                   {p.x + tile * .1F, p.y - tile * .1F},
+                   {p.x + tile * .3F, p.y + tile * .02F},
+                   {p.x + tile * .3F, p.y + tile * .3F}},
+                  {58, 66, 46});
+        g.circle({p.x, p.y + tile * .12F}, tile * .1F, {30, 28, 22});
+        return;
+    }
+    g.rect({p.x - tile * .3F, p.y - tile * .38F, tile * .6F, tile * .7F}, {84, 124, 64}, tile * .2F);
+    g.rect({p.x - tile * .3F, p.y - tile * .06F, tile * .6F, tile * .14F}, {241, 192, 102}, tile * .03F);
+    g.rect({p.x - tile * .22F, p.y - tile * .34F, tile * .1F, tile * .6F}, {132, 170, 100, 200}, tile * .05F);
+    g.rect({p.x - tile * .1F, p.y - tile * .5F, tile * .2F, tile * .14F}, {120, 120, 120}, tile * .04F);
+    g.circle({p.x, p.y + tile * .01F}, tile * .06F, {40, 34, 20});
 }
 /** Draw the small trait badge: an upward chevron for high ground, a faceted gem for crystal ground. */
 inline void drawPadTraitGlyph(engine::Renderer &g, game::PadTrait trait, engine::ScreenPoint p, float size) {

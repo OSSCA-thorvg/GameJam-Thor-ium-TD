@@ -53,6 +53,8 @@ struct RunState {
     std::vector<Enemy> enemies;
     std::vector<GroundField> fields;
     std::vector<Point> route;
+    /** Per catalog fork, 1 while enemies take its detour and the barricade closes the authored branch. */
+    std::vector<int> detours;
     std::vector<Point> pads;
     std::vector<Point> unitCells;
     /** Building pads still blocked by a boulder; a cleared boulder moves to `pads`. */

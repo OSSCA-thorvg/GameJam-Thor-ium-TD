@@ -178,6 +178,7 @@ bool Application::frame(int width, int height, float density, float elapsed) {
     stage = FrameClock::now();
     feedback.collect();
     gameplay.synchronize(before);
+    tutorial.advance(elapsed);
     tutorial.observe();
     if (flow.synchronizeProgress())
         savePersistence();
@@ -480,6 +481,27 @@ std::string Application::debugState() const {
                  << ",\"selected\":" << (selected ? "true" : "false") << '}';
     }
     feedback << ']';
+    feedback << ",\"rails\":[";
+    for (std::size_t index = 0; index < run.catalog().rails.size(); ++index) {
+        const game::RailDefinition &rail = run.catalog().rails[index];
+        feedback << (index ? "," : "") << "{\"x\":" << rail.lever.x << ",\"y\":" << rail.lever.y
+                 << ",\"countdown\":" << run.cartCountdown(index)
+                 << ",\"progress\":" << run.cartProgress(index) << '}';
+    }
+    feedback << "],\"tanks\":[";
+    for (std::size_t index = 0; index < run.catalog().tanks.size(); ++index) {
+        const game::Point tank = run.catalog().tanks[index].position;
+        feedback << (index ? "," : "") << "{\"x\":" << tank.x << ",\"y\":" << tank.y
+                 << ",\"ready\":" << (run.tankReady(index) ? "true" : "false") << '}';
+    }
+    feedback << "],\"forks\":[";
+    for (std::size_t index = 0; index < run.catalog().forks.size(); ++index) {
+        const game::Point spot = run.barricade(index);
+        feedback << (index ? "," : "") << "{\"x\":" << spot.x << ",\"y\":" << spot.y
+                 << ",\"detour\":" << (run.detoured(index) ? "true" : "false")
+                 << ",\"length\":" << run.routeLength(run.catalog().forks[index].route) << '}';
+    }
+    feedback << ']';
     feedback << ",\"placement\":";
     const std::optional<presentation::PlacementPreview> &placement = view.currentPlacement();
     if (placement) {
@@ -578,6 +600,8 @@ std::string Application::debugState() const {
              << ",\"volume\":" << audio.settings.volume << ",\"voices\":" << audio.activeVoices()
              << ",\"played\":" << audio.played << ",\"suppressed\":" << audio.suppressed
              << ",\"beeps\":" << sound.beepClips << ",\"mp3\":" << sound.mp3Clips
+             << ",\"music\":" << (sound.music ? "true" : "false")
+             << ",\"musicLoops\":" << (audio.music() ? audio.music()->loops() : 0)
              << ",\"assetErrors\":" << sound.assetErrors.size() << "}}";
     return result + feedback.str();
 }

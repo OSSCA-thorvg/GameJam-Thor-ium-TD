@@ -1,5 +1,7 @@
 #include "TutorialDirector.h"
 #include "game/content/TutorialCatalog.h"
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace thorium {
@@ -39,11 +41,13 @@ void TutorialDirector::exit() {
     regularPlay_.reset();
     checkpoint_.reset();
     checkpointLesson_ = Lesson::None;
+    completeHold_ = -1;
     sound.reset(run);
     ui.cancel();
     ui.focused = 0;
 }
 void TutorialDirector::enter(Lesson lesson) {
+    completeHold_ = -1;
     state.play.tutorial.lesson = lesson;
     state.play.tutorial.mineCell = mineTarget();
     state.play.selectedCard = 0;
@@ -51,7 +55,7 @@ void TutorialDirector::enter(Lesson lesson) {
     state.play.selectedUnit = 0;
     state.play.scan = false;
     if (run.state().phase == game::Phase::Prep)
-        state.play.mine = true;
+        state.play.mine = lesson != Lesson::Fork;
     state.play.toastTime = 0;
     ui.cancel();
     if (lesson != Lesson::Complete && lesson != Lesson::Failed) {
@@ -76,14 +80,21 @@ void TutorialDirector::next() {
         enter(Lesson::Building);
 }
 int TutorialDirector::mineTarget() const {
-    if (state.play.tutorial.lesson == Lesson::Scan || state.play.tutorial.lesson == Lesson::FirstDig)
+    const Lesson lesson = state.play.tutorial.lesson;
+    if (lesson == Lesson::Scan)
         return 6;
-    if (state.play.tutorial.lesson == Lesson::Crafting) {
-        for (int cell : {7, 11, 12})
-            if (!run.state().mine[cell].dug)
+    // Strike order of the authored practice wall: iron, then copper, then the gold under thick rock.
+    const auto next = [this](std::initializer_list<int> cells) {
+        for (int cell : cells)
+            if (run.state().mine[static_cast<std::size_t>(cell)].cover > 0)
                 return cell;
-    }
-    return state.play.tutorial.lesson == Lesson::Investment ? 13 : -1;
+        return -1;
+    };
+    if (lesson == Lesson::FirstDig)
+        return next({0, 5});
+    if (lesson == Lesson::Crafting)
+        return next({3});
+    return lesson == Lesson::Investment && !completing() ? next({8, 7}) : -1;
 }
 void TutorialDirector::observe() {
     if (!active())
@@ -115,24 +126,34 @@ void TutorialDirector::observe() {
             feedback.notify({false, "강조된 길 위에 놓아 주세요. 이 단계를 복구했어요"});
         }
     } else if (lesson == Lesson::Combat && live.phase == game::Phase::Prep)
+        enter(Lesson::Fork);
+    else if (lesson == Lesson::Fork && run.detoured(0))
         enter(Lesson::Scan);
     else if (lesson == Lesson::Scan && live.scans == 0 && live.mine[6].info)
         enter(Lesson::FirstDig);
-    else if (lesson == Lesson::FirstDig && !live.job.active && live.mine[6].dug && live.iron >= 2)
+    else if (lesson == Lesson::FirstDig && live.iron >= 2)
         enter(Lesson::Crafting);
     else if (lesson == Lesson::Crafting && live.tool == 2)
         enter(Lesson::Investment);
-    else if (lesson == Lesson::Investment && !live.job.active && live.mine[13].dug && live.gold >= 4)
-        enter(Lesson::Complete);
+    else if (lesson == Lesson::Investment && !completing() && live.gold >= 4) {
+        completeHold_ = CompleteHold;
+        state.app.tutorialCompleted = true;
+    }
     state.play.tutorial.mineCell = mineTarget();
 }
+void TutorialDirector::advance(float seconds) {
+    if (!active() || !completing() || !std::isfinite(seconds) || seconds <= 0)
+        return;
+    completeHold_ -= std::min(seconds, .1F);
+    if (completeHold_ <= 0)
+        enter(Lesson::Complete);
+}
 bool TutorialDirector::allowsSimulation() const {
-    if (!active())
+    if (!active() || completing())
         return true;
     const Lesson lesson = state.play.tutorial.lesson;
-    return lesson == Lesson::Combat ||
-           ((lesson == Lesson::FirstDig || lesson == Lesson::Crafting || lesson == Lesson::Investment) &&
-            run.state().job.active);
+    return lesson == Lesson::Combat || lesson == Lesson::FirstDig || lesson == Lesson::Crafting ||
+           lesson == Lesson::Investment;
 }
 bool TutorialDirector::allows(const GameInput &input, const presentation::Layout &layout) const {
     using namespace presentation;
@@ -143,6 +164,8 @@ bool TutorialDirector::allows(const GameInput &input, const presentation::Layout
         switch (input.action) {
         case OpenSettings:
         case OpenGuide:
+        case ToggleIntro:
+        case ToggleMinimap:
         case AudioMute:
         case AudioVolume:
         case GoHome:
@@ -160,10 +183,14 @@ bool TutorialDirector::allows(const GameInput &input, const presentation::Layout
         case Tool:
             return lesson == Lesson::Crafting;
         case World:
+            if (completing())
+                return false;
+            if (lesson == Lesson::Fork)
+                return true;
             if (lesson == Lesson::Scan || lesson == Lesson::FirstDig || lesson == Lesson::Crafting ||
                 lesson == Lesson::Investment)
-                return !run.state().job.active && layout.mineCell(input.position) == mineTarget() &&
-                       (lesson != Lesson::Scan || state.play.scan);
+                return layout.mineCell(input.position) == mineTarget() &&
+                       (lesson == Lesson::Scan) == state.play.scan;
             return lesson == Lesson::Building || lesson == Lesson::Unit || lesson == Lesson::Combat;
         default:
             return lesson == Lesson::Combat && input.action != Start && input.action != Reset;

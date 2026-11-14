@@ -91,7 +91,7 @@ void rejections() {
     rejected(content, text.substr(0, text.size() / 2), "a truncated snapshot is rejected");
     rejected(content, text + " 7", "trailing data is rejected");
     rejected(content, "", "an empty snapshot is rejected");
-    rejected(content, "THORIUM-RUN 2" + text.substr(13), "another snapshot version is rejected");
+    rejected(content, "THORIUM-RUN 1" + text.substr(13), "another snapshot version is rejected");
     require(!run.state().towers.empty(), "the fixture has a building to move");
     Catalog moved = content;
     const Point pad = run.state().towers.front().position;

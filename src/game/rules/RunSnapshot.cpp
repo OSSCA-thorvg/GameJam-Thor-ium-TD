@@ -10,7 +10,7 @@ namespace thorium::game {
 namespace {
 /** First token of every snapshot; a different version is rejected rather than migrated. */
 constexpr const char *SnapshotTag = "THORIUM-RUN";
-constexpr int SnapshotVersion = 1;
+constexpr int SnapshotVersion = 3;
 /** Largest count of any stored list; longer lists mark a damaged snapshot. */
 constexpr int MaxItems = 4096;
 
@@ -194,13 +194,15 @@ std::string Run::snapshot() const {
     }
     out << static_cast<int>(state_.towers.size());
     for (const Tower &tower : state_.towers)
-        out << tower.id << tower.kind << tower.position << tower.level;
+        out << tower.id << tower.kind << tower.position << tower.level << tower.hp << tower.maxHp;
     out << static_cast<int>(state_.units.size());
     for (const Unit &unit : state_.units)
         out << unit.id << unit.kind << unit.position << unit.hp << unit.maxHp;
     writePoints(out, state_.pads);
     writePoints(out, state_.unitCells);
     writePoints(out, state_.boulders);
+    for (std::size_t fork = 0; fork < catalog_.forks.size(); ++fork)
+        out << detoured(fork);
     out << nextEntity_ << nextCard_ << nextOffer_ << static_cast<int>(acquisitions_.size());
     for (CardId id : acquisitions_)
         out << id;
@@ -302,6 +304,8 @@ Result Run::restore(const std::string &text) {
         tower.kind = in.choice<CardKind>(CardKindCount);
         tower.position = in.point();
         tower.level = in.integer(1, 10);
+        tower.hp = in.integer(1, amount);
+        tower.maxHp = in.integer(tower.hp, amount);
         tower.cooldown = 0;
         tower.disabled = 0;
     }
@@ -317,6 +321,9 @@ Result Run::restore(const std::string &text) {
     next.pads = readPoints(in);
     next.unitCells = readPoints(in);
     next.boulders = readPoints(in);
+    next.detours.assign(catalog_.forks.size(), 0);
+    for (int &detour : next.detours)
+        detour = in.flag() ? 1 : 0;
     const EntityId nextEntity = static_cast<EntityId>(in.integer(1));
     const CardId nextCard = static_cast<CardId>(in.integer(1));
     const OfferId nextOffer = static_cast<OfferId>(in.integer(1));

@@ -32,6 +32,10 @@ const char *biomeName(game::StageBiome biome) {
         return "용암 심층";
     case game::StageBiome::Core:
         return "토르륨 핵";
+    case game::StageBiome::Crystal:
+        return "수정 공명굴";
+    case game::StageBiome::Swamp:
+        return "산성 늪지";
     case game::StageBiome::Meadow:
         break;
     }

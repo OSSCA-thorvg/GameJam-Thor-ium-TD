@@ -6,7 +6,7 @@
 async (page) => {
     /** @typedef {{id:number,x:number,y:number,w:number,h:number,enabled:boolean,focusable:boolean}} Widget */
     /** @typedef {{x:number,y:number}} Point */
-    /** @typedef {{screen:number,phase:number,energy:number,time:number,towers:number,units:number,gold:number,iron:number,copper:number,tool:number,digs:number,busy:boolean,width:number,height:number,reducedMotion:boolean,tutorial:{active:boolean,lesson:number,mineCell:number,completed:boolean}}} Snapshot */
+    /** @typedef {{screen:number,phase:number,energy:number,time:number,towers:number,units:number,gold:number,iron:number,copper:number,tool:number,digs:number,busy:boolean,width:number,height:number,reducedMotion:boolean,tutorial:{active:boolean,lesson:number,mineCell:number,completed:boolean},forks:{x:number,y:number,detour:boolean}[]}} Snapshot */
     /** @type {string[]} */ const errors=[];
     /** Require a real input/learning invariant. @param {unknown} value @param {string} message @returns {void} */
     function check(value,message){if(!value)throw new Error(message);}
@@ -50,7 +50,7 @@ async (page) => {
     }
     /** Tap a logical target using a real pointer. @param {import('playwright').Page} target @param {Point} point @param {boolean} touch @returns {Promise<void>} */
     async function pointClick(target,point,touch){if(touch)await target.touchscreen.tap(point.x,point.y);else await target.mouse.click(point.x,point.y);}
-    /** Excavate one highlighted cell and wait for actual resource/job completion. @param {import('playwright').Page} target @param {number} index @param {number} digs @param {boolean} touch @returns {Promise<void>} */
+    /** Strike one highlighted wall cell and wait for the dig to be spent. @param {import('playwright').Page} target @param {number} index @param {number} digs @param {boolean} touch @returns {Promise<void>} */
     async function dig(target,index,digs,touch){await pointClick(target,await cell(target,index%5,Math.floor(index/5),true),touch);await wait(target,`!s.busy&&s.digs===${digs}`);}
     /** Exercise the complete lesson sequence at the caller's viewport and input device. @param {import('playwright').Page} target @param {boolean} touch @returns {Promise<void>} */
     async function complete(target,touch){
@@ -78,14 +78,19 @@ async (page) => {
         await click(target,59,touch);await wait(target,'s.towers===1&&s.energy===3&&s.tutorial.lesson===3');
         await click(target,1002,touch);await pointClick(target,await cell(target,8,4),touch);
         await wait(target,'s.tutorial.lesson===4&&s.units===1&&s.energy===0');
-        await wait(target,'s.phase===2&&s.tutorial.lesson===5&&s.digs===5');await fit(target);
+        await wait(target,'s.phase===2&&s.tutorial.lesson===5&&s.digs===5&&!s.forks[0].detour');await fit(target);
+        /** @type {{x:number,y:number}} */ const barricade=(await state(target)).forks[0];
+        await pointClick(target,await cell(target,barricade.x,barricade.y),touch);
+        await wait(target,'s.tutorial.lesson===6&&s.forks[0].detour');
         await target.screenshot({path:`.playwright-mcp/thorium-tutorial-scan-${touch?'320':'desktop'}.png`,scale:'css'});
         await click(target,15,touch);await pointClick(target,await cell(target,1,1,true),touch);
-        await wait(target,'s.tutorial.lesson===6&&s.scans===0&&s.digs===5&&s.iron===0');
-        await dig(target,6,4,touch);await wait(target,'s.tutorial.lesson===7&&s.iron===2');
-        await dig(target,7,3,touch);await dig(target,11,2,touch);await dig(target,12,1,touch);
-        await click(target,17,touch);await wait(target,'s.tutorial.lesson===8&&s.tool===2&&s.iron===0&&s.copper===0');
-        await dig(target,13,0,touch);await wait(target,'s.tutorial.lesson===9&&s.tutorial.completed&&s.gold===4');await fit(target);
+        await wait(target,'s.tutorial.lesson===7&&s.scans===0&&s.digs===5&&s.iron===0');
+        await dig(target,0,4,touch);await wait(target,'s.tutorial.lesson===7&&s.iron===0');
+        await dig(target,5,3,touch);await wait(target,'s.tutorial.lesson===8&&s.iron>=4');
+        await dig(target,3,2,touch);await wait(target,'s.copper>=4');
+        await click(target,17,touch);await wait(target,'s.tutorial.lesson===9&&s.tool===2&&s.copper===0');
+        await dig(target,8,1,touch);await dig(target,7,0,touch);
+        await wait(target,'s.tutorial.lesson===10&&s.tutorial.completed&&s.gold===4');await fit(target);
         await target.screenshot({path:`.playwright-mcp/thorium-tutorial-complete-${touch?'320':'desktop'}.png`,scale:'css'});
     }
     page.on('pageerror',onError);
@@ -104,6 +109,6 @@ async (page) => {
             await click(mobile,39,true);await wait(mobile,'s.screen===3');await click(mobile,57,true);await wait(mobile,'s.tutorial.lesson===1&&s.gold===0&&s.tool===1');await fit(mobile);
         }finally{await context.close();}
         check(errors.length===0,errors.join('; '));
-        return {checks:['seven lessons complete with real costs, combat, scans, miner jobs, T2 crafting and gold','setup drag/range previews work while simulation is frozen; settings and retry preserve lesson checkpoints','completion and skip isolate regular progress, resources, preferences and session completion','full 320px touch practice and restarting from the guide work with bounded nonoverlapping controls'],errors};
+        return {checks:['eight lessons complete with real costs, combat, a barricade move, scans, wall strikes, T2 crafting and gold','setup drag/range previews work while simulation is frozen; settings and retry preserve lesson checkpoints','completion and skip isolate regular progress, resources, preferences and session completion','full 320px touch practice and restarting from the guide work with bounded nonoverlapping controls'],errors};
     }finally{page.off('pageerror',onError);}
 }

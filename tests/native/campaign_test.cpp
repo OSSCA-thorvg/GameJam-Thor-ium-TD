@@ -32,14 +32,14 @@ void content() {
     for (int stage = 1; stage <= TotalStages; ++stage) {
         const Catalog &catalog = stageCatalog(stage);
         require(validateCatalog(catalog).ok(), "every campaign catalog passes the actual import validator");
-        require(catalog.waves.size() == static_cast<std::size_t>(6 + stage * 2),
-                "campaign stages last 8/10/12/14/16 waves");
+        require(catalog.waves.size() == static_cast<std::size_t>(std::min(6 + stage * 2, 16)),
+                "campaign stages last 8/10/12/14/16/16/16 waves");
         require(stageMetadata(stage).wavesCount == static_cast<int>(catalog.waves.size()),
                 "stage metadata derives its length from content");
         require(catalog.width >= 24 && catalog.height >= 14, "campaign bounds exceed the former 18x10 field");
-        constexpr std::array<std::size_t, TotalStages> entrances{{3, 3, 4, 5, 5}};
+        constexpr std::array<std::size_t, TotalStages> entrances{{3, 3, 4, 5, 5, 4, 5}};
         require(catalog.additionalRoutes.size() + 1 == entrances[static_cast<std::size_t>(stage - 1)],
-                "campaign stages provide 3/3/4/5/5 entrances");
+                "campaign stages provide 3/3/4/5/5/4/5 entrances");
         require(stage == 1 || (catalog.width > stageCatalog(stage - 1).width &&
                                catalog.height >= stageCatalog(stage - 1).height),
                 "each later stage has a larger battlefield");

@@ -38,11 +38,28 @@ inline constexpr int CardKindCount = 12;
 /** Supported preparation purchases, independent of UI control IDs. */
 enum class UpgradeKind { Tool, Armor, Slots, Coil, Drill, Hire, Supply };
 /** Enemy roles; the zone boss is the last entry. */
-enum class EnemyKind { Normal, Runner, Armored, Swarm, Shielded, Healer, Splitter, Burrower, Sapper, Boss };
+enum class EnemyKind {
+    Normal,
+    Runner,
+    Armored,
+    Swarm,
+    Shielded,
+    Healer,
+    Splitter,
+    Burrower,
+    Sapper,
+    Flyer,
+    Stalker,
+    Leaper,
+    Wrecker,
+    Slinger,
+    Carrier,
+    Boss
+};
 /** Number of supported enemy roles, sized for per-kind tables. */
-inline constexpr std::size_t EnemyKindCount = 10;
+inline constexpr std::size_t EnemyKindCount = 16;
 /** Periodic behaviour of an enemy role; timing and strength are catalog data. */
-enum class EnemyAbility { None, Heal, Burrow, Stomp, Sabotage };
+enum class EnemyAbility { None, Heal, Burrow, Stomp, Sabotage, Leap, Siege, Airdrop };
 /** Elite modifier of one spawned enemy; None is an ordinary enemy and Leader is the mid-stage pack leader. */
 enum class EliteAffix { None, Steel, Swift, Regen, Enrage, Leader };
 /** Number of elite modifiers including None, sized for per-affix tables. */
@@ -87,6 +104,8 @@ struct CardDefinition {
     float arc = 0.0F;
     /** Damage bonus fraction granted to other buildings within range; such buildings never attack. */
     float aura = 0.0F;
+    /** Attacks reach only enemies on the ground, never flying ones. */
+    bool ground = false;
 };
 /** One atomic recipe or card-offer price, shared by validation, UI and payment. */
 struct ResourceCost {
@@ -119,6 +138,9 @@ struct Tower {
     float cooldown = 0.0F;
     /** Seconds this building stays sabotaged: it neither attacks nor supports. Cleared when a wave ends. */
     float disabled = 0.0F;
+    /** Durability; the building is destroyed at zero. Damage carries over between waves. */
+    int hp = 0;
+    int maxHp = 0;
 };
 /** A summoned ally; hit points and identity persist between waves. */
 struct Unit {
@@ -128,6 +150,8 @@ struct Unit {
     int hp;
     int maxHp;
     float cooldown = 0.0F;
+    /** Fraction of one hit point recovered but not yet applied. */
+    float mending = 0.0F;
 };
 /** One enemy progressing along the current route in logical tile units. */
 struct Enemy {
@@ -156,6 +180,8 @@ struct Enemy {
     float pulse = 0.0F;
     /** Set once an enraging elite falls under its health threshold. */
     bool enraged = false;
+    /** Battle time until which a stealthy enemy stays visible at any range after being hit. */
+    float revealedUntil = 0.0F;
 };
 /** Committed combat facts; animation timing belongs to the presentation consumer. */
 enum class CombatEventKind {
@@ -177,7 +203,21 @@ enum class CombatEventKind {
     Enrage,
     /** A lava vent erupts: subject is the vent's catalog index, from and to are its position, radius is the
      *  blast radius and amount is the number of enemies and allied units it hit. */
-    Eruption
+    Eruption,
+    /** A leaper jumps over the unit blocking it: from and to are its positions before and after the jump. */
+    Leap,
+    /** A mine cart leaves on its rail: subject is the rail's catalog index, from and to are the rail's ends.
+     */
+    Cart,
+    /** A gas tank explodes: subject is the tank's catalog index, radius is the blast radius and amount is the
+     *  number of enemies and allied units it hit. */
+    Detonation,
+    /** An enemy strikes a building: subject is the building, from is the enemy, amount is the damage. */
+    Batter,
+    /** A building is destroyed: subject is the building, from and to are its position. */
+    Wreck,
+    /** A carrier drops its cargo: subject is the carrier, from is where it dropped, amount is the cargo. */
+    Airdrop
 };
 /** One immutable combat result, retained even when its subject was removed this tick. */
 struct CombatEvent {

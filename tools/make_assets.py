@@ -192,6 +192,103 @@ def sapper() -> list[dict[str, Any]]:
     ]
 
 
+def bat() -> list[dict[str, Any]]:
+    """Cave bat with wide membrane wings, pointed ears and amber eyes."""
+    wing: Color = [0.36,0.3,0.46,1]
+    rib: Color = [0.24,0.2,0.32,1]
+    return [
+        polygon('wing-left', [[44,50],[8,30],[12,46],[4,56],[18,58],[22,68],[42,62]], wing),
+        polygon('wing-right', [[56,50],[92,30],[88,46],[96,56],[82,58],[78,68],[58,62]], wing),
+        stroke('rib-left', [[42,54],[12,40]], 2, rib),
+        stroke('rib-right', [[58,54],[88,40]], 2, rib),
+        polygon('ear-left', [[40,40],[38,24],[48,38]], [0.46,0.38,0.56,1]),
+        polygon('ear-right', [[60,40],[62,24],[52,38]], [0.46,0.38,0.56,1]),
+        ellipse('body',[50,54],[30,34],[0.48,0.4,0.58,1]),
+        ellipse('belly',[50,60],[16,18],[0.66,0.58,0.72,1]),
+        *eyes([44,48],[56,48],[7,7], [1,0.78,0.3,1]),
+        polygon('fang-left', [[46,58],[48,64],[49,58]], WHITE),
+        polygon('fang-right', [[51,58],[52,64],[54,58]], WHITE),
+    ]
+
+
+def stalker() -> list[dict[str, Any]]:
+    """Hooded shadow with a tattered cloak and two violet eyes."""
+    cloak: Color = [0.2,0.17,0.3,1]
+    return [
+        polygon('cloak', [[50,14],[74,40],[80,86],[68,80],[60,88],[50,80],[40,88],[32,80],[20,86],[26,40]], cloak),
+        polygon('hood-shade', [[50,22],[66,42],[50,52],[34,42]], [0.08,0.07,0.14,1]),
+        polygon('fold-left', [[34,52],[30,82],[38,78]], [0.27,0.23,0.4,1]),
+        polygon('fold-right', [[66,52],[70,82],[62,78]], [0.27,0.23,0.4,1]),
+        ellipse('eye-left',[43,40],[8,5],[0.78,0.56,1,1]),
+        ellipse('eye-right',[57,40],[8,5],[0.78,0.56,1,1]),
+        polygon('blade', [[76,56],[94,44],[80,62]], [0.78,0.8,0.86,1]),
+    ]
+
+
+def leaper() -> list[dict[str, Any]]:
+    """Frog-legged orange jumper with coiled hind legs and a bony crest."""
+    skin: Color = [0.93,0.55,0.22,1]
+    leg: Color = [0.75,0.38,0.14,1]
+    return [
+        ellipse('leg-left',[24,74],[30,20],leg),
+        ellipse('leg-right',[76,74],[30,20],leg),
+        polygon('foot-left', [[10,84],[30,82],[22,88]], [0.55,0.26,0.1,1]),
+        polygon('foot-right', [[90,84],[70,82],[78,88]], [0.55,0.26,0.1,1]),
+        ellipse('body',[50,60],[52,46],skin),
+        ellipse('belly',[50,68],[30,22],[1,0.82,0.58,1]),
+        polygon('crest', [[38,40],[44,22],[50,36],[56,20],[62,40]], [0.96,0.9,0.76,1]),
+        ellipse('eye-white-left',[40,50],[14,14],WHITE),
+        ellipse('eye-white-right',[60,50],[14,14],WHITE),
+        ellipse('pupil-left',[41,51],[6,8],INK),
+        ellipse('pupil-right',[61,51],[6,8],INK),
+    ]
+
+
+def wrecker() -> list[dict[str, Any]]:
+    """Stocky rust-red brute carrying a stone hammer over one shoulder."""
+    hide: Color = [0.72,0.32,0.24,1]
+    return [
+        stroke('haft', [[62,70],[84,24]], 6, [0.46,0.32,0.2,1]),
+        polygon('hammer', [[72,10],[96,22],[90,36],[66,24]], [0.56,0.56,0.6,1]),
+        ellipse('body',[48,62],[56,46],hide),
+        ellipse('belly',[48,70],[32,22],[0.9,0.62,0.48,1]),
+        polygon('brow', [[30,46],[66,46],[60,52],[36,52]], [0.42,0.18,0.14,1]),
+        *eyes([40,55],[56,55],[7,6], [1,0.88,0.4,1]),
+        ellipse('fist',[70,68],[14,14],[0.62,0.26,0.2,1]),
+    ]
+
+
+def slinger() -> list[dict[str, Any]]:
+    """Lanky ochre thrower whirling a sling with a stone in its pouch."""
+    skin: Color = [0.86,0.68,0.3,1]
+    return [
+        stroke('cord', [[60,44],[78,20],[90,30]], 2.5, [0.36,0.26,0.16,1]),
+        ellipse('stone',[90,30],[12,12],[0.5,0.48,0.52,1]),
+        ellipse('body',[48,62],[40,48],skin),
+        polygon('scarf', [[30,46],[66,46],[62,54],[34,54]], [0.3,0.5,0.62,1]),
+        polygon('hood', [[30,44],[50,18],[70,44]], [0.62,0.46,0.2,1]),
+        *eyes([42,40],[56,40],[6,6], [0.2,0.14,0.08,1]),
+        ellipse('arm',[62,50],[10,18],[0.76,0.58,0.24,1]),
+    ]
+
+
+def carrier() -> list[dict[str, Any]]:
+    """Broad-winged teal bat clutching a rope sling with three passengers under it."""
+    wing: Color = [0.22,0.46,0.5,1]
+    return [
+        polygon('wing-left', [[42,40],[4,22],[10,38],[2,48],[16,48],[22,58],[40,50]], wing),
+        polygon('wing-right', [[58,40],[96,22],[90,38],[98,48],[84,48],[78,58],[60,50]], wing),
+        ellipse('body',[50,42],[26,28],[0.28,0.56,0.6,1]),
+        *eyes([44,38],[56,38],[6,6], [1,0.86,0.4,1]),
+        stroke('rope-left', [[44,54],[36,72]], 2, [0.5,0.38,0.22,1]),
+        stroke('rope-right', [[56,54],[64,72]], 2, [0.5,0.38,0.22,1]),
+        polygon('sling', [[32,72],[68,72],[62,84],[38,84]], [0.62,0.46,0.26,1]),
+        ellipse('rider-left',[40,70],[10,10],[0.82,0.4,0.32,1]),
+        ellipse('rider-mid',[50,68],[10,10],[0.82,0.4,0.32,1]),
+        ellipse('rider-right',[60,70],[10,10],[0.82,0.4,0.32,1]),
+    ]
+
+
 def golem() -> list[dict[str, Any]]:
     """Massive slate golem with crystal shoulders and a glowing core."""
     rock: Color = [0.37,0.35,0.43,1]
@@ -221,6 +318,12 @@ CREATURES: dict[str, tuple[str, Any]] = {
     'splitter': ('Original splitter by Thor-ium TD', splitter),
     'burrower': ('Original burrower by Thor-ium TD', burrower),
     'sapper': ('Original sapper by Thor-ium TD', sapper),
+    'bat': ('Original bat by Thor-ium TD', bat),
+    'stalker': ('Original stalker by Thor-ium TD', stalker),
+    'leaper': ('Original leaper by Thor-ium TD', leaper),
+    'wrecker': ('Original wrecker by Thor-ium TD', wrecker),
+    'slinger': ('Original slinger by Thor-ium TD', slinger),
+    'carrier': ('Original carrier by Thor-ium TD', carrier),
     'golem': ('Original golem by Thor-ium TD', golem),
 }
 

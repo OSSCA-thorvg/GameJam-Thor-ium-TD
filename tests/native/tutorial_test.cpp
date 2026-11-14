@@ -40,13 +40,11 @@ struct Practice {
         feedback.collect();
         director.observe();
     }
-    /** Complete an actual miner job through the public fixed-step path. */
-    void dig(int cell) {
-        require(run.dig(cell).ok, "the guided tile is actually reachable and affordable");
-        require(run.state().job.active, "selecting a tile starts an asynchronous miner job");
-        for (int step = 0; step < 600 && run.state().job.active; ++step)
-            tick();
-        require(!run.state().job.active && run.state().mine[cell].dug, "excavation completes normally");
+    /** Strike the guided wall cell with the pick through the ordinary command, then observe. */
+    void strike(int cell) {
+        require(state.play.tutorial.mineCell == cell, "the lesson guides this strike");
+        require(run.strike(cell, game::StrikeTool::Pick).ok, "the guided cell is reachable and affordable");
+        tick();
     }
 };
 /** Validate seven lessons, ordinary costs, safe checkpoints and suspended-run isolation. */
@@ -88,36 +86,63 @@ void practiceContracts() {
             "the actual guard starts the scheduled normal combat");
     for (int step = 0; step < 3600 && app.run.state().phase == game::Phase::Battle; ++step)
         app.tick();
-    require(app.run.state().phase == game::Phase::Prep && app.state.play.tutorial.lesson == Lesson::Scan &&
+    require(app.run.state().phase == game::Phase::Prep && app.state.play.tutorial.lesson == Lesson::Fork &&
                 app.run.state().defeated == 4 && app.run.state().baseHp > 0,
             "the authored defenses survive all four ordinary enemies and reach preparation");
     require(app.run.state().digs == 5 && app.run.state().scans == 1,
             "preparation grants the normal five digs and one scan");
+    require(!app.state.play.mine && !app.run.detoured(0),
+            "the fork lesson shows the surface and its barricade");
+    const float before = app.run.routeLength();
+    require(app.run.switchFork(0).ok && app.run.detoured(0),
+            "the barricade moves through the ordinary command");
+    app.director.observe();
+    require(app.state.play.tutorial.lesson == Lesson::Scan && app.state.play.mine &&
+                app.run.routeLength() == before,
+            "rerouting through the equal-length detour opens the scan lesson underground");
+    require(app.run.catalog().mining == game::MiningMode::Excavate, "practice teaches the excavation wall");
     require(app.run.scan(6).ok, "scan the authored first boundary cell");
     app.director.observe();
     require(app.state.play.tutorial.lesson == Lesson::FirstDig && app.run.state().iron == 0 &&
                 app.run.state().digs == 5,
             "scan alone reveals information without granting ore or finishing excavation");
-    app.dig(6);
-    require(app.state.play.tutorial.lesson == Lesson::Crafting && app.run.state().iron == 2,
-            "completed excavation and actual ore payment unlock crafting");
-    app.dig(7);
-    app.dig(11);
-    app.dig(12);
-    require(app.run.state().iron == 4 && app.run.state().copper == 4 && app.run.state().digs == 1,
-            "four normal digs fund exactly the shipped T2 recipe");
+    app.strike(0);
+    require(app.state.play.tutorial.lesson == Lesson::FirstDig && app.run.state().iron == 0,
+            "a partly bared vein pays nothing yet");
+    app.strike(5);
+    require(app.state.play.tutorial.lesson == Lesson::Crafting && app.run.state().iron >= 4,
+            "baring the whole iron vein pays it and unlocks crafting");
+    app.strike(3);
+    require(app.run.state().iron >= 4 && app.run.state().copper >= 4 && app.run.state().digs == 2,
+            "three strikes fund the shipped T2 recipe");
     require(app.run.upgrade(game::UpgradeKind::Tool).ok, "craft the real T2 upgrade");
     app.director.observe();
-    require(app.state.play.tutorial.lesson == Lesson::Investment && app.run.state().iron == 0 &&
-                app.run.state().copper == 0 && app.run.catalog().mine.cells[13].grade == 2,
-            "paid crafting unlocks a genuinely T2 practice stratum");
-    app.dig(13);
-    require(app.state.play.tutorial.lesson == Lesson::Complete && app.state.app.tutorialCompleted &&
-                app.run.state().gold == 4 && app.run.state().digs == 0,
-            "the fifth dig grants gold and records completion");
+    require(app.state.play.tutorial.lesson == Lesson::Investment && app.run.state().tool == 2 &&
+                app.run.state().copper == 0,
+            "paid crafting unlocks the gold lesson");
+    app.strike(8);
+    require(app.run.state().gold == 0 && app.director.allowsSimulation(),
+            "the first gold strike leaves rock");
+    app.strike(7);
+    require(app.state.play.tutorial.lesson == Lesson::Investment && app.director.completing() &&
+                app.state.app.tutorialCompleted && app.run.state().gold == 4 && app.run.state().digs == 0 &&
+                app.state.play.tutorial.mineCell == -1 && app.director.allowsSimulation(),
+            "the fifth strike grants gold and records completion while the field stays in view");
+    GameInput tap{};
+    tap.kind = InputKind::Control;
+    tap.action = World;
+    require(!app.director.allows(tap, Layout{}), "the field ignores taps while the completion window waits");
+    for (int step = 0; step < 20; ++step)
+        app.director.advance(.1F);
+    require(app.state.play.tutorial.lesson == Lesson::Investment,
+            "the completion window waits at least two seconds after the gold dig");
+    for (int step = 0; step < 6; ++step)
+        app.director.advance(.1F);
+    require(app.state.play.tutorial.lesson == Lesson::Complete && !app.director.completing(),
+            "the completion window opens once the hold ends");
     app.director.retry();
     require(app.state.play.tutorial.lesson == Lesson::Investment && app.run.state().gold == 0 &&
-                app.run.state().tool == 2 && app.run.state().digs == 1,
+                app.run.state().tool == 2 && app.run.state().digs == 2,
             "retry restores the current checkpoint without duplicating its gold reward");
     app.director.begin();
     require(app.state.play.tutorial.lesson == Lesson::Briefing && app.run.state().energy == 6,

@@ -17,7 +17,8 @@ void applyGroundFields(RunState &state, const Run &run) {
                        state.fields.end());
     for (const GroundField &field : state.fields)
         for (Enemy &enemy : state.enemies)
-            if (!run.tunneled(enemy) && distance(enemy.position, field.position) <= field.radius)
+            if (!run.tunneled(enemy) && !run.flying(enemy) &&
+                distance(enemy.position, field.position) <= field.radius)
                 enemy.slowUntil = std::max(enemy.slowUntil, state.battleTime + .2F);
 }
 /** Return the strongest support bonus covering one attacking building; bonuses do not stack. */
@@ -49,13 +50,76 @@ float pathLength(const std::vector<Point> &points) {
         total += distance(points[index - 1], points[index]);
     return total;
 }
+/** Distance from a point to the segment between a and b. */
+float segmentDistance(Point point, Point a, Point b) {
+    const float dx = b.x - a.x, dy = b.y - a.y;
+    const float length = dx * dx + dy * dy;
+    const float t =
+        length < .0001F ? 0 : std::clamp(((point.x - a.x) * dx + (point.y - a.y) * dy) / length, 0.0F, 1.0F);
+    return distance(point, {a.x + dx * t, a.y + dy * t});
+}
+/** Progress of a point along a polyline, or -1 when the point is not on it. */
+float progressOf(const std::vector<Point> &points, Point point) {
+    float total = 0;
+    for (std::size_t index = 1; index < points.size(); ++index) {
+        if (segmentDistance(point, points[index - 1], points[index]) < .01F)
+            return total + distance(points[index - 1], point);
+        total += distance(points[index - 1], points[index]);
+    }
+    return points.size() == 1 && distance(points.front(), point) < .01F ? 0 : -1;
+}
+/** Corners of a polyline strictly between two progress values, in order. */
+std::vector<Point> cornersBetween(const std::vector<Point> &points, float from, float to) {
+    std::vector<Point> result;
+    float total = 0;
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        if (index)
+            total += distance(points[index - 1], points[index]);
+        if (total > from + .01F && total < to - .01F)
+            result.push_back(points[index]);
+    }
+    return result;
+}
 /** Count the eruptions of a vent due by a battle time: one at its phase and one per period afterwards. */
 int eruptionsBy(float time, float phase, float period) {
     return time + .0001F < phase ? 0 : static_cast<int>(std::floor((time + .0001F - phase) / period)) + 1;
 }
 } // namespace
 const std::vector<Point> &Run::route(std::uint32_t index) const {
-    return index == 0 ? state_.route : catalog_.additionalRoutes.at(index - 1).points;
+    return routes_.at(index);
+}
+bool Run::detoured(std::size_t fork) const {
+    return fork < state_.detours.size() && state_.detours[fork] != 0;
+}
+std::vector<Point> Run::forkBranch(std::size_t index, bool detour) const {
+    const ForkDefinition &fork = catalog_.forks.at(index);
+    const std::vector<Point> &base =
+        fork.route == 0 ? state_.route : catalog_.additionalRoutes.at(fork.route - 1).points;
+    std::vector<Point> branch{fork.split};
+    const std::vector<Point> inner =
+        detour ? fork.detour
+               : cornersBetween(base, progressOf(base, fork.split), progressOf(base, fork.merge));
+    branch.insert(branch.end(), inner.begin(), inner.end());
+    branch.push_back(fork.merge);
+    return branch;
+}
+Point Run::barricade(std::size_t fork) const {
+    const std::vector<Point> closed = forkBranch(fork, !detoured(fork));
+    const float gap = distance(closed[0], closed[1]);
+    const float step = std::min(1.0F, gap);
+    return {closed[0].x + (closed[1].x - closed[0].x) / gap * step,
+            closed[0].y + (closed[1].y - closed[0].y) / gap * step};
+}
+Result Run::switchFork(std::size_t fork) {
+    if (fork >= catalog_.forks.size())
+        return {false, "갈림길이 없어요"};
+    if (state_.phase != Phase::Prep && state_.phase != Phase::Ready)
+        return {false, "바리케이드는 정비 중에만 옮길 수 있어요"};
+    state_.detours.resize(catalog_.forks.size(), 0);
+    state_.detours[fork] = state_.detours[fork] ? 0 : 1;
+    resolveTunnels();
+    return {true, state_.detours[fork] ? "바리케이드로 원래 길을 막았어요 · 적이 우회로로 와요"
+                                       : "바리케이드로 우회로를 막았어요 · 적이 원래 길로 와요"};
 }
 float Run::routeLength(std::uint32_t lane) const {
     return pathLength(route(lane));
@@ -115,22 +179,157 @@ bool Run::burrowed(const Enemy &enemy) const {
     return state_.battleTime < enemy.burrowUntil;
 }
 void Run::resolveTunnels() {
+    routes_.assign(1, state_.route);
+    for (const EntranceRoute &entrance : catalog_.additionalRoutes)
+        routes_.push_back(entrance.points);
     tunnels_ = catalog_.tunnels;
+    bogs_ = catalog_.bogs;
     const float added = pathLength(state_.route) - pathLength(catalog_.route);
-    for (TunnelSpan &span : tunnels_)
-        if (span.route == 0) {
-            span.enter += added;
-            span.exit += added;
+    for (std::vector<RouteSpan> *spans : {&tunnels_, &bogs_})
+        for (RouteSpan &span : *spans)
+            if (span.route == 0) {
+                span.enter += added;
+                span.exit += added;
+            }
+    state_.detours.resize(catalog_.forks.size(), 0);
+    for (std::size_t index = 0; index < catalog_.forks.size(); ++index) {
+        if (!state_.detours[index])
+            continue;
+        const ForkDefinition &fork = catalog_.forks[index];
+        std::vector<Point> &path = routes_.at(fork.route);
+        const float split = progressOf(path, fork.split), merge = progressOf(path, fork.merge);
+        std::vector<Point> detour = forkBranch(index, true);
+        const float shift = pathLength(detour) - (merge - split);
+        std::vector<Point> joined = cornersBetween(path, -1, split);
+        joined.insert(joined.end(), detour.begin(), detour.end());
+        const std::vector<Point> rest = cornersBetween(path, merge, pathLength(path) + 1);
+        joined.insert(joined.end(), rest.begin(), rest.end());
+        path = joined;
+        for (std::vector<RouteSpan> *spans : {&tunnels_, &bogs_}) {
+            spans->erase(std::remove_if(spans->begin(), spans->end(),
+                                        [&](const RouteSpan &span) {
+                                            return span.route == fork.route && span.enter >= split - .01F &&
+                                                   span.exit <= merge + .01F;
+                                        }),
+                         spans->end());
+            for (RouteSpan &span : *spans)
+                if (span.route == fork.route && span.enter >= merge - .01F) {
+                    span.enter += shift;
+                    span.exit += shift;
+                }
         }
+    }
 }
 bool Run::tunnelAt(float progress, std::uint32_t lane) const {
-    for (const TunnelSpan &span : tunnels_)
+    for (const RouteSpan &span : tunnels_)
         if (span.route == lane && progress >= span.enter && progress < span.exit)
             return true;
     return false;
 }
 bool Run::tunneled(const Enemy &enemy) const {
-    return tunnelAt(enemy.progress, enemy.route);
+    return !flying(enemy) && tunnelAt(enemy.progress, enemy.route);
+}
+bool Run::flying(const Enemy &enemy) const {
+    return catalog_.enemy(enemy.kind).flying;
+}
+bool Run::reaches(const Enemy &enemy, CardKind attacker) const {
+    return !underground(enemy) && !(catalog_.card(attacker).ground && flying(enemy));
+}
+bool Run::revealed(const Enemy &enemy) const {
+    return state_.battleTime < enemy.revealedUntil;
+}
+bool Run::visibleFrom(const Enemy &enemy, Point position) const {
+    const float stealth = catalog_.enemy(enemy.kind).stealth;
+    return stealth <= 0 || revealed(enemy) || distance(enemy.position, position) <= stealth;
+}
+bool Run::bogged(const Enemy &enemy) const {
+    if (flying(enemy))
+        return false;
+    for (const RouteSpan &span : bogs_)
+        if (span.route == enemy.route && enemy.progress >= span.enter && enemy.progress < span.exit)
+            return true;
+    return false;
+}
+float Run::cartCountdown(std::size_t rail) const {
+    if (state_.phase != Phase::Battle || rail >= carts_.size() || carts_[rail].travelled >= 0)
+        return -1;
+    return carts_[rail].cooldown;
+}
+float Run::cartProgress(std::size_t rail) const {
+    if (rail >= carts_.size() || carts_[rail].travelled < 0)
+        return -1;
+    const RailDefinition &track = catalog_.rails[rail];
+    return std::min(1.0F, carts_[rail].travelled / std::max(.01F, distance(track.from, track.to)));
+}
+Result Run::launchCart(std::size_t rail) {
+    if (state_.phase != Phase::Battle)
+        return {false, "광차는 전투 중에만 보낼 수 있어요"};
+    if (rail >= carts_.size())
+        return {false, "광차 선로가 없어요"};
+    CartRun &cart = carts_[rail];
+    if (cart.travelled >= 0)
+        return {false, "광차가 달리는 중이에요"};
+    if (cart.cooldown > .0001F) {
+        const int seconds = static_cast<int>(std::ceil(cart.cooldown));
+        return {false, "광차가 돌아오는 중이에요 · " + std::to_string(seconds) + "초"};
+    }
+    cart.travelled = 0;
+    cart.struck.clear();
+    const RailDefinition &track = catalog_.rails[rail];
+    emit({CombatEventKind::Cart, static_cast<EntityId>(rail), track.from, track.to, CardKind::Gun, 0, false,
+          catalog_.balance.cartWidth});
+    return {true, "광차 출발!"};
+}
+bool Run::tankReady(std::size_t tank) const {
+    return state_.phase == Phase::Battle && tank < tanksSpent_.size() && !tanksSpent_[tank];
+}
+Result Run::detonateTank(std::size_t tank) {
+    if (state_.phase != Phase::Battle)
+        return {false, "가스통은 전투 중에만 터뜨릴 수 있어요"};
+    if (tank >= tanksSpent_.size())
+        return {false, "가스통이 없어요"};
+    if (tanksSpent_[tank])
+        return {false, "이번 전투에서 이미 터뜨렸어요 · 다음 웨이브에 다시 채워져요"};
+    tanksSpent_[tank] = true;
+    const TankDefinition &definition = catalog_.tanks[tank];
+    const RunBalance &balance = catalog_.balance;
+    const std::vector<std::size_t> guards = auraSources();
+    int struck = 0;
+    for (Enemy &enemy : state_.enemies)
+        if (enemy.hp > 0 && !underground(enemy) &&
+            distance(enemy.position, definition.position) <= balance.tankRadius) {
+            const int damage = damageEnemy(enemy, mitigate(enemy, balance.tankDamage, false, guards));
+            emit({CombatEventKind::Damage, enemy.id, definition.position, enemy.position, CardKind::Blast,
+                  damage, true});
+            ++struck;
+        }
+    for (Unit &ally : state_.units)
+        if (distance(ally.position, definition.position) <= balance.tankRadius) {
+            ally.hp -= balance.tankDamage;
+            emit({CombatEventKind::Damage, ally.id, definition.position, ally.position, CardKind::Blast,
+                  balance.tankDamage, false});
+            ++struck;
+        }
+    emit({CombatEventKind::Detonation, static_cast<EntityId>(tank), definition.position, definition.position,
+          CardKind::Blast, struck, false, balance.tankRadius});
+    state_.units.erase(std::remove_if(state_.units.begin(), state_.units.end(),
+                                      [this](const Unit &ally) {
+                                          if (ally.hp > 0)
+                                              return false;
+                                          emit({CombatEventKind::Defeated, ally.id, ally.position,
+                                                ally.position, ally.kind, 0, false});
+                                          return true;
+                                      }),
+                       state_.units.end());
+    for (Enemy &enemy : state_.enemies)
+        if (enemy.blocker && !unit(enemy.blocker))
+            enemy.blocker = 0;
+    removeDefeated();
+    return {true, "가스통 폭발!"};
+}
+void Run::resetMachines() {
+    carts_.assign(catalog_.rails.size(), CartRun{catalog_.balance.cartFirst, -1, {}});
+    tanksSpent_.assign(catalog_.tanks.size(), false);
 }
 bool Run::underground(const Enemy &enemy) const {
     return burrowed(enemy) || tunneled(enemy);
@@ -170,8 +369,11 @@ Enemy Run::makeEnemy(EnemyKind kind, std::uint32_t lane, float progress, EliteAf
     enemy.hp = enemy.maxHp;
     enemy.maxShield = static_cast<int>(std::lround(stats.shield * vigor));
     enemy.shield = enemy.maxShield;
-    enemy.ability = stats.abilityInterval;
-    enemy.charges = stats.ability == EnemyAbility::Sabotage ? stats.abilityAmount : 0;
+    enemy.ability = stats.ability == EnemyAbility::Leap ? stats.abilityWindup : stats.abilityInterval;
+    enemy.charges = stats.ability == EnemyAbility::Sabotage || stats.ability == EnemyAbility::Leap
+                        ? stats.abilityAmount
+                    : stats.ability == EnemyAbility::Airdrop ? 1
+                                                             : 0;
     enemy.pulse = 1;
     return enemy;
 }
@@ -256,6 +458,53 @@ void Run::advanceSabotage(Enemy &sapper, float delta) {
     emit({CombatEventKind::Sabotage, sapper.id, sapper.position, best->position, best->kind, 0, true,
           stats.abilityWindup, sapper.kind, sapper.affix});
 }
+void Run::advanceSiege(Enemy &wrecker, float delta) {
+    const EnemyDefinition &stats = catalog_.enemy(wrecker.kind);
+    Tower *target = nullptr;
+    for (Tower &tower : state_.towers)
+        if (tower.id == wrecker.sabotage)
+            target = &tower;
+    // A blocked or buried attacker, or one whose building is gone, lets go and walks on.
+    if (wrecker.sabotage && (!target || wrecker.blocker || underground(wrecker))) {
+        wrecker.sabotage = 0;
+        target = nullptr;
+    }
+    if (!target) {
+        if (wrecker.blocker || underground(wrecker))
+            return;
+        float closest = 0;
+        for (Tower &tower : state_.towers) {
+            const float gap = distance(tower.position, wrecker.position);
+            if (gap <= stats.abilityRadius &&
+                (!target || gap < closest || (gap == closest && tower.id < target->id))) {
+                target = &tower;
+                closest = gap;
+            }
+        }
+        if (!target)
+            return;
+        wrecker.sabotage = target->id;
+        wrecker.ability = stats.abilityInterval;
+        return;
+    }
+    wrecker.ability -= delta;
+    if (wrecker.ability > 0.0001F)
+        return;
+    wrecker.ability += stats.abilityInterval;
+    target->hp -= stats.abilityAmount;
+    emit({CombatEventKind::Batter, target->id, wrecker.position, target->position, target->kind,
+          stats.abilityAmount, false, 0, wrecker.kind, wrecker.affix});
+    if (target->hp > 0)
+        return;
+    const EntityId id = target->id;
+    const Point at = target->position;
+    const CardKind kind = target->kind;
+    state_.towers.erase(std::remove_if(state_.towers.begin(), state_.towers.end(),
+                                       [id](const Tower &item) { return item.id == id; }),
+                        state_.towers.end());
+    wrecker.sabotage = 0;
+    emit({CombatEventKind::Wreck, id, at, at, kind, 0, false, 0, wrecker.kind, wrecker.affix});
+}
 void Run::advanceElites(float delta) {
     for (Enemy &enemy : state_.enemies) {
         if (enemy.affix == EliteAffix::None || enemy.hp <= 0)
@@ -285,10 +534,45 @@ void Run::advanceElites(float delta) {
 void Run::advanceAbilities(float delta, std::vector<Enemy> &arrivals) {
     for (Enemy &enemy : state_.enemies) {
         const EnemyDefinition &stats = catalog_.enemy(enemy.kind);
+        if (stats.ability == EnemyAbility::Leap && enemy.hp > 0) {
+            // The windup runs only while a unit blocks the leaper; the jump clears the block.
+            if (!enemy.blocker || enemy.charges <= 0)
+                continue;
+            enemy.ability -= delta;
+            if (enemy.ability > 0.0001F)
+                continue;
+            const Point from = enemy.position;
+            enemy.progress = std::min(routeLength(enemy.route), enemy.progress + stats.abilityRadius);
+            enemy.position = routePoint(enemy.progress, enemy.route);
+            enemy.blocker = 0;
+            enemy.ability = stats.abilityWindup;
+            --enemy.charges;
+            emit({CombatEventKind::Leap, enemy.id, from, enemy.position, CardKind::Gun, 0, true,
+                  stats.abilityRadius, enemy.kind, enemy.affix});
+            continue;
+        }
+        if (stats.ability == EnemyAbility::Airdrop) {
+            // The cargo lands behind the carrier, once, after its share of the route.
+            if (enemy.hp > 0 && enemy.charges > 0 &&
+                enemy.progress >= routeLength(enemy.route) * stats.abilityRadius) {
+                --enemy.charges;
+                for (int index = 0; index < stats.abilityAmount; ++index)
+                    arrivals.push_back(
+                        makeEnemy(stats.minionKind, enemy.route,
+                                  std::max(0.0F, enemy.progress - .35F * static_cast<float>(index))));
+                emit({CombatEventKind::Airdrop, enemy.id, enemy.position, enemy.position, CardKind::Gun,
+                      stats.abilityAmount, true, 0, enemy.kind, enemy.affix});
+            }
+            continue;
+        }
         if (stats.ability == EnemyAbility::None || stats.abilityInterval <= 0 || enemy.hp <= 0)
             continue;
         if (stats.ability == EnemyAbility::Sabotage) {
             advanceSabotage(enemy, delta);
+            continue;
+        }
+        if (stats.ability == EnemyAbility::Siege) {
+            advanceSiege(enemy, delta);
             continue;
         }
         // Ability timers stand still inside a tunnel, so nothing activates out of sight.
@@ -332,6 +616,8 @@ void Run::advanceAbilities(float delta, std::vector<Enemy> &arrivals) {
     }
 }
 int Run::damageEnemy(Enemy &enemy, int amount) {
+    if (catalog_.enemy(enemy.kind).stealth > 0)
+        enemy.revealedUntil = state_.battleTime + catalog_.balance.revealTime;
     if (enemy.shield <= 0) {
         enemy.hp -= amount;
         return amount;
@@ -382,7 +668,7 @@ void Run::advanceBattle(float delta) {
     if (state_.energy < catalog_.balance.energyCap) {
         state_.energyTime += delta;
         if (state_.energyTime + 0.0001F >= catalog_.balance.energyInterval) {
-            state_.energyTime -= catalog_.balance.energyInterval;
+            state_.energyTime = std::max(0.0F, state_.energyTime - catalog_.balance.energyInterval);
             ++state_.energy;
             if (state_.energy == catalog_.balance.energyCap)
                 state_.energyTime = 0;
@@ -409,10 +695,10 @@ void Run::advanceBattle(float delta) {
             /** Burrowing and tunnels do not stack; the faster of the two applies. */
             const float cover =
                 std::max(burrow ? stats.abilitySpeed : 1.0F, tunnel ? catalog_.balance.tunnelSpeed : 1.0F);
-            enemy.progress += stats.speed *
-                              (state_.battleTime < enemy.slowUntil ? catalog_.balance.slowFactor : 1.0F) *
-                              cover * elite.speed * (enemy.enraged ? elite.enrageSpeed : 1.0F) *
-                              auraSpeed(enemy, hasteSources) * delta;
+            enemy.progress +=
+                stats.speed * (state_.battleTime < enemy.slowUntil ? catalog_.balance.slowFactor : 1.0F) *
+                cover * (bogged(enemy) ? catalog_.balance.bogSpeed : 1.0F) * elite.speed *
+                (enemy.enraged ? elite.enrageSpeed : 1.0F) * auraSpeed(enemy, hasteSources) * delta;
             enemy.position = routePoint(enemy.progress, enemy.route);
         }
     }
@@ -423,8 +709,16 @@ void Run::advanceBattle(float delta) {
         for (const Enemy &enemy : state_.enemies)
             if (enemy.blocker == ally.id)
                 ++blocked;
+        if (!blocked && ally.hp < ally.maxHp) {
+            ally.mending += ally.maxHp * catalog_.balance.unitRegen * delta;
+            const int whole = static_cast<int>(ally.mending);
+            ally.hp = std::min(ally.maxHp, ally.hp + whole);
+            ally.mending -= static_cast<float>(whole);
+        } else if (ally.hp >= ally.maxHp)
+            ally.mending = 0;
         for (Enemy &enemy : state_.enemies)
-            if (!enemy.blocker && !underground(enemy) && blocked < catalog_.card(ally.kind).blockers &&
+            if (!enemy.blocker && !underground(enemy) && !flying(enemy) &&
+                blocked < catalog_.card(ally.kind).blockers &&
                 distance(enemy.position, ally.position) <= 0.35F) {
                 enemy.blocker = ally.id;
                 ++blocked;
@@ -442,10 +736,12 @@ void Run::advanceBattle(float delta) {
     std::vector<Hit> hits;
     const std::vector<std::size_t> guardSources = auraSources();
     /** Select the closest-to-base living enemy, optionally preferring an ally's blockers. */
-    const auto targetFor = [this, &lengths](Point position, float range, EntityId blocker) -> Enemy * {
+    const auto targetFor = [this, &lengths](Point position, float range, EntityId blocker,
+                                            CardKind attacker) -> Enemy * {
         Enemy *best = nullptr;
         for (Enemy &enemy : state_.enemies)
-            if (enemy.hp > 0 && !underground(enemy) && distance(position, enemy.position) <= range) {
+            if (enemy.hp > 0 && reaches(enemy, attacker) && visibleFrom(enemy, position) &&
+                distance(position, enemy.position) <= range) {
                 const bool preferred = blocker && enemy.blocker == blocker;
                 const bool bestPreferred = best && blocker && best->blocker == blocker;
                 if (!best || (preferred && !bestPreferred) ||
@@ -458,10 +754,11 @@ void Run::advanceBattle(float delta) {
         return best;
     };
     /** Select the highest-HP enemy in range, breaking ties by least distance remaining to the base. */
-    const auto strongestFor = [this, &lengths](Point position, float range) -> Enemy * {
+    const auto strongestFor = [this, &lengths](Point position, float range, CardKind attacker) -> Enemy * {
         Enemy *best = nullptr;
         for (Enemy &enemy : state_.enemies)
-            if (enemy.hp > 0 && !underground(enemy) && distance(position, enemy.position) <= range) {
+            if (enemy.hp > 0 && reaches(enemy, attacker) && visibleFrom(enemy, position) &&
+                distance(position, enemy.position) <= range) {
                 const float remaining = lengths[enemy.route] - enemy.progress;
                 if (!best || enemy.hp > best->hp ||
                     (enemy.hp == best->hp && remaining < lengths[best->route] - best->progress))
@@ -484,8 +781,8 @@ void Run::advanceBattle(float delta) {
         if (definition.aura > 0)
             continue;
         const float range = buildingRange(tower.kind, tower.position);
-        Enemy *target = tower.kind == CardKind::Sniper ? strongestFor(tower.position, range)
-                                                       : targetFor(tower.position, range, 0);
+        Enemy *target = tower.kind == CardKind::Sniper ? strongestFor(tower.position, range, tower.kind)
+                                                       : targetFor(tower.position, range, 0, tower.kind);
         if (!target)
             continue;
         const float factor = (1.0F + (tower.level - 1) * catalog_.balance.levelBonus) *
@@ -495,14 +792,15 @@ void Run::advanceBattle(float delta) {
             (tower.kind == CardKind::Lightning && state_.coil ? catalog_.balance.coilBonus : 1.0F)));
         if (definition.arc > 0) {
             for (const Enemy &enemy : state_.enemies)
-                if (enemy.hp > 0 && !underground(enemy) &&
+                if (enemy.hp > 0 && reaches(enemy, tower.kind) &&
                     distance(enemy.position, tower.position) <= range &&
                     insideCone(tower.position, target->position, enemy.position, definition.arc))
                     hit(enemy, damage, false, tower.kind, tower.position);
             tower.cooldown = definition.interval;
         } else if (tower.kind == CardKind::Cannon) {
             for (const Enemy &enemy : state_.enemies)
-                if (!underground(enemy) && distance(enemy.position, target->position) <= definition.splash)
+                if (reaches(enemy, tower.kind) &&
+                    distance(enemy.position, target->position) <= definition.splash)
                     hit(enemy, damage, false, tower.kind, tower.position);
             tower.cooldown = definition.interval;
         } else if (tower.kind == CardKind::Lightning) {
@@ -535,12 +833,12 @@ void Run::advanceBattle(float delta) {
     }
     for (Unit &ally : state_.units) {
         if (ally.cooldown <= 0) {
-            Enemy *target = targetFor(ally.position, catalog_.card(ally.kind).range, ally.id);
+            Enemy *target = targetFor(ally.position, catalog_.card(ally.kind).range, ally.id, ally.kind);
             if (target) {
                 const CardDefinition &definition = catalog_.card(ally.kind);
                 if (ally.kind == CardKind::Demolition) {
                     for (const Enemy &enemy : state_.enemies)
-                        if (!underground(enemy) &&
+                        if (reaches(enemy, ally.kind) &&
                             distance(enemy.position, target->position) <= definition.splash)
                             hit(enemy, definition.damage, false, ally.kind, ally.position);
                 } else
@@ -575,7 +873,8 @@ void Run::advanceBattle(float delta) {
             continue;
         int struck = 0;
         for (const Enemy &enemy : state_.enemies)
-            if (!underground(enemy) && distance(enemy.position, vent.position) <= balance.ventRadius) {
+            if (!underground(enemy) && !flying(enemy) &&
+                distance(enemy.position, vent.position) <= balance.ventRadius) {
                 hit(enemy, balance.ventDamage, true, CardKind::Gun, vent.position);
                 ++struck;
             }
@@ -586,6 +885,36 @@ void Run::advanceBattle(float delta) {
             }
         emit({CombatEventKind::Eruption, static_cast<EntityId>(index), vent.position, vent.position,
               CardKind::Gun, struck, false, balance.ventRadius});
+    }
+    /** A running cart hits every surfaced ground enemy it passes this step, each once per run. */
+    for (std::size_t index = 0; index < carts_.size(); ++index) {
+        CartRun &cart = carts_[index];
+        const RailDefinition &track = catalog_.rails[index];
+        const RunBalance &balance = catalog_.balance;
+        if (cart.travelled < 0) {
+            cart.cooldown = cart.cooldown - delta > .0001F ? cart.cooldown - delta : 0.0F;
+            continue;
+        }
+        const float length = std::max(.01F, distance(track.from, track.to));
+        const auto along = [&track, length](float travelled) -> Point {
+            const float t = std::min(1.0F, travelled / length);
+            return {track.from.x + (track.to.x - track.from.x) * t,
+                    track.from.y + (track.to.y - track.from.y) * t};
+        };
+        const Point start = along(cart.travelled);
+        cart.travelled += balance.cartSpeed * delta;
+        const Point end = along(cart.travelled);
+        for (const Enemy &enemy : state_.enemies)
+            if (!underground(enemy) && !flying(enemy) &&
+                std::find(cart.struck.begin(), cart.struck.end(), enemy.id) == cart.struck.end() &&
+                segmentDistance(enemy.position, start, end) <= balance.cartWidth) {
+                cart.struck.push_back(enemy.id);
+                hit(enemy, balance.cartDamage, false, CardKind::Cannon, end);
+            }
+        if (cart.travelled >= length) {
+            cart.travelled = -1;
+            cart.cooldown = balance.cartCooldown;
+        }
     }
     for (const Hit &damage : hits) {
         if (damage.enemy) {
@@ -630,8 +959,11 @@ void Run::advanceBattle(float delta) {
         return;
     }
     if (nextSpawn_ == spawns_.size() && state_.enemies.empty()) {
-        for (Tower &tower : state_.towers)
+        for (Tower &tower : state_.towers) {
             tower.disabled = 0;
+            tower.hp = std::min(tower.maxHp, tower.hp + static_cast<int>(std::lround(
+                                                            tower.maxHp * catalog_.balance.towerRepair)));
+        }
         finishWave();
     }
 }

@@ -175,16 +175,23 @@ Result Run::play(CardId id, Point target) {
     const CardKind kind = plan.kind;
     if (plan.preview.action == PlayAction::Install || plan.preview.action == PlayAction::Upgrade ||
         plan.preview.action == PlayAction::Replace) {
-        if (plan.preview.action == PlayAction::Install)
+        if (plan.preview.action == PlayAction::Install) {
             state_.towers.push_back({nextEntity_++, kind, target});
-        else {
+            state_.towers.back().maxHp = catalog_.towerHealth(1);
+            state_.towers.back().hp = state_.towers.back().maxHp;
+        } else {
             Tower &existing = state_.towers[plan.towerIndex];
-            if (plan.preview.action == PlayAction::Upgrade)
+            if (plan.preview.action == PlayAction::Upgrade) {
                 ++existing.level;
-            else {
+                const int maximum = catalog_.towerHealth(existing.level);
+                existing.hp += maximum - existing.maxHp;
+                existing.maxHp = maximum;
+            } else {
                 existing.kind = kind;
                 existing.level = 1;
                 existing.cooldown = 0;
+                existing.maxHp = catalog_.towerHealth(1);
+                existing.hp = existing.maxHp;
             }
         }
         const Tower &placed = plan.preview.action == PlayAction::Install ? state_.towers.back()

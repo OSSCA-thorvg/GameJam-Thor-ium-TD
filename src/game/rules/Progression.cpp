@@ -25,6 +25,7 @@ Result Run::startWave() {
     state_.energyTime = 0;
     state_.battleTime = 0;
     state_.fields.clear();
+    resetMachines();
     nextSpawn_ = 0;
     spawns_.clear();
     spawns_ = catalog_.schedule(state_.wave);
@@ -206,6 +207,9 @@ Result Run::awaken(EntityId id) {
     for (Tower &item : state_.towers)
         if (item.id == id) {
             ++item.level;
+            const int maximum = catalog_.towerHealth(item.level);
+            item.hp += maximum - item.maxHp;
+            item.maxHp = maximum;
             const int bonus =
                 static_cast<int>(std::lround((item.level - 1) * catalog_.balance.levelBonus * 100));
             return {true, catalog_.card(item.kind).name + " Lv" + std::to_string(item.level) +

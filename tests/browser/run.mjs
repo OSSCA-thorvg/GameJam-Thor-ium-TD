@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 /** @type {string[]} */
-const scenarios = ['campaign.js', 'persistence.js', 'tutorial.js', 'playable.js', 'placement.js', 'card-info.js', 'card-charge.js', 'results.js', 'withdrawal.js', 'feedback.js', 'animation.js', 'shared-frames.js', 'audio.js', 'frontend.js', 'profiling.js', 'peak.js', 'excavation.js'];
+const scenarios = ['campaign.js', 'persistence.js', 'tutorial.js', 'playable.js', 'placement.js', 'card-info.js', 'card-charge.js', 'results.js', 'withdrawal.js', 'feedback.js', 'animation.js', 'shared-frames.js', 'audio.js', 'frontend.js', 'profiling.js', 'peak.js', 'excavation.js', 'machines.js'];
 /** @type {string[]} */
 const requested = process.argv.slice(2);
 for (const file of requested) {

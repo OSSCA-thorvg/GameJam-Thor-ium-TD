@@ -119,6 +119,10 @@ void GameplayController::act(const GameInput &input) {
                     run.strike(cell, state.play.blast ? game::StrikeTool::Blast : game::StrikeTool::Pick);
                 feedback.notify(result,
                                 run.buriedDeposits() < buried ? Sound::MineComplete : Sound::MineStart);
+                if (result.ok) {
+                    state.play.strikeCell = cell;
+                    ++state.play.strikes;
+                }
                 if (result.ok && state.play.blast)
                     state.play.feedback.screenShake = .2F;
                 return;
@@ -167,6 +171,50 @@ void GameplayController::act(const GameInput &input) {
         state.play.selectedUnit = 0;
         state.play.selectedTower = 0;
         state.play.movingUnit = false;
+        // A lever sends its cart and a gas tank explodes during battle; outside battle both explain
+        // themselves.
+        const bool battle = run.state().phase == game::Phase::Battle;
+        for (std::size_t rail = 0; rail < run.catalog().rails.size(); ++rail)
+            if (game::distance(run.catalog().rails[rail].lever, target) < 0.6F) {
+                if (battle) {
+                    const game::Result result = run.launchCart(rail);
+                    feedback.notify(result, result.ok ? Sound::Upgrade : Sound::None);
+                    if (result.ok)
+                        state.play.feedback.screenShake = .12F;
+                } else
+                    feedback.notify({true, "광차 레버 · 전투 중에 누르면 광차가 선로 위 지상 적에게 " +
+                                               std::to_string(run.catalog().balance.cartDamage) + " 피해"},
+                                    Sound::None);
+                return;
+            }
+        for (std::size_t tank = 0; tank < run.catalog().tanks.size(); ++tank)
+            if (game::distance(run.catalog().tanks[tank].position, target) < 0.6F) {
+                if (battle) {
+                    const game::Result result = run.detonateTank(tank);
+                    feedback.notify(result, Sound::None);
+                    if (result.ok)
+                        state.play.feedback.screenShake = .3F;
+                } else
+                    feedback.notify({true, "가스통 · 전투 중에 누르면 폭발해 주변 적과 아군에게 " +
+                                               std::to_string(run.catalog().balance.tankDamage) +
+                                               " 피해 · 웨이브마다 다시 채워져요"},
+                                    Sound::None);
+                return;
+            }
+        // A barricade, or the mouth of the open branch, moves the barricade between waves.
+        for (std::size_t fork = 0; fork < run.catalog().forks.size(); ++fork) {
+            const std::vector<game::Point> open = run.forkBranch(fork, run.detoured(fork));
+            const float gap = std::max(.001F, game::distance(open[0], open[1]));
+            const game::Point mouth{open[0].x + (open[1].x - open[0].x) / gap,
+                                    open[0].y + (open[1].y - open[0].y) / gap};
+            if (game::distance(run.barricade(fork), target) >= 0.6F && game::distance(mouth, target) >= 0.6F)
+                continue;
+            if (battle)
+                feedback.notify({true, "바리케이드 · 정비 중에 누르면 막을 갈래를 바꿔요"}, Sound::None);
+            else
+                feedback.notify(run.switchFork(fork), Sound::Placement);
+            return;
+        }
         // A boulder opens its inspector in preparation; in battle it only explains itself.
         for (game::Point boulder : run.state().boulders)
             if (game::distance(boulder, target) < 0.5F) {
@@ -174,9 +222,11 @@ void GameplayController::act(const GameInput &input) {
                     state.play.selectedBoulder = boulder;
                     state.play.toastTime = 0;
                 } else
-                    feedback.notify({true, "낙석 바위 · 정비 중에 치우면 건물 패드가 돼요 · " +
-                                               game::costLabel(run.catalog().balance.boulder)},
-                                    Sound::None);
+                    feedback.notify(
+                        {true, std::string(run.catalog().rails.empty() ? "낙석 바위" : "수정 군집") +
+                                   " · 정비 중에 치우면 건물 패드가 돼요 · " +
+                                   game::costLabel(run.catalog().balance.boulder)},
+                        Sound::None);
                 return;
             }
         // An empty trait pad names its bonus.
@@ -370,6 +420,12 @@ void GameplayController::act(const GameInput &input) {
     case ToggleDrawer:
         state.play.guideOpen = !state.play.guideOpen;
         ui.cancel();
+        break;
+    case ToggleIntro:
+        state.app.introFolded = !state.app.introFolded;
+        break;
+    case ToggleMinimap:
+        state.app.minimapFolded = !state.app.minimapFolded;
         break;
     case CloseDrawer:
     case AcknowledgeDrawer:

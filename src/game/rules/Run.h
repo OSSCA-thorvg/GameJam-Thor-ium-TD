@@ -112,8 +112,17 @@ class Run {
     float routeLength(std::uint32_t route = 0) const;
     /** Read a position along the current cardinal route. */
     Point routePoint(float progress, std::uint32_t route = 0) const;
-    /** Read one current path; only the primary entrance is extended by surface expansion choices. */
+    /** Read one current path, through the open branch of its fork; only the primary entrance is extended by
+     *  surface expansion choices. */
     const std::vector<Point> &route(std::uint32_t index = 0) const;
+    /** Move a fork's barricade to the other branch during preparation, rerouting its entrance. */
+    Result switchFork(std::size_t fork);
+    /** Read whether enemies take a fork's detour. */
+    bool detoured(std::size_t fork) const;
+    /** Read one branch of a fork from split to merge: the detour or the authored stretch. */
+    std::vector<Point> forkBranch(std::size_t fork, bool detour) const;
+    /** Read where a fork's barricade stands: one tile into the closed branch. */
+    Point barricade(std::size_t fork) const;
     /** Read the exact current or next scheduled entrance pressure before committing a wave. */
     std::vector<LaneForecast> laneForecast() const;
     /** Read seconds until the next not-yet-spawned scheduled enemy of a kind, or -1 when none remains. */
@@ -124,7 +133,7 @@ class Run {
     bool burrowed(const Enemy &enemy) const;
     /** Read the underground spans in progress along the current routes, including a surface expansion's
      *  added length on the primary route. */
-    const std::vector<TunnelSpan> &tunnels() const {
+    const std::vector<RouteSpan> &tunnels() const {
         return tunnels_;
     }
     /** Check whether a position along a current route lies inside a tunnel. */
@@ -134,6 +143,33 @@ class Run {
     /** Check whether an enemy is burrowed or inside a tunnel: untargetable, unblockable and immune to area
      *  effects. */
     bool underground(const Enemy &enemy) const;
+    /** Check whether an enemy flies over the route. */
+    bool flying(const Enemy &enemy) const;
+    /** Check whether an attack of a card kind can touch an enemy at all: surfaced, and on the ground when the
+     *  attack is ground-only. */
+    bool reaches(const Enemy &enemy, CardKind attacker) const;
+    /** Check whether an attacker at a position can pick an enemy as its target: a stealthy enemy must be
+     *  close or recently hit. */
+    bool visibleFrom(const Enemy &enemy, Point position) const;
+    /** Check whether a stealthy enemy was hit recently enough to be visible at any range. */
+    bool revealed(const Enemy &enemy) const;
+    /** Read the bog spans in progress along the current routes. */
+    const std::vector<RouteSpan> &bogs() const {
+        return bogs_;
+    }
+    /** Check whether a ground enemy is wading through a bog. */
+    bool bogged(const Enemy &enemy) const;
+    /** Read seconds until a mine cart may leave during a battle: 0 when ready, -1 outside battle, while it
+     *  runs and for an unknown rail. */
+    float cartCountdown(std::size_t rail) const;
+    /** Read how far a running cart has travelled along its rail, from 0 to 1, or -1 when it stands. */
+    float cartProgress(std::size_t rail) const;
+    /** Send a ready mine cart down its rail; it damages every ground enemy it passes once. */
+    Result launchCart(std::size_t rail);
+    /** Check whether a gas tank can still be detonated in this battle. */
+    bool tankReady(std::size_t tank) const;
+    /** Detonate a gas tank during a battle, damaging every surfaced enemy and allied unit in its radius. */
+    Result detonateTank(std::size_t tank);
     /** Read the terrain trait of the building pad at a position; None away from trait pads. */
     PadTrait padTrait(Point position) const;
     /** Read a building kind's attack or support radius when it stands at a position, including the pad's
@@ -220,6 +256,8 @@ class Run {
     void advanceAbilities(float delta, std::vector<Enemy> &arrivals);
     /** Advance one sapper: pick a tower in reach, plant while standing still, then disable the tower. */
     void advanceSabotage(Enemy &sapper, float delta);
+    /** Hold a siege enemy at the nearest building in reach and strike it until it breaks. */
+    void advanceSiege(Enemy &wrecker, float delta);
     /** Apply elite regeneration pulses and enrage thresholds. */
     void advanceElites(float delta);
     /** Indices of living, surfaced enemies whose elite modifier projects an aura on other enemies. */
@@ -237,10 +275,27 @@ class Run {
     void finishWave();
     /** Commit a validated deck replacement in place and record its new identity. */
     Result replaceCard(CardKind kind, CardId replace);
-    /** Tunnel spans in progress along the current routes. */
-    std::vector<TunnelSpan> tunnels_;
-    /** Rebuild the tunnel spans after the primary route is created or extended at its entrance. */
+    /** Tunnel and bog spans in progress along the current routes. */
+    std::vector<RouteSpan> tunnels_;
+    std::vector<RouteSpan> bogs_;
+    /** Current paths of every entrance, each through the open branch of its fork. */
+    std::vector<std::vector<Point>> routes_;
+    /** Rebuild the current paths, then the tunnel and bog spans along them, after the primary route is
+     *  created or extended at its entrance or a barricade moves. Spans after a detoured fork shift by the
+     *  length the detour adds; spans inside its closed stretch lapse. */
     void resolveTunnels();
+    /** One rail's cart during a battle: seconds until it may leave, distance travelled while it runs (-1 when
+     *  it stands) and the enemies it already hit on this run. */
+    struct CartRun {
+        float cooldown = 0;
+        float travelled = -1;
+        std::vector<EntityId> struck;
+    };
+    std::vector<CartRun> carts_;
+    /** Gas tanks already detonated in this battle. */
+    std::vector<bool> tanksSpent_;
+    /** Reset carts and tanks for a new battle. */
+    void resetMachines();
 };
 /** Separate a failed validation report from ownership of a playable run. */
 struct RunCreation {

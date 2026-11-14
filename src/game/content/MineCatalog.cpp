@@ -315,12 +315,100 @@ constexpr std::array<StageMine, TotalStages> stageMines{{
      {{{"토르륨 외피", Relic::Charm, CardKind::Lightning},
        {"공명 광맥", Relic::Ward, CardKind::Lightning},
        {"토르륨 심핵", Relic::Battery, CardKind::Flame}}}},
+    // 수정 공명굴: crystal clusters in every band, copper seams and few nests near the surface.
+    {{{{{
+           "..ooo..",
+           "i.1.2.c",
+           ".x.i.x.",
+           "c.u.e.i",
+           ".X.n.c.",
+           "#.#&#.#",
+           "i.c.u.c",
+           ".n.X.g.",
+           "#i#f#x#",
+           "X.e.u.C",
+           "m.G.n.X",
+       }},
+       {{
+           "#.ooo.#",
+           "X.4.2.X",
+           "C#x#x#C",
+           "n.u.e.n",
+           ".X#m#X.",
+           "c.E.%.c",
+           "#n#X#n#",
+           "G.x.x.G",
+           "X#u.u#X",
+           ".m.E.n.",
+           "X.n#n.X",
+       }},
+       {{
+           "..ooo..",
+           "X.4.4.X",
+           "#X#u#X#",
+           "n.E.m.n",
+           "X#C#C#X",
+           "G.n.F.n",
+           "X#u#u#X",
+           ".n.%.m.",
+           "X#G#X#X",
+           "E.n.E.n",
+           "#X#G#X#",
+       }}}},
+     {{{"수정 동굴 입구", Relic::Lens, CardKind::Lightning},
+       {"공명 맥동층", Relic::Charm, CardKind::Sniper},
+       {"수정 심장부", Relic::Battery, CardKind::Lightning}}}},
+    // 산성 늪지: soft peat with iron and gold, unstable mud and nests packed under the surface.
+    {{{{{
+           "..ooo..",
+           "i.1.2.c",
+           ".u.c.u.",
+           "n.g.i.n",
+           ".c.n.x.",
+           "#.#&#.#",
+           "g.u.u.i",
+           ".n.X.n.",
+           "#c#f#g#",
+           "x.E.u.G",
+           "m.G.n.I",
+       }},
+       {{
+           "#.ooo.#",
+           "I.3.1.I",
+           "g#u#u#g",
+           "n.e.E.n",
+           ".G#m#G.",
+           "i.u.%.i",
+           "#n#X#n#",
+           "G.g.u.G",
+           "I#E.u#X",
+           ".m.G.n.",
+           "G.n#n.G",
+       }},
+       {{
+           "..ooo..",
+           "G.3.4.G",
+           "#I#u#I#",
+           "n.E.m.n",
+           "X#G#G#X",
+           "G.n.F.n",
+           "G#u#u#G",
+           ".n.%.m.",
+           "X#G#G#X",
+           "E.n.E.n",
+           "#G#X#G#",
+       }}}},
+     {{{"이탄 습지층", Relic::Ward, CardKind::Tar},
+       {"부식 수렁", Relic::Charm, CardKind::Frost},
+       {"산성 저수층", Relic::Battery, CardKind::Flame}}}},
 }};
 /** Wave after which B2 and B3 open; short early stages open their deeper layers sooner. */
-constexpr std::array<std::array<int, 2>, TotalStages> layerGates{{{3, 5}, {3, 6}, {3, 7}, {3, 7}, {3, 7}}};
+constexpr std::array<std::array<int, 2>, TotalStages> layerGates{
+    {{3, 5}, {3, 6}, {3, 7}, {3, 7}, {3, 7}, {3, 7}, {3, 7}}};
 /** Cutaway palette per stage, matching the stage's battlefield biome. */
-constexpr std::array<StageBiome, TotalStages> biomes{
-    {StageBiome::Meadow, StageBiome::Obsidian, StageBiome::Tundra, StageBiome::Lava, StageBiome::Core}};
+constexpr std::array<StageBiome, TotalStages> biomes{{StageBiome::Meadow, StageBiome::Obsidian,
+                                                      StageBiome::Tundra, StageBiome::Lava, StageBiome::Core,
+                                                      StageBiome::Crystal, StageBiome::Swamp}};
 } // namespace
 
 MineLayerDefinition campaignMine(int stage, int depth) {

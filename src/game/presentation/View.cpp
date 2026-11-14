@@ -343,6 +343,15 @@ void View::surface(engine::Renderer &graphics, const game::Run &run, const State
     // hides a countdown or an elite name.
     for (const game::Tower &tower : run.state().towers) {
         const ScreenPoint p = screenPoint(tower.position);
+        if (tower.maxHp > 0 && tower.hp < tower.maxHp && inWorld(p, tile * 2)) {
+            const float share = std::clamp(static_cast<float>(tower.hp) / tower.maxHp, 0.0F, 1.0F);
+            const Color bar = share > .5F    ? Color{150, 220, 130}
+                              : share > .25F ? Color{240, 200, 90}
+                                             : Color{240, 100, 80};
+            graphics.rect({p.x - tile * .32F, p.y + tile * .4F, tile * .64F, tile * .09F}, {40, 30, 30, 210},
+                          2);
+            graphics.rect({p.x - tile * .32F, p.y + tile * .4F, tile * .64F * share, tile * .09F}, bar, 2);
+        }
         if (tower.disabled > 0 && inWorld(p, tile * 2)) {
             // A sabotaged building is greyed out with a draining ring and the seconds until it works again.
             const float total = std::max(.01F, run.catalog().enemy(game::EnemyKind::Sapper).abilityDuration);

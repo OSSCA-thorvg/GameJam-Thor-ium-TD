@@ -46,8 +46,13 @@ const std::array<SoundDefinition, static_cast<std::size_t>(Sound::Count)> &sound
 /** Map committed game facts to audio, separately from visual lifetimes and rendering. */
 class Soundscape {
   public:
+    /** Optional looping background music file, without its extension. */
+    static constexpr const char *MusicKey = "bgm";
+    /** Music level under the voices, before the master volume. */
+    static constexpr float MusicGain = .4F;
     int mp3Clips = 0;
     int beepClips = 0;
+    bool music = false;
     std::vector<std::string> assetErrors;
     /** Preload optional MP3 clips, generating missing/invalid fallback tones once. */
     explicit Soundscape(engine::AudioMixer &mixer,

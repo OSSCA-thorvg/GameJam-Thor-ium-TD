@@ -25,6 +25,8 @@ struct Layout {
     int fieldHeight = 1;
     /** Overview inset inside the world; empty when the whole field is already visible. */
     engine::Rect minimap;
+    /** Fold control for the overview inset: a corner tab when open, a chip in its place when folded. */
+    engine::Rect minimapToggle;
     /** Entrance tiles in lane order, used by off-screen indicators to recenter the camera. */
     std::vector<game::Point> entrances;
     int mineColumns = 5;

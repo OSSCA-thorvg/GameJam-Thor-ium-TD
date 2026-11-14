@@ -60,13 +60,20 @@ Run::Run(Catalog catalog, Checked) : catalog_(std::move(catalog)) {
     state_.pads = catalog_.pads;
     state_.unitCells = catalog_.unitCells;
     state_.boulders = catalog_.boulders;
+    state_.detours.clear();
+    for (const ForkDefinition &fork : catalog_.forks)
+        state_.detours.push_back(fork.startDetour ? 1 : 0);
     resolveTunnels();
+    resetMachines();
     initializeMine(catalog_.mine);
 }
 void Run::initializeMine(const MineLayerDefinition &layer) {
     state_.deposits.clear();
     if (catalog_.mining == MiningMode::Excavate) {
         ExcavationWall wall = excavationWall(layer, catalog_.mineSeed);
+        if (&layer == &catalog_.mine)
+            for (const std::pair<int, int> &cover : catalog_.wallCover)
+                wall.cells[static_cast<std::size_t>(cover.first)].cover = cover.second;
         state_.mineWidth = wall.width;
         state_.mineHeight = wall.height;
         state_.minerCell = layer.start;

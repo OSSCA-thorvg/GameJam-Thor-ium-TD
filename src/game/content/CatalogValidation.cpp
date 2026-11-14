@@ -1,4 +1,5 @@
 #include "CatalogValidation.h"
+#include "Excavation.h"
 #include <algorithm>
 #include <cmath>
 #include <deque>
@@ -83,7 +84,8 @@ void validateMine(Validator &validator, const Catalog &catalog, const MineLayerD
         return;
     }
     const std::string cells = prefix + ".cells";
-    validator.integer(static_cast<int>(layer.biome), 0, 4, prefix + ".biome");
+    validator.integer(static_cast<int>(layer.biome), 0, static_cast<int>(StageBiome::Swamp),
+                      prefix + ".biome");
     const bool startValid = layer.start >= 0 && layer.start < count;
     validator.check(startValid, prefix + ".start", "the initial miner cell must lie on the board");
     if (!startValid)
@@ -140,7 +142,8 @@ void validateMine(Validator &validator, const Catalog &catalog, const MineLayerD
             validator.check(tile.amount == 0, path + ".amount", "only energy veins carry an amount");
     }
 }
-/** Validate boulders, trait pads, tunnels and lava vents against the battlefield they are authored on. */
+/** Validate boulders, trait pads, tunnels, bogs, rails, gas tanks and lava vents against the battlefield they
+ * are authored on. */
 void validateGimmicks(Validator &validator, const Catalog &catalog) {
     const RunBalance &balance = catalog.balance;
     validator.price(balance.boulder, "balance.boulder");
@@ -156,6 +159,19 @@ void validateGimmicks(Validator &validator, const Catalog &catalog) {
                     "the warning must fit inside one vent period");
     validator.number(balance.ventRadius, 0, 100, "balance.ventRadius", true);
     validator.integer(balance.ventDamage, 1, CatalogLimits::MaxDamage, "balance.ventDamage");
+    validator.number(balance.revealTime, 0, 1000, "balance.revealTime");
+    validator.number(balance.cartSpeed, 0, 100, "balance.cartSpeed", true);
+    validator.integer(balance.cartDamage, 1, CatalogLimits::MaxDamage, "balance.cartDamage");
+    validator.number(balance.cartWidth, 0, 10, "balance.cartWidth", true);
+    validator.number(balance.cartCooldown, 0, 1000, "balance.cartCooldown");
+    validator.number(balance.cartFirst, 0, 1000, "balance.cartFirst");
+    validator.number(balance.tankRadius, 0, 100, "balance.tankRadius", true);
+    validator.integer(balance.tankDamage, 1, CatalogLimits::MaxDamage, "balance.tankDamage");
+    validator.number(balance.bogSpeed, 0, 1, "balance.bogSpeed", true);
+    validator.integer(balance.towerHp, 1, CatalogLimits::MaxAmount, "balance.towerHp");
+    validator.number(balance.towerLevelHp, 0, 10, "balance.towerLevelHp");
+    validator.number(balance.towerRepair, 0, 1, "balance.towerRepair");
+    validator.number(balance.unitRegen, 0, 1, "balance.unitRegen");
     /** Check whether a point is one of the given placement tiles. */
     const auto among = [](const std::vector<Point> &points, Point point) -> bool {
         return std::any_of(points.begin(), points.end(),
@@ -182,7 +198,7 @@ void validateGimmicks(Validator &validator, const Catalog &catalog) {
     }
     validator.check(catalog.tunnels.size() <= CatalogLimits::MaxTunnels, "tunnels", "too many tunnels");
     for (std::size_t index = 0; index < catalog.tunnels.size(); ++index) {
-        const TunnelSpan &span = catalog.tunnels[index];
+        const RouteSpan &span = catalog.tunnels[index];
         const std::string path = "tunnels[" + std::to_string(index) + "]";
         const bool known = span.route <= catalog.additionalRoutes.size();
         validator.check(known, path + ".route", "unknown entrance route");
@@ -219,6 +235,110 @@ void validateGimmicks(Validator &validator, const Catalog &catalog) {
                 validator.check(!among(catalog.unitCells, tile), path, "a tunnel covers a unit cell");
             }
             travelled += segment;
+        }
+    }
+    validator.check(catalog.bogs.size() <= CatalogLimits::MaxTunnels, "bogs", "too many bogs");
+    for (std::size_t index = 0; index < catalog.bogs.size(); ++index) {
+        const RouteSpan &span = catalog.bogs[index];
+        const std::string path = "bogs[" + std::to_string(index) + "]";
+        const bool known = span.route <= catalog.additionalRoutes.size();
+        validator.check(known, path + ".route", "unknown entrance route");
+        if (!known)
+            continue;
+        const std::vector<Point> &points =
+            span.route == 0 ? catalog.route : catalog.additionalRoutes[span.route - 1].points;
+        float length = 0;
+        for (std::size_t point = 1; point < points.size(); ++point)
+            length += distance(points[point - 1], points[point]);
+        validator.check(std::isfinite(span.enter) && span.enter >= 0 && std::isfinite(span.exit) &&
+                            span.exit >= span.enter + 1 && span.exit <= length,
+                        path, "a bog is at least one tile long and lies on its route");
+        for (std::size_t other = 0; other < index; ++other)
+            validator.check(catalog.bogs[other].route != span.route ||
+                                span.enter >= catalog.bogs[other].exit ||
+                                span.exit <= catalog.bogs[other].enter,
+                            path, "bogs on one route must not overlap");
+        for (const RouteSpan &tunnel : catalog.tunnels)
+            validator.check(tunnel.route != span.route || span.enter >= tunnel.exit ||
+                                span.exit <= tunnel.enter,
+                            path, "a bog must not lie inside a tunnel");
+    }
+    for (std::size_t index = 0; index < catalog.forks.size(); ++index) {
+        const ForkDefinition &fork = catalog.forks[index];
+        const std::string path = "forks[" + std::to_string(index) + "]";
+        const bool known = fork.route <= catalog.additionalRoutes.size();
+        validator.check(known, path + ".route", "unknown entrance route");
+        if (!known)
+            continue;
+        for (std::size_t other = 0; other < index; ++other)
+            validator.check(catalog.forks[other].route != fork.route, path, "one fork per route");
+        const std::vector<Point> &points =
+            fork.route == 0 ? catalog.route : catalog.additionalRoutes[fork.route - 1].points;
+        /** Progress of a point along the route, or -1 when it is not on it. */
+        const auto along = [&points](Point point) -> float {
+            float total = 0;
+            for (std::size_t corner = 1; corner < points.size(); ++corner) {
+                const Point a = points[corner - 1], b = points[corner];
+                const float length = distance(a, b);
+                const float t =
+                    length < .0001F
+                        ? 0
+                        : std::clamp(((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) /
+                                         (length * length),
+                                     0.0F, 1.0F);
+                if (distance(point, {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t}) < .01F)
+                    return total + length * t;
+                total += length;
+            }
+            return -1;
+        };
+        const float split = along(fork.split), merge = along(fork.merge);
+        validator.check(split >= 0 && merge >= split + 1, path,
+                        "split and merge lie on the route, the merge at least a tile after the split");
+        std::vector<Point> branch{fork.split};
+        branch.insert(branch.end(), fork.detour.begin(), fork.detour.end());
+        branch.push_back(fork.merge);
+        for (std::size_t corner = 1; corner < branch.size(); ++corner) {
+            const Point a = branch[corner - 1], b = branch[corner];
+            const bool straight = (a.x == b.x) != (a.y == b.y);
+            validator.check(validator.point(b, path + ".detour") && straight, path,
+                            "the detour runs in straight cardinal steps");
+            const float length = distance(a, b);
+            for (float step = 1; straight && step < length; step += 1) {
+                const Point tile{a.x + (b.x - a.x) * step / length, a.y + (b.y - a.y) * step / length};
+                validator.check(!among(sites, tile) && !among(catalog.boulders, tile), path,
+                                "the detour crosses no pad or boulder");
+            }
+        }
+        for (const std::vector<RouteSpan> *spans : {&catalog.tunnels, &catalog.bogs})
+            for (const RouteSpan &span : *spans)
+                validator.check(span.route != fork.route || span.exit <= split + .01F ||
+                                    span.enter >= merge - .01F ||
+                                    (span.enter >= split - .01F && span.exit <= merge + .01F),
+                                path, "a span lies wholly before, inside or after the forked stretch");
+    }
+    validator.check(catalog.rails.size() <= CatalogLimits::MaxRails, "rails", "too many rails");
+    for (std::size_t index = 0; index < catalog.rails.size(); ++index) {
+        const RailDefinition &rail = catalog.rails[index];
+        const std::string path = "rails[" + std::to_string(index) + "]";
+        const bool ends =
+            validator.point(rail.from, path + ".from") && validator.point(rail.to, path + ".to");
+        validator.check(!ends || distance(rail.from, rail.to) >= 2, path,
+                        "a rail is at least two tiles long");
+        if (validator.point(rail.lever, path + ".lever"))
+            validator.check(!among(sites, rail.lever) && !among(catalog.unitCells, rail.lever),
+                            path + ".lever", "a lever needs a tile of its own, off every pad and unit cell");
+    }
+    validator.check(catalog.tanks.size() <= CatalogLimits::MaxTanks, "tanks", "too many gas tanks");
+    std::vector<Point> tanks;
+    for (std::size_t index = 0; index < catalog.tanks.size(); ++index) {
+        const Point position = catalog.tanks[index].position;
+        const std::string path = "tanks[" + std::to_string(index) + "].position";
+        if (validator.point(position, path)) {
+            validator.check(!among(sites, position) && !among(catalog.unitCells, position) &&
+                                !among(tanks, position),
+                            path, "a gas tank needs a tile of its own, off every pad and unit cell");
+            tanks.push_back(position);
         }
     }
     validator.check(catalog.vents.size() <= CatalogLimits::MaxVents, "vents", "too many lava vents");
@@ -283,15 +403,30 @@ CatalogValidation validateCatalog(const Catalog &catalog) {
         validator.check(!enemy.name.empty(), path + ".name", "enemy name must not be empty");
         validator.integer(enemy.shield, 0, CatalogLimits::MaxAmount, path + ".shield");
         validator.integer(enemy.shieldCap, 0, CatalogLimits::MaxDamage, path + ".shieldCap");
-        validator.check(enemy.ability >= EnemyAbility::None && enemy.ability <= EnemyAbility::Sabotage,
+        validator.check(enemy.ability >= EnemyAbility::None && enemy.ability <= EnemyAbility::Airdrop,
                         path + ".ability", "unknown enemy ability");
-        if (enemy.ability != EnemyAbility::None)
+        if (enemy.ability == EnemyAbility::Airdrop) {
+            validator.check(enemy.abilityAmount > 0, path + ".abilityAmount", "a carrier needs cargo");
+            validator.check(enemy.abilityRadius > 0 && enemy.abilityRadius < 1, path + ".abilityRadius",
+                            "the drop must happen partway along the route");
+        }
+        if (enemy.ability != EnemyAbility::None && enemy.ability != EnemyAbility::Leap &&
+            enemy.ability != EnemyAbility::Airdrop)
             validator.number(enemy.abilityInterval, 0, 1000, path + ".abilityInterval", true);
+        if (enemy.ability == EnemyAbility::Leap) {
+            validator.check(enemy.abilityAmount > 0, path + ".abilityAmount", "a leaper needs a jump");
+            validator.number(enemy.abilityRadius, 0, 100, path + ".abilityRadius", true);
+        }
+        validator.number(enemy.stealth, 0, 100, path + ".stealth");
         validator.number(enemy.abilityRadius, 0, 100, path + ".abilityRadius");
         validator.integer(enemy.abilityAmount, 0, CatalogLimits::MaxNestEnemies, path + ".abilityAmount");
         validator.number(enemy.abilityDuration, 0, 1000, path + ".abilityDuration");
         validator.number(enemy.abilitySpeed, 0, 100, path + ".abilitySpeed");
         validator.number(enemy.abilityWindup, 0, 1000, path + ".abilityWindup");
+        if (enemy.ability == EnemyAbility::Siege) {
+            validator.check(enemy.abilityAmount > 0, path + ".abilityAmount", "a siege enemy needs damage");
+            validator.number(enemy.abilityRadius, 0, 100, path + ".abilityRadius", true);
+        }
         if (enemy.ability == EnemyAbility::Sabotage) {
             validator.check(enemy.abilityAmount > 0, path + ".abilityAmount", "a sapper needs a charge");
             validator.number(enemy.abilityWindup, 0, 1000, path + ".abilityWindup", true);
@@ -462,6 +597,11 @@ CatalogValidation validateCatalog(const Catalog &catalog) {
     validateGimmicks(validator, catalog);
     std::set<int> relics;
     validateMine(validator, catalog, catalog.mine, "mine", relics);
+    for (const std::pair<int, int> &cover : catalog.wallCover) {
+        validator.check(cover.first >= 0 && cover.first < static_cast<int>(catalog.mine.cells.size()),
+                        "wallCover", "a wall cell must lie inside the first layer");
+        validator.integer(cover.second, 1, MaxCover, "wallCover.layers");
+    }
     validator.check(catalog.deeperMines.size() <= 8, "deeperMines",
                     "at most eight additional layers are supported");
     for (std::size_t index = 0; index < catalog.deeperMines.size(); ++index) {

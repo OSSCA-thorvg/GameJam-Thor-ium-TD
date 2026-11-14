@@ -108,7 +108,11 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             else if (event.type == game::CombatEventKind::Eruption) {
                 g.circle(to, tile * event.radius, fade({255, 110, 40}, (1 - t) * .3F));
                 ring(g, to, tile * event.radius, 2, fade({255, 196, 96}, 1 - t));
-            }
+            } else if (event.type == game::CombatEventKind::Detonation) {
+                g.circle(to, tile * event.radius, fade({190, 220, 80}, (1 - t) * .3F));
+                ring(g, to, tile * event.radius, 2, fade({240, 250, 150}, 1 - t));
+            } else if (event.type == game::CombatEventKind::Leap)
+                g.line({from, to}, 2, fade({255, 214, 150}, (1 - t) * .7F));
             continue;
         }
         if (event.type == game::CombatEventKind::Attack) {
@@ -291,6 +295,40 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             }
             g.text("타워 기절!", {to.x, to.y - tile * (1.3F + t * .4F)}, layout.compact ? 12 : 16,
                    fade({255, 214, 150}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Batter) {
+            g.line({from, to}, std::max(2.0F, tile * .07F), fade({255, 214, 150}, (1 - t) * .6F));
+            for (int shard = 0; shard < 4; ++shard) {
+                const float angle = shard * 1.5708F + .4F + event.subject * .7F;
+                const float reach = tile * (.15F + t * .35F);
+                g.circle({to.x + std::cos(angle) * reach, to.y + std::sin(angle) * reach},
+                         std::max(1.5F, tile * .05F), fade({150, 120, 96}, 1 - t));
+            }
+            g.text("-" + std::to_string(event.amount), {to.x, to.y - tile * (.7F + t * .35F)},
+                   layout.compact ? 11 : 14, fade({255, 170, 120}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Airdrop) {
+            for (int drop = 0; drop < event.amount; ++drop) {
+                const float spread = (static_cast<float>(drop) - (event.amount - 1) / 2.0F) * tile * .35F;
+                const float fall = tile * 1.2F * (1 - std::min(1.0F, t * 2));
+                g.line(
+                    {{from.x + spread, from.y - tile * .9F - fall}, {from.x + spread, from.y - fall * .2F}},
+                    1, fade({220, 220, 230}, (1 - t) * .7F));
+                g.circle({from.x + spread, from.y - fall * .2F}, tile * .1F, fade({200, 90, 70}, 1 - t));
+            }
+            ring(g, from, tile * (.3F + t * .8F), 2, fade({255, 196, 140}, 1 - t));
+            g.text("강습!", {from.x, from.y - tile * (1.2F + t * .3F)}, layout.compact ? 12 : 15,
+                   fade({255, 196, 140}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Wreck) {
+            const float radius = tile * (.3F + .7F * (1 - std::pow(1 - t, 3.0F)));
+            g.circle(to, radius, fade({120, 96, 80}, (1 - t) * .4F));
+            for (int shard = 0; shard < 10; ++shard) {
+                const float angle = shard * .6283F + event.subject * .3F;
+                const float reach = tile * (.2F + t * 1.1F);
+                g.rect({to.x + std::cos(angle) * reach - tile * .06F,
+                        to.y + std::sin(angle) * reach - tile * .06F, tile * .12F, tile * .12F},
+                       fade({110, 96, 84}, 1 - t), 1);
+            }
+            g.text("건물 파괴!", {to.x, to.y - tile * (1.0F + t * .4F)}, layout.compact ? 12 : 16,
+                   fade({255, 150, 120}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Sabotage) {
             ring(g, to, tile * (.9F - .4F * t), std::max(1.5F, 3 * (1 - t)), fade({255, 136, 48}, 1 - t));
             g.text("폭약 설치!", {from.x, from.y - tile * (.8F + t * .3F)}, layout.compact ? 11 : 14,
@@ -324,6 +362,36 @@ void View::combatFeedback(engine::Renderer &g, const State &state) {
             if (event.amount > 0)
                 g.text("분출!", {to.x, to.y - tile * (.9F + t * .4F)}, layout.compact ? 12 : 15,
                        fade({255, 206, 140}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Detonation) {
+            const float radius = tile * event.radius * (.25F + .75F * (1 - std::pow(1 - t, 3.0F)));
+            g.circle(to, radius, fade({168, 210, 70}, (1 - t) * .4F));
+            g.circle(to, radius * .6F, fade({255, 226, 120}, (1 - t) * .5F));
+            ring(g, to, radius, std::max(2.0F, 6 * (1 - t)), fade({240, 250, 160}, 1 - t));
+            for (int shard = 0; shard < 9; ++shard) {
+                const float angle = shard * .698132F + event.subject * .5F;
+                const float reach = tile * event.radius * (.3F + .8F * t);
+                g.line({{to.x + std::cos(angle) * reach * .5F, to.y + std::sin(angle) * reach * .5F},
+                        {to.x + std::cos(angle) * reach, to.y + std::sin(angle) * reach}},
+                       std::max(1.5F, tile * .06F),
+                       fade(shard % 2 ? engine::Color{96, 104, 70} : theme::gold, 1 - t));
+            }
+            g.text("폭발!", {to.x, to.y - tile * (1.0F + t * .5F)}, layout.compact ? 13 : 17,
+                   fade({240, 250, 170}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Leap) {
+            const float dx = to.x - from.x, dy = to.y - from.y;
+            std::vector<engine::ScreenPoint> arc;
+            for (int step = 0; step <= 10; ++step) {
+                const float part = step / 10.0F;
+                arc.push_back(
+                    {from.x + dx * part, from.y + dy * part - tile * .9F * std::sin(part * 3.14159F)});
+            }
+            g.line(arc, std::max(1.5F, tile * .07F), fade({255, 214, 150}, (1 - t) * .8F));
+            g.circle(from, tile * (.2F + t * .4F), fade({150, 130, 100}, (1 - t) * .5F));
+            g.text("도약!", {to.x, to.y - tile * (.9F + t * .3F)}, layout.compact ? 12 : 15,
+                   fade({255, 214, 150}, 1 - t), .5F);
+        } else if (event.type == game::CombatEventKind::Cart) {
+            g.text("광차 출발!", {from.x, from.y - tile * (.8F + t * .3F)}, layout.compact ? 12 : 15,
+                   fade({255, 226, 150}, 1 - t), .5F);
         } else if (event.type == game::CombatEventKind::Enrage) {
             ring(g, to, tile * (.3F + t * .7F), std::max(1.5F, 3 * (1 - t)),
                  fade(theme::elite(game::EliteAffix::Enrage), 1 - t));

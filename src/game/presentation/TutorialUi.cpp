@@ -14,25 +14,28 @@ struct LessonCopy {
 LessonCopy lessonCopy(Lesson lesson) {
     switch (lesson) {
     case Lesson::Briefing:
-        return {"1/7 · 거점과 에너지", "카드 방어 → 채굴 → 다음 공세 준비",
+        return {"1/8 · 거점과 에너지", "카드 방어 → 채굴 → 다음 공세 준비",
                 "마지막 공세 생존이 목표 · 에너지 6"};
     case Lesson::Building:
-        return {"2/7 · 첫 건물 배치", "연사탑을 초록 발판에 놓으세요.", "선택하거나 끌면 사거리가 보여요."};
+        return {"2/8 · 첫 건물 배치", "연사탑을 초록 발판에 놓으세요.", "선택하거나 끌면 사거리가 보여요."};
     case Lesson::Unit:
-        return {"3/7 · 비용과 유닛", "경비병을 길 위 초록 칸에 놓으세요.",
+        return {"3/8 · 비용과 유닛", "경비병을 길 위 초록 칸에 놓으세요.",
                 "남은 에너지 3 사용 · 적의 진격 저지"};
     case Lesson::Combat:
-        return {"4/7 · 전투와 카드 순환", "사용한 카드는 덱 뒤로 돌아가요.", "다음 카드가 손패에 들어와요."};
+        return {"4/8 · 전투와 카드 순환", "사용한 카드는 덱 뒤로 돌아가요.", "다음 카드가 손패에 들어와요."};
+    case Lesson::Fork:
+        return {"5/8 · 갈림길", "깜빡이는 바리케이드를 눌러 길을 바꾸세요.",
+                "정비 중에만 바꿔요 · 적은 열린 쪽으로 와요"};
     case Lesson::Scan:
-        return {"5/7 · 무료 스캔", "스캔을 켜고 빛나는 칸을 누르세요.",
-                "정보만 공개 · 굴착과 광물은 별도예요."};
+        return {"6/8 · 무료 스캔", "스캔을 켜고 빛나는 칸을 누르세요.",
+                "바위 속이 보여요 · 캐는 건 따로예요."};
     case Lesson::FirstDig:
-        return {"5/7 · 첫 채굴", "공개된 칸을 눌러 굴착하세요.", "광부가 도착해야 철을 얻어요."};
+        return {"6/8 · 첫 채굴", "빛나는 칸을 쳐서 바위를 벗겨요.", "광맥이 모두 드러나면 철을 얻어요."};
     case Lesson::Crafting:
-        return {"6/7 · 도구 제작", "빛나는 칸을 따라 재료를 모으세요.",
-                "철 4 · 구리 4로 T2 곡괭이를 만들어요."};
+        return {"7/8 · 도구 제작", "구리 광맥을 쳐서 드러내세요.", "철 4 · 구리 4로 T2 곡괭이를 만들어요."};
     case Lesson::Investment:
-        return {"7/7 · 다음 투자", "T2 지층을 캐서 금을 얻으세요.", "금으로 카드 모집 · 부대 슬롯 강화"};
+        return {"8/8 · 다음 투자", "T2 곡괭이로 두꺼운 바위 속 금을 캐요.",
+                "금으로 카드 모집 · 부대 슬롯 강화"};
     case Lesson::Complete:
         return {"연습 원정 완료", "방어하고, 채굴하고, 더 강해졌어요.",
                 "정규 원정은 기본 덱과 자원으로 시작해요."};
@@ -127,6 +130,11 @@ void View::tutorialHighlights(engine::Renderer &g, const engine::Ui &ui, const g
         const engine::ScreenPoint center =
             layout.screenPoint(lesson == Lesson::Building ? game::Point{6, 4} : game::Point{8, 4});
         const float radius = std::max(7.0F, layout.tile * .5F);
+        g.circle(center, radius + 4, {97, 225, 169, 65});
+        rangeRing(g, center, radius, theme::green, false);
+    } else if (lesson == Lesson::Fork && !run.catalog().forks.empty()) {
+        const engine::ScreenPoint center = layout.screenPoint(run.barricade(0));
+        const float radius = std::max(9.0F, layout.tile * .6F);
         g.circle(center, radius + 4, {97, 225, 169, 65});
         rangeRing(g, center, radius, theme::green, false);
     } else if (lesson == Lesson::Scan)

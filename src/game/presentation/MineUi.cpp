@@ -59,7 +59,7 @@ struct MinePalette {
 };
 /** Resolve the authored palette of a stage biome. */
 const MinePalette &palette(game::StageBiome biome) {
-    static const std::array<MinePalette, 5> palettes{{
+    static const std::array<MinePalette, 7> palettes{{
         {{{Color{132, 98, 66}, Color{92, 74, 70}, Color{64, 70, 92}}},
          {{Color{70, 54, 46}, Color{48, 42, 50}, Color{34, 38, 58}}},
          {158, 126, 94},
@@ -110,8 +110,29 @@ const MinePalette &palette(game::StageBiome biome) {
          {48, 60, 52},
          {170, 240, 120},
          {22, 40, 36, 220}},
+        {{{Color{78, 70, 110}, Color{58, 52, 92}, Color{42, 38, 74}}},
+         {{Color{40, 36, 64}, Color{30, 26, 52}, Color{22, 18, 40}}},
+         {116, 106, 150},
+         {56, 50, 86},
+         {170, 210, 255},
+         {20, 18, 40},
+         {64, 52, 110},
+         {52, 46, 76},
+         {150, 132, 210},
+         {30, 26, 52, 220}},
+        {{{Color{92, 98, 66}, Color{72, 78, 54}, Color{56, 62, 46}}},
+         {{Color{46, 52, 36}, Color{36, 40, 30}, Color{26, 30, 24}}},
+         {120, 124, 86},
+         {64, 70, 50},
+         {190, 220, 90},
+         {54, 70, 56},
+         {120, 136, 96},
+         {70, 80, 50},
+         {132, 150, 84},
+         {40, 54, 36, 210}},
     }};
-    return palettes[static_cast<std::size_t>(std::clamp(static_cast<int>(biome), 0, 4))];
+    return palettes[static_cast<std::size_t>(
+        std::clamp(static_cast<int>(biome), 0, static_cast<int>(palettes.size()) - 1))];
 }
 /** Soil color for one row; deeper rows and deeper layers become darker. */
 Color stratum(const MinePalette &colors, int row, int rows, int layer) {
@@ -437,7 +458,8 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
                 const float x = view.x + view.w * (static_cast<float>(index) + .5F) / 9.0F;
                 const float h = tile * (.25F + noise(index, 9, 1) * .35F);
                 const float base = surface - tile * .18F;
-                if (biome == game::StageBiome::Obsidian || biome == game::StageBiome::Core) {
+                if (biome == game::StageBiome::Obsidian || biome == game::StageBiome::Core ||
+                    biome == game::StageBiome::Crystal) {
                     const float lean = (noise(index, 9, 2) - .5F) * tile * .3F;
                     g.polygon({{x - tile * .16F, base}, {x + lean, base - h * 1.3F}, {x + tile * .16F, base}},
                               colors.hills);
@@ -768,7 +790,7 @@ void View::underground(engine::Renderer &g, const engine::Ui &ui, const game::Ru
             g.line(crack, std::max(2.5F, tile * .1F), alpha(colors.vein, .2F * glow));
             g.line(crack, std::max(1.0F, tile * .035F),
                    alpha(mix(colors.vein, Color{255, 230, 140}, .4F), glow));
-        } else if (biome == game::StageBiome::Core && vein < .45F) {
+        } else if ((biome == game::StageBiome::Core || biome == game::StageBiome::Crystal) && vein < .45F) {
             const float glow = still ? .8F : .6F + .4F * std::sin(time * 1.8F + index * 1.3F);
             const ScreenPoint speck{box.x + box.w * (.2F + noise(index, layer, 96) * .6F),
                                     box.y + box.h * (.25F + noise(index, layer, 97) * .45F)};

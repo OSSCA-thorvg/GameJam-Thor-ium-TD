@@ -44,6 +44,12 @@ Palette palette(game::StageBiome biome) {
     case game::StageBiome::Core:
         return {{34, 48, 66},    {54, 72, 94}, {22, 32, 48, 140}, {70, 110, 120, 70}, {24, 34, 44},
                 {132, 154, 164}, {44, 56, 68}, {88, 104, 114},    {52, 120, 104, 190}};
+    case game::StageBiome::Crystal:
+        return {{42, 38, 70},    {68, 62, 104}, {28, 24, 50, 130}, {120, 180, 230, 60}, {28, 26, 44},
+                {150, 142, 176}, {52, 48, 70},  {102, 98, 126},    {120, 90, 180, 170}};
+    case game::StageBiome::Swamp:
+        return {{70, 88, 60},   {96, 112, 72}, {42, 62, 42, 140}, {150, 168, 92, 70}, {58, 46, 30},
+                {148, 126, 92}, {64, 68, 50},  {116, 114, 88},    {92, 70, 40, 170}};
     case game::StageBiome::Meadow:
         break;
     }
@@ -142,6 +148,20 @@ void groundFeature(engine::Renderer &g, game::StageBiome biome, ScreenPoint p, f
         g.line({{c.x - tile * .4F, c.y}, {c.x, c.y}, {c.x, c.y - tile * .35F}}, std::max(1.0F, tile * .04F),
                {84, 170, 150, 70});
         g.circle({c.x, c.y - tile * .35F}, tile * .05F, {130, 240, 190, 130});
+        break;
+    case game::StageBiome::Crystal:
+        g.polygon({{c.x - tile * .08F, c.y + tile * .06F},
+                   {c.x, c.y - tile * .2F},
+                   {c.x + tile * .08F, c.y + tile * .06F}},
+                  seed % 2 ? Color{150, 110, 220, 190} : Color{110, 190, 236, 190});
+        if (seed % 3 == 0)
+            g.circle({c.x + tile * .14F, c.y - tile * .02F}, tile * .04F, {236, 226, 255, 220});
+        break;
+    case game::StageBiome::Swamp:
+        g.circle(c, tile * .3F, {52, 72, 48, 150});
+        g.circle({c.x - tile * .05F, c.y - tile * .04F}, tile * .2F, {72, 96, 62, 170});
+        if (seed % 3 == 0)
+            g.circle({c.x + tile * .1F, c.y + tile * .04F}, tile * .08F, {120, 150, 76, 220});
         break;
     }
 }
@@ -280,6 +300,41 @@ void decoration(engine::Renderer &g, game::StageBiome biome, ScreenPoint p, floa
                    std::max(1.0F, s * .03F), {220, 255, 236, static_cast<std::uint8_t>(220 * pulse)});
         }
         break;
+    case game::StageBiome::Crystal:
+        if (variant == 2) {
+            g.circle({p.x, p.y + s * .14F}, s * .3F, shade);
+            g.polygon({{p.x - s * .26F, p.y + s * .12F},
+                       {p.x - s * .14F, p.y - s * .14F},
+                       {p.x + s * .16F, p.y - s * .16F},
+                       {p.x + s * .28F, p.y + s * .12F}},
+                      {60, 54, 82});
+        } else {
+            const float pulse = .75F + .25F * std::sin(time * 1.6F + seed % 7);
+            g.circle(p, s * .34F, {150, 120, 255, static_cast<std::uint8_t>(34 * pulse)});
+            drawCrystalCluster(g, {p.x, p.y + s * .05F}, s * (variant ? .55F : .7F));
+        }
+        break;
+    case game::StageBiome::Swamp:
+        g.circle({p.x, p.y + s * .14F}, s * .3F, shade);
+        if (variant == 0) {
+            g.rect({p.x - s * .12F, p.y - s * .2F, s * .24F, s * .36F}, {70, 56, 40}, s * .06F);
+            g.rect({p.x - s * .16F, p.y - s * .24F, s * .32F, s * .08F}, {98, 80, 56}, s * .04F);
+            g.line({{p.x + s * .1F, p.y - s * .1F}, {p.x + s * .3F, p.y - s * .32F}},
+                   std::max(1.0F, s * .05F), {70, 56, 40});
+        } else if (variant == 1) {
+            for (int reed = 0; reed < 4; ++reed) {
+                const float x = p.x + (reed - 1.5F) * s * .1F;
+                g.line({{x, p.y + s * .12F},
+                        {x + (reed % 2 ? .05F : -.04F) * s, p.y - s * (.26F + reed % 2 * .1F)}},
+                       std::max(1.0F, s * .035F), {104, 128, 64});
+            }
+            g.rect({p.x - s * .03F, p.y - s * .34F, s * .06F, s * .14F}, {120, 82, 50}, s * .03F);
+        } else {
+            g.rect({p.x - s * .04F, p.y - s * .08F, s * .08F, s * .2F}, {210, 200, 170}, s * .03F);
+            g.circle({p.x, p.y - s * .1F}, s * .16F, {176, 82, 70});
+            g.circle({p.x - s * .05F, p.y - s * .14F}, s * .04F, {240, 220, 200});
+        }
+        break;
     }
 }
 /** Return a short lane letter. */
@@ -343,9 +398,15 @@ void View::terrain(engine::Renderer &g, const game::Run &run, const State &state
     std::vector<char> blocked(static_cast<std::size_t>(width * height), 0);
     for (std::size_t lane = 0; lane <= run.catalog().additionalRoutes.size(); ++lane)
         markRoute(blocked, width, height, run.route(static_cast<std::uint32_t>(lane)), 2);
+    for (std::size_t fork = 0; fork < run.catalog().forks.size(); ++fork)
+        markRoute(blocked, width, height, run.forkBranch(fork, !run.detoured(fork)), 2);
     std::vector<game::Point> ventTiles;
     for (const game::VentDefinition &vent : run.catalog().vents)
         ventTiles.push_back(vent.position);
+    for (const game::TankDefinition &tank : run.catalog().tanks)
+        ventTiles.push_back(tank.position);
+    for (const game::RailDefinition &rail : run.catalog().rails)
+        ventTiles.push_back(rail.lever);
     for (const std::vector<game::Point> *cells :
          {&run.state().pads, &run.state().unitCells, &run.state().boulders, &std::as_const(ventTiles)})
         for (game::Point point : *cells) {
@@ -372,6 +433,8 @@ void View::terrain(engine::Renderer &g, const game::Run &run, const State &state
                     groundFeature(g, biome, p, tile, seed, time);
             }
         roads(g, run, forecast, colors.roadEdge, colors.roadFill, colors.roadIdleEdge, colors.roadIdleFill);
+        bogPools(g, run);
+        railTracks(g, run);
         tunnelCovers(g, run, tunnelColors(biome));
         ventReaches(g, run);
     };
@@ -418,10 +481,14 @@ void View::terrain(engine::Renderer &g, const game::Run &run, const State &state
         key.add(boulder);
     for (const game::TraitPad &pad : run.catalog().padTraits)
         key.add(pad.position).add(pad.trait);
-    for (const game::TunnelSpan &span : run.tunnels())
+    for (const game::RouteSpan &span : run.tunnels())
         key.add(span.route).add(span.enter).add(span.exit);
     for (game::Point vent : ventTiles)
         key.add(vent);
+    for (const game::RouteSpan &span : run.bogs())
+        key.add(span.route).add(span.enter).add(span.exit);
+    for (const game::RailDefinition &rail : run.catalog().rails)
+        key.add(rail.from).add(rail.to);
     key.add(run.catalog().balance.ventRadius);
     const float margin = tile * .15F + 1;
     g.cachedLayer(TerrainLayer, key.value,
@@ -475,7 +542,125 @@ void View::terrainFixtures(engine::Renderer &g, const game::Run &run) {
             continue;
         g.circle({p.x, p.y + tile * .06F}, tile * .42F, {148, 173, 144});
         g.circle(p, tile * .38F, {79, 106, 91});
-        drawBoulder(g, {p.x, p.y - tile * .05F}, tile * .9F);
+        if (run.catalog().rails.empty())
+            drawBoulder(g, {p.x, p.y - tile * .05F}, tile * .9F);
+        else
+            drawCrystalCluster(g, {p.x, p.y - tile * .02F}, tile * .9F);
+    }
+    for (const game::TankDefinition &tank : run.catalog().tanks) {
+        const ScreenPoint p = screenPoint(tank.position);
+        if (inWorld(p, tile * 2))
+            g.circle(p, run.catalog().balance.tankRadius * tile, {200, 230, 90, 26});
+    }
+}
+
+void View::bogPools(engine::Renderer &g, const game::Run &run) {
+    const float tile = layout.tile;
+    for (const game::RouteSpan &span : run.bogs()) {
+        const std::vector<game::Point> &route = run.route(span.route);
+        std::vector<ScreenPoint> water{screenPoint(run.routePoint(span.enter, span.route))};
+        float travelled = 0;
+        for (std::size_t index = 1; index + 1 < route.size(); ++index) {
+            travelled += game::distance(route[index - 1], route[index]);
+            if (travelled > span.enter && travelled < span.exit)
+                water.push_back(screenPoint(route[index]));
+        }
+        water.push_back(screenPoint(run.routePoint(span.exit, span.route)));
+        g.line(water, tile * 1.3F, {50, 74, 40, 150});
+        g.line(water, tile * .9F, {84, 112, 52, 190});
+        for (float along = span.enter + .5F; along < span.exit; along += 1.3F) {
+            const ScreenPoint p = screenPoint(run.routePoint(along, span.route));
+            const unsigned seed = noise(static_cast<int>(along * 10), static_cast<int>(span.route), 91);
+            g.circle(
+                {p.x + ((seed % 7) - 3.0F) * tile * .06F, p.y + (((seed >> 3) % 7) - 3.0F) * tile * .05F},
+                tile * (.08F + (seed % 3) * .03F), {150, 180, 90, 200});
+        }
+    }
+}
+
+void View::railTracks(engine::Renderer &g, const game::Run &run) {
+    for (const game::RailDefinition &rail : run.catalog().rails)
+        drawRail(g, screenPoint(rail.from), screenPoint(rail.to), layout.tile);
+}
+
+void View::machines(engine::Renderer &g, const game::Run &run, const State &state) {
+    const float tile = layout.tile;
+    const game::RunBalance &balance = run.catalog().balance;
+    const bool battle = run.state().phase == game::Phase::Battle;
+    const float time = state.app.preferences.reducedMotion ? 0 : state.play.visualTime;
+    // Barricades: timber crossbars on the closed branch; between waves a pulse marks both branch mouths as
+    // tappable.
+    const bool planning = run.state().phase == game::Phase::Prep || run.state().phase == game::Phase::Ready;
+    for (std::size_t fork = 0; fork < run.catalog().forks.size(); ++fork) {
+        const game::Point spot = run.barricade(fork);
+        const game::Point split = run.catalog().forks[fork].split;
+        const ScreenPoint p = screenPoint(spot);
+        const float dx = spot.x - split.x, dy = spot.y - split.y;
+        const float across = tile * .42F;
+        const ScreenPoint side{-dy * across, dx * across};
+        g.circle(p, tile * .5F, {20, 16, 14, 90});
+        for (float offset : {-.16F, .16F}) {
+            const ScreenPoint shift{dx * tile * offset, dy * tile * offset};
+            g.line({{p.x + shift.x - side.x, p.y + shift.y - side.y},
+                    {p.x + shift.x + side.x, p.y + shift.y + side.y}},
+                   std::max(2.0F, tile * .12F), {150, 104, 58});
+        }
+        g.line({{p.x - side.x * .9F - dx * tile * .2F, p.y - side.y * .9F - dy * tile * .2F},
+                {p.x + side.x * .9F + dx * tile * .2F, p.y + side.y * .9F + dy * tile * .2F}},
+               std::max(1.5F, tile * .07F), {214, 74, 54});
+        if (planning) {
+            const float pulse = time == 0 ? .6F : .5F + .5F * std::sin(time * 4.0F);
+            std::vector<ScreenPoint> outline;
+            const float radius = tile * (.55F + pulse * .12F);
+            for (int step = 0; step <= 24; ++step)
+                outline.push_back(
+                    {p.x + std::cos(step * .2618F) * radius, p.y + std::sin(step * .2618F) * radius});
+            g.line(outline, std::max(1.5F, tile * .06F),
+                   {255, 214, 120, static_cast<std::uint8_t>(110 + 120 * pulse)});
+        }
+    }
+    for (std::size_t index = 0; index < run.catalog().rails.size(); ++index) {
+        const game::RailDefinition &rail = run.catalog().rails[index];
+        const ScreenPoint from = screenPoint(rail.from), to = screenPoint(rail.to);
+        const float length = std::max(1.0F, std::hypot(to.x - from.x, to.y - from.y));
+        const float ux = (to.x - from.x) / length, uy = (to.y - from.y) / length;
+        const float progress = run.cartProgress(index);
+        const ScreenPoint cart = progress >= 0 ? ScreenPoint{from.x + (to.x - from.x) * progress,
+                                                             from.y + (to.y - from.y) * progress}
+                                               : from;
+        if (inWorld(cart, tile)) {
+            if (progress >= 0)
+                g.circle(cart, balance.cartWidth * tile, {255, 214, 120, 60});
+            drawCart(g, cart, ux, uy, tile);
+        }
+        const ScreenPoint lever = screenPoint(rail.lever);
+        if (!inWorld(lever, tile))
+            continue;
+        const float countdown = run.cartCountdown(index);
+        const bool ready = battle && countdown == 0;
+        const float charge =
+            !battle || progress >= 0 ? 1.0F : 1.0F - countdown / std::max(.01F, balance.cartCooldown);
+        if (ready) {
+            const float pulse = .5F + .5F * std::sin(time * 6);
+            g.circle(lever, tile * (.58F + .08F * pulse),
+                     {255, 214, 120, static_cast<std::uint8_t>(70 + 60 * pulse)});
+        }
+        drawLever(g, lever, tile, ready, std::clamp(charge, 0.0F, 1.0F));
+        if (battle && countdown > 0)
+            g.text(std::to_string(static_cast<int>(std::ceil(countdown))), {lever.x, lever.y - tile * .95F},
+                   std::max(10.0F, tile * .36F), theme::text, .5F);
+    }
+    for (std::size_t index = 0; index < run.catalog().tanks.size(); ++index) {
+        const ScreenPoint p = screenPoint(run.catalog().tanks[index].position);
+        if (!inWorld(p, tile))
+            continue;
+        const bool spent = battle && !run.tankReady(index);
+        if (battle && !spent) {
+            const float pulse = .5F + .5F * std::sin(time * 5 + index);
+            g.circle(p, tile * (.5F + .06F * pulse),
+                     {220, 240, 110, static_cast<std::uint8_t>(50 + 50 * pulse)});
+        }
+        drawTank(g, p, tile, spent);
     }
 }
 
@@ -492,7 +677,7 @@ void View::tunnelCovers(engine::Renderer &g, const game::Run &run, const TunnelC
     const float tile = layout.tile;
     /** Mouth art and the round ends of the roof stroke reach this far past a span's ends, in tiles. */
     constexpr float Inset = .6F;
-    for (const game::TunnelSpan &span : run.tunnels()) {
+    for (const game::RouteSpan &span : run.tunnels()) {
         const std::vector<game::Point> &route = run.route(span.route);
         /** Unit direction on screen from one route position toward another. */
         const auto heading = [this, &run, &span](float from, float to) -> ScreenPoint {
@@ -524,6 +709,14 @@ void View::tunnelCovers(engine::Renderer &g, const game::Run &run, const TunnelC
 void View::roads(engine::Renderer &g, const game::Run &run, const std::vector<game::LaneForecast> &forecast,
                  Color edge, Color fill, Color idleEdge, Color idleFill) {
     const float tile = layout.tile;
+    // The closed branch of each fork stays a faded road behind its barricade.
+    for (std::size_t fork = 0; fork < run.catalog().forks.size(); ++fork) {
+        std::vector<ScreenPoint> closed;
+        for (game::Point point : run.forkBranch(fork, !run.detoured(fork)))
+            closed.push_back(screenPoint(point));
+        g.line(closed, tile * .9F, alpha(idleEdge, .7F));
+        g.line(closed, tile * .66F, alpha(idleFill, .6F));
+    }
     std::vector<std::vector<ScreenPoint>> lanes;
     for (const game::LaneForecast &lane : forecast) {
         std::vector<ScreenPoint> route;
@@ -613,6 +806,7 @@ void View::fieldEffects(engine::Renderer &g, const game::Run &run, const State &
                 radius * .08F * (1 - phase), {150, 128, 110, static_cast<std::uint8_t>(180 * fade)});
         }
     }
+    machines(g, run, state);
     // Vents show their blast radius while a unit is being placed or moved, and a growing ring before each
     // eruption.
     const game::RunBalance &balance = run.catalog().balance;
@@ -727,6 +921,7 @@ std::vector<LaneMarker> View::laneMarkers(const game::Run &run) const {
 
 void View::mapOverlays(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state) {
     layout.minimap = {};
+    layout.minimapToggle = {};
     layout.entrances.clear();
     for (std::size_t lane = 0; lane <= run.catalog().additionalRoutes.size(); ++lane)
         layout.entrances.push_back(run.route(static_cast<std::uint32_t>(lane)).front());
@@ -804,10 +999,13 @@ void View::mapOverlays(engine::Renderer &g, engine::Ui &ui, const game::Run &run
         const float mapW = side.w - 32, mapH = std::min(130.0F, mapW * height / width);
         const float fitW = mapH * width / height;
         layout.minimap = {side.x + 16 + (mapW - fitW) / 2, side.y + 58, fitW, mapH};
+    } else if (arrows && state.app.minimapFolded) {
+        layout.minimapToggle = {world.x + 10, world.y + world.h - 42, 64, 30};
     } else if (arrows) {
         const float mapW = std::clamp(world.w * (layout.compact ? .3F : .2F), 96.0F, 190.0F);
         const float mapH = mapW * height / width;
         layout.minimap = {world.x + 10, world.y + world.h - mapH - 12, mapW, mapH};
+        layout.minimapToggle = {layout.minimap.x + mapW - 38, layout.minimap.y, 38, 22};
     }
 }
 
@@ -819,8 +1017,20 @@ float View::opening(const game::Run &run) const {
 
 void View::minimap(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const State &state) {
     const Rect box = layout.minimap;
-    if (box.w <= 0)
+    const Rect toggle = layout.minimapToggle;
+    const bool interactive = !placingCard_ && !state.play.movingUnit;
+    if (box.w <= 0) {
+        if (toggle.w <= 0)
+            return;
+        g.rect({toggle.x, toggle.y + 2, toggle.w, toggle.h}, {0, 0, 0, 90}, 6);
+        g.rect(toggle, {12, 24, 30, 225}, 6);
+        g.rect({toggle.x + 9, toggle.y + 9, 14, 12}, alpha(palette(biomeFor(state)).bottom, .8F), 2);
+        g.circle({toggle.x + 19, toggle.y + 13}, 2, theme::gold);
+        g.text("지도", {toggle.x + 28, toggle.y + 8}, 11, theme::text);
+        if (interactive)
+            ui.add(ToggleMinimap, toggle, true, false, false);
         return;
+    }
     const int width = run.catalog().width, height = run.catalog().height;
     const std::vector<game::LaneForecast> forecast = run.laneForecast();
     const float wave = opening(run);
@@ -861,7 +1071,14 @@ void View::minimap(engine::Renderer &g, engine::Ui &ui, const game::Run &run, co
             {frame.x, frame.y}},
            1.5F, {255, 248, 220, 230});
     g.endClip();
-    if (!placingCard_ && !state.play.movingUnit)
+    if (toggle.w > 0) {
+        g.rect(toggle, {12, 24, 30, 215}, 4);
+        g.text("접기", {toggle.x + toggle.w / 2, toggle.y + 5}, 10, theme::text, .5F);
+    }
+    if (interactive) {
         ui.add(MinimapFocus, box, true, false, false);
+        if (toggle.w > 0)
+            ui.add(ToggleMinimap, toggle, true, false, false);
+    }
 }
 } // namespace thorium::presentation

@@ -40,6 +40,27 @@ AudioClip synthesize(Beep beep);
 /** Decode a bounded optional MP3 asset; failures return an empty clip and a reason. */
 AudioClip loadMp3(const std::string &path, std::string &error);
 
+/** Looping MP3 music decoded in small blocks from compressed bytes kept in memory. */
+class MusicStream {
+  public:
+    MusicStream();
+    ~MusicStream();
+    MusicStream(const MusicStream &) = delete;
+    MusicStream &operator=(const MusicStream &) = delete;
+    /** Load a bounded MP3; a failed load leaves the stream silent and reports a reason. */
+    bool open(const std::string &path, std::string &error);
+    /** Read whether a decodable track is loaded. */
+    bool loaded() const;
+    /** Write frames of stereo PCM at outputRate, restarting from the first frame after the last. */
+    void read(float *output, std::size_t frames, int outputRate);
+    /** Count completed passes through the track. */
+    std::uint64_t loops() const;
+
+  private:
+    struct Decoder;
+    std::unique_ptr<Decoder> decoder_;
+};
+
 class AudioMixer;
 /** Borrow only PCM consumption and queue-invalidation metadata; cannot mutate sound policy or settings. */
 class AudioOutput {
@@ -74,8 +95,13 @@ class AudioMixer {
     void advance(float seconds);
     /** Mix exactly frames of interleaved stereo float PCM, including silence after voices end. */
     void render(float *output, std::size_t frames);
-    /** Drop pending voices and invalidate already queued sink data on pause/reset/mute. */
+    /** Drop pending voices and invalidate already queued sink data on pause/reset/mute; music keeps its
+     * place. */
     void stop();
+    /** Install looping background music mixed under the voices at gain; an unloaded stream is rejected. */
+    bool setMusic(std::unique_ptr<MusicStream> music, float gain);
+    /** Read the installed music for diagnostics and tests. */
+    const MusicStream *music() const;
     /** Borrow an output capability whose lifetime must remain inside this mixer owner. */
     AudioOutput output();
     /** Read active population for device diagnostics and bounded-load tests. */
@@ -98,5 +124,8 @@ class AudioMixer {
     std::unordered_map<SoundId, Entry> clips_;
     std::vector<Voice> voices_;
     double clock_ = 0;
+    std::unique_ptr<MusicStream> music_;
+    float musicGain_ = 0;
+    std::vector<float> musicBlock_;
 };
 } // namespace thorium::engine

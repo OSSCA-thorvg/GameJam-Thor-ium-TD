@@ -292,7 +292,7 @@ void tunnels() {
     const Point mouth = expanded.routePoint(5);
     enterPreparation(expanded, expanded.catalog().balance.expansionWave);
     require(expanded.expand(1).ok, "the long expansion is applied");
-    const TunnelSpan moved = expanded.tunnels().front();
+    const RouteSpan moved = expanded.tunnels().front();
     require(std::abs(moved.enter - 17) < .001F && std::abs(moved.exit - 21) < .001F &&
                 distance(expanded.routePoint(moved.enter), mouth) < .001F && expanded.tunnelAt(18, 0) &&
                 !expanded.tunnelAt(6, 0),
@@ -364,13 +364,14 @@ void vents() {
         run.advance(.1F);
         eruptions += count(run.takeCombatEvents(), CombatEventKind::Eruption);
     }
-    require(eruptions == 0 && run.unit(600)->hp == 120 - balance.ventDamage,
-            "the vent stays quiet for a full period");
+    require(eruptions == 0, "the vent stays quiet for a full period");
+    require(run.unit(600)->hp > 120 - balance.ventDamage, "a unit holding no enemy recovers over time");
+    const int before = run.unit(600)->hp;
     for (int step = 0; step < 10; ++step) {
         run.advance(.1F);
         eruptions += count(run.takeCombatEvents(), CombatEventKind::Eruption);
     }
-    require(eruptions == 1 && run.unit(600)->hp == 120 - 2 * balance.ventDamage,
+    require(eruptions == 1 && run.unit(600)->hp <= before - balance.ventDamage + 2,
             "the second eruption follows exactly one period later");
     /** The same battle at sixty steps per second erupts the same number of times. */
     Run fine = battle(content);
@@ -519,11 +520,15 @@ void shipped() {
             std::cerr << "stage " << stage << ": " << valid.summary() << '\n';
         require(valid.ok(), "every shipped stage validates with its gimmick");
         require(!stageMetadata(stage).gimmick.empty(), "every stage names its gimmick");
-        require(catalog.boulders.empty() == (stage != 1), "only the first stage has boulders");
+        require(catalog.boulders.empty() == (stage != 1 && stage != 6),
+                "only the first and sixth stages have boulders");
         require(catalog.padTraits.empty() == (stage != 2 && stage != 5),
                 "trait pads belong to stages 2 and 5");
         require(catalog.tunnels.empty() == (stage != 3 && stage != 5), "tunnels belong to stages 3 and 5");
         require(catalog.vents.empty() == (stage != 4 && stage != 5), "vents belong to stages 4 and 5");
+        require(catalog.rails.empty() == (stage != 6), "cart rails belong to stage 6");
+        require(catalog.bogs.empty() == (stage != 7) && catalog.tanks.empty() == (stage != 7),
+                "bogs and gas tanks belong to stage 7");
         std::vector<Point> sites = catalog.pads;
         sites.insert(sites.end(), catalog.boulders.begin(), catalog.boulders.end());
         for (const TraitPad &pad : catalog.padTraits)
@@ -536,7 +541,7 @@ void shipped() {
                     beside = beside || distance(run.routePoint(progress, lane), vent.position) <= 1.01F;
             require(beside, "a shipped vent stands next to a route");
         }
-        for (const TunnelSpan &span : run.tunnels())
+        for (const RouteSpan &span : run.tunnels())
             for (Point cell : catalog.unitCells)
                 for (float progress = span.enter + .5F; progress < span.exit; progress += .5F)
                     require(distance(run.routePoint(progress, span.route), cell) > .01F,

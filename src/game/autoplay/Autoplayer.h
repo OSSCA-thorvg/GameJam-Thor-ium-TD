@@ -50,6 +50,8 @@ struct Target {
     /** Share of the hit points behind a shield and the largest hit that shield takes. */
     float shielded = 0;
     int cap = 0;
+    /** Out of reach of ground-only attacks. */
+    bool flying = false;
 };
 /** Scheduled hit points on one lane, in total and per target kind; Steel elites are their own kind. */
 struct LaneThreat {
@@ -77,7 +79,8 @@ inline std::vector<LaneThreat> threats(const Run &run, const std::vector<LaneFor
                                     role.armor,
                                     small,
                                     static_cast<float>(role.shield) / hp,
-                                    role.shieldCap};
+                                    role.shieldCap,
+                                    role.flying};
             if (elites)
                 threat.targets[EnemyKindCount] = {static_cast<float>(elites) * hp * steel.health,
                                                   hp * steel.health, role.armor + steel.armor, false};
@@ -97,7 +100,7 @@ inline float suit(const LaneThreat &threat, CardKind kind, const CardDefinition 
     const bool electric = kind == CardKind::Lightning;
     float result = 0;
     for (const Target &target : threat.targets) {
-        if (target.total <= 0)
+        if (target.total <= 0 || (card.ground && target.flying))
             continue;
         const float hit =
             static_cast<float>(electric ? card.damage : std::max(1, card.damage - target.armor));
@@ -160,8 +163,53 @@ inline float coverage(const Run &run, Point position, CardKind kind, const CardD
     }
     return score;
 }
-/** Make at most one ordinary card command, never altering energy, health, entities or the schedule. */
+/** Damage a hand-operated machine would deal now: each surfaced enemy it reaches counts up to the damage. */
+inline float machineValue(const Run &run, Point from, Point to, float reach, int damage, bool ground) {
+    const float dx = to.x - from.x, dy = to.y - from.y;
+    const float length = dx * dx + dy * dy;
+    float value = 0;
+    for (const Enemy &enemy : run.state().enemies) {
+        if (run.underground(enemy) || (ground && run.flying(enemy)))
+            continue;
+        const float t =
+            length < .0001F
+                ? 0
+                : std::clamp(((enemy.position.x - from.x) * dx + (enemy.position.y - from.y) * dy) / length,
+                             0.0F, 1.0F);
+        if (distance(enemy.position, {from.x + dx * t, from.y + dy * t}) <= reach)
+            value += static_cast<float>(std::min(enemy.hp + enemy.shield, damage));
+    }
+    return value;
+}
+/** Send a ready cart when its rail holds enough ground enemies, and detonate a gas tank when its blast would
+ *  deal enough damage without killing an allied unit. `threshold` scales both bars. */
+inline void operate(Run &run, float threshold = 1) {
+    const RunBalance &balance = run.catalog().balance;
+    for (std::size_t rail = 0; rail < run.catalog().rails.size(); ++rail) {
+        const RailDefinition &track = run.catalog().rails[rail];
+        if (run.cartCountdown(rail) == 0 && machineValue(run, track.from, track.to, balance.cartWidth + .3F,
+                                                         balance.cartDamage, true) >= 140 * threshold)
+            run.launchCart(rail);
+    }
+    for (std::size_t tank = 0; tank < run.catalog().tanks.size(); ++tank) {
+        const Point position = run.catalog().tanks[tank].position;
+        if (!run.tankReady(tank))
+            continue;
+        const bool harmsUnit =
+            threshold >= 1 &&
+            std::any_of(run.state().units.begin(), run.state().units.end(), [&](const Unit &ally) {
+                return distance(ally.position, position) <= balance.tankRadius &&
+                       ally.hp <= balance.tankDamage;
+            });
+        if (!harmsUnit && machineValue(run, position, position, balance.tankRadius, balance.tankDamage,
+                                       false) >= 200 * threshold)
+            run.detonateTank(tank);
+    }
+}
+/** Operate ready machines, then make at most one ordinary card command, never altering energy, health,
+ *  entities or the schedule. */
 inline void playCard(Run &run) {
+    operate(run);
     CardId best = 0;
     Point target{};
     float score = 0;
@@ -252,11 +300,16 @@ inline void playCard(Run &run) {
                 if (!run.previewPlay(card.id, enemy.position).allowed())
                     continue;
                 float damage = 0;
+                bool siege = false;
                 for (const Enemy &other : run.state().enemies)
-                    if (distance(enemy.position, other.position) <= definition.range)
+                    if (distance(enemy.position, other.position) <= definition.range) {
                         damage += std::min(other.hp, definition.damage);
-                const float value = damage / 60;
-                if (value > score && damage >= 70) {
+                        siege = siege || (other.sabotage &&
+                                          run.catalog().enemy(other.kind).ability == EnemyAbility::Siege);
+                    }
+                // Stopping an enemy that is breaking a building is worth a blast on its own.
+                const float value = (damage + (siege ? 80.0F : 0.0F)) / 60;
+                if (value > score && (damage >= 70 || siege)) {
                     score = value;
                     best = card.id;
                     target = enemy.position;
@@ -282,18 +335,19 @@ inline void acceptReward(Run &run) {
         run.acceptOffer(offer.id, offer.candidates.front(), run.state().deck[3].id);
     }
 }
-/** Worth of baring one wall tile: known contents by kind, a small exploration value for unseen rock, and a
- * penalty for a known nest. */
+/** Worth of baring one wall tile: known contents by kind, an exploration value for unseen rock, a smaller
+ * one for empty rock that opens the way deeper, and less still for a known nest, which is bared only when
+ * nothing else is in reach. */
 inline float wallValue(const Run &run, const MineCell &tile) {
     if (!tile.info)
         return .9F;
     if (!tile.deposit)
-        return .05F;
+        return .3F;
     const Deposit &deposit = run.state().deposits[static_cast<std::size_t>(tile.deposit - 1)];
     if (deposit.collected)
         return 0;
     if (deposit.nest)
-        return -6;
+        return .2F;
     return deposit.special == MineSpecial::Relic                ? 11
            : deposit.special == MineSpecial::Fossil             ? 10
            : deposit.special == MineSpecial::Energy             ? 5
@@ -323,8 +377,8 @@ inline float strikeScore(const Run &run, int cell, StrikeTool tool) {
     }
     return score / static_cast<float>(run.strikeCost(tool));
 }
-/** Scan the block with the most unseen thick rock, then strike wherever a dig bares the most value until the
- * digs run out or nothing is worth a strike. */
+/** Scan the block with the most unseen rock, counting rock a strike can reach now three times, then strike
+ * wherever a dig bares the most value until the digs run out or nothing is worth a strike. */
 inline void excavate(Run &run, Ledger *ledger) {
     const int width = run.state().mineWidth;
     const int cells = static_cast<int>(run.state().mine.size());
@@ -333,10 +387,10 @@ inline void excavate(Run &run, Ledger *ledger) {
         for (int cell = 0; cell < cells; ++cell) {
             int unseen = 0;
             for (int other = 0; other < cells; ++other)
-                if (!run.state().mine[other].info && run.state().mine[other].cover >= 2 &&
+                if (!run.state().mine[other].info && run.state().mine[other].cover > 0 &&
                     std::abs(other % width - cell % width) <= run.catalog().balance.scanReach &&
                     std::abs(other / width - cell / width) <= run.catalog().balance.scanReach)
-                    ++unseen;
+                    unseen += run.reachable(other) ? 3 : run.state().mine[other].cover >= 2 ? 1 : 0;
             if (unseen >= most) {
                 most = unseen;
                 chosen = cell;
@@ -470,9 +524,36 @@ inline int clearBoulders(Run &run) {
 }
 /** Mine visible safe candidates, craft real recipes, clear boulders, spend crystal and gold, and descend once
  *  the old layer is sparse. */
+/** Damage-dealing buildings that reach each half tile of a polyline, summed: how long enemies on it stay
+ *  under fire. */
+inline float exposure(const Run &run, const std::vector<Point> &path) {
+    float total = 0;
+    for (std::size_t index = 1; index < path.size(); ++index) {
+        const float length = distance(path[index - 1], path[index]);
+        for (float along = 0; along < length; along += .5F) {
+            const Point point{path[index - 1].x + (path[index].x - path[index - 1].x) * along / length,
+                              path[index - 1].y + (path[index].y - path[index - 1].y) * along / length};
+            for (const Tower &tower : run.state().towers)
+                if (run.catalog().card(tower.kind).damage > 0 &&
+                    distance(tower.position, point) <= run.buildingRange(tower.kind, tower.position))
+                    total += 1;
+        }
+    }
+    return total;
+}
+/** Close the branch of each fork that the buildings cover less, keeping the current one on a near tie. */
+inline void chooseForks(Run &run) {
+    for (std::size_t fork = 0; fork < run.catalog().forks.size(); ++fork) {
+        const float open = exposure(run, run.forkBranch(fork, run.detoured(fork)));
+        const float closed = exposure(run, run.forkBranch(fork, !run.detoured(fork)));
+        if (closed > open * 1.15F + 2)
+            run.switchFork(fork);
+    }
+}
 inline void prepare(Run &run, Ledger *ledger = nullptr) {
     if (run.state().expansionPending)
         run.expand(1);
+    chooseForks(run);
     acceptReward(run);
     if (run.state().mineLayer == 0 && run.descentAvailability().ok && run.state().wave >= 5)
         run.descend();

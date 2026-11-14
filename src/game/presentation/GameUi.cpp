@@ -365,6 +365,10 @@ void View::inspector(engine::Renderer &g, engine::Ui &ui, const game::Run &run, 
                    ? "각성 Lv. " + std::to_string(tower->level) + " / " + std::to_string(run.awakenedLevel())
                    : "Lv. " + std::to_string(tower->level) + " / " + std::to_string(game::CardMaxLevel),
                {area.x + area.w - 12, titleY + 3}, 12, awakened ? theme::purple : theme::gold, 1);
+        if (tower->maxHp > 0)
+            g.text("내구 " + std::to_string(tower->hp) + " / " + std::to_string(tower->maxHp),
+                   {area.x + area.w - 12, titleY + 19}, 11,
+                   tower->hp * 2 < tower->maxHp ? theme::red : theme::muted, 1);
         if (!dense) {
             // The range is the one the rules use on this pad, followed by the pad's trait when it has one.
             const game::PadTrait trait = run.padTrait(tower->position);
@@ -429,8 +433,15 @@ void View::boulderInspector(engine::Renderer &g, engine::Ui &ui, const game::Run
     g.rect(area, {16, 32, 40, 180}, 9);
     const float x = area.x + 12, w = area.w - 24;
     const float titleY = area.y + 12;
-    drawBoulder(g, {compact ? x + 20 : x + w / 2, compact ? titleY + 15 : titleY + 68}, compact ? 34 : 78);
-    g.text("낙석 바위", {compact ? x + 49 : x, titleY}, compact ? 17 : 20, theme::text);
+    // The sixth stage's boulders are crystal clusters; the rule and price are the same.
+    const bool crystal = !run.catalog().rails.empty();
+    const ScreenPoint icon{compact ? x + 20 : x + w / 2, compact ? titleY + 15 : titleY + 68};
+    if (crystal)
+        drawCrystalCluster(g, icon, compact ? 34 : 78);
+    else
+        drawBoulder(g, icon, compact ? 34 : 78);
+    g.text(crystal ? "수정 군집" : "낙석 바위", {compact ? x + 49 : x, titleY}, compact ? 17 : 20,
+           theme::text);
     // The label shows the price the clear command will charge.
     const game::PurchaseQuote price = run.boulderQuote(*state.play.selectedBoulder);
     if (!dense) {
@@ -439,7 +450,8 @@ void View::boulderInspector(engine::Renderer &g, engine::Ui &ui, const game::Run
     }
     float y = area.y + (dense ? 47.0F : compact ? 94.0F : 191.0F);
     const float buttonHeight = dense ? 32.0F : 40.0F;
-    button(g, ui, ClearBoulder, {x, y, w, buttonHeight}, "바위 치우기 · " + game::costLabel(price.cost),
+    button(g, ui, ClearBoulder, {x, y, w, buttonHeight},
+           std::string(crystal ? "수정 치우기 · " : "바위 치우기 · ") + game::costLabel(price.cost),
            price.open(), price.allowed());
     y += buttonHeight + 8;
     button(g, ui, ClearSelection, {x, y, w, buttonHeight}, "선택 해제");
@@ -1040,6 +1052,8 @@ void View::draw(engine::Renderer &g, engine::Ui &ui, const game::Run &run, const
     else {
         surface(g, run, state);
         mapOverlays(g, ui, run, state);
+        if (introToggle_.w > 0 && !placingCard_ && !state.play.movingUnit)
+            ui.add(ToggleIntro, introToggle_, true, false, false);
         if (layout.compact || prep)
             minimap(g, ui, run, state);
     }

@@ -90,6 +90,8 @@ else
   test('enemy-roster-mechanics', roster_tests)
   gimmick_tests = executable('thorium-stage-gimmick-tests', 'tests/native/stage_gimmicks_test.cpp', include_directories: inc, link_with: rules)
   test('stage-gimmicks', gimmick_tests)
+  machine_tests = executable('thorium-machine-and-role-tests', 'tests/native/machines_and_roles_test.cpp', include_directories: inc, link_with: rules)
+  test('machines-and-new-roles', machine_tests)
   campaign_tests = executable('thorium-campaign-tests', 'tests/native/campaign_test.cpp', include_directories: inc, link_with: [controllers, rules, ui, feedback, animation, audio, soundscape])
   test('campaign-progression-and-camera', campaign_tests)
   controller_tests = executable('thorium-controller-tests', 'tests/native/controllers_test.cpp', include_directories: inc, link_with: [controllers, rules, ui, feedback, animation, audio, soundscape])

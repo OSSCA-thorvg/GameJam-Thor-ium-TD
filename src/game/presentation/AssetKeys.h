@@ -6,9 +6,9 @@ namespace thorium::presentation::assets {
 inline constexpr const char *Oreling = "oreling";
 /** Every enemy creature source; each file is content/animations/<key>.json and binds a profile of the same
  * name. */
-inline constexpr std::array<const char *, 10> Creatures{{Oreling, "dashling", "ironback", "pebbling",
-                                                         "shieldling", "mender", "splitter", "burrower",
-                                                         "sapper", "golem"}};
+inline constexpr std::array<const char *, 16> Creatures{
+    {Oreling, "dashling", "ironback", "pebbling", "shieldling", "mender", "splitter", "burrower", "sapper",
+     "bat", "stalker", "leaper", "wrecker", "slinger", "carrier", "golem"}};
 /** Every still picture; each file is content/art/<key>.svg. */
 inline constexpr std::array<const char *, 12> Pictures{{"ore-iron", "ore-copper", "ore-gold", "ore-crystal",
                                                         "nest", "chest", "fossil", "energy", "cracked",

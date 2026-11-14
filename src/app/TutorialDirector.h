@@ -19,8 +19,16 @@ class TutorialDirector {
     void retry();
     /** Acknowledge the first explanation; clicks cannot complete action lessons. */
     void next();
+    /** Seconds the field stays visible after the final gold dig before the completion window opens. */
+    static constexpr float CompleteHold = 2.5F;
     /** Observe authoritative entities, excavation and payments after commands or simulation. */
     void observe();
+    /** Count down real seconds toward the completion window once the final dig has paid out. */
+    void advance(float seconds);
+    /** Read whether the final reward is on screen and the completion window is still waiting. */
+    bool completing() const {
+        return completeHold_ >= 0;
+    }
     /** Permit only the controls needed by the current lesson and normal utility navigation. */
     bool allows(const GameInput &input, const presentation::Layout &layout) const;
     /** Freeze explanations and setup without disabling pointer, drag or card inspection. */
@@ -41,6 +49,7 @@ class TutorialDirector {
     presentation::Navigation regularNavigation_;
     std::optional<game::Run> checkpoint_;
     presentation::Lesson checkpointLesson_ = presentation::Lesson::None;
+    float completeHold_ = -1;
     /** Enter an observed lesson and capture a safe retry point before any player action. */
     void enter(presentation::Lesson lesson);
     /** Resolve the next authored mining target without modifying hidden information. */

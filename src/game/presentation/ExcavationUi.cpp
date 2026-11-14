@@ -38,6 +38,10 @@ Color wallRock(game::StageBiome biome) {
         return {134, 84, 72};
     case game::StageBiome::Core:
         return {92, 128, 104};
+    case game::StageBiome::Crystal:
+        return {104, 96, 150};
+    case game::StageBiome::Swamp:
+        return {104, 112, 78};
     case game::StageBiome::Meadow:
         break;
     }
@@ -232,6 +236,8 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
                {badge.x + badge.w / 2, badge.y + 1}, size, depositColor(deposit), .5F);
     }
 
+    wallMiner(g, run, state);
+
     // Strike or scan preview under the pointer.
     const engine::Widget *pointed = ui.hit(ui.pointerPosition);
     const int hovered =
@@ -406,5 +412,201 @@ void View::excavation(engine::Renderer &g, engine::Ui &ui, const game::Run &run,
         g.rect({x, headerY, buriedW, 24}, {22, 18, 18, 220}, 6);
         g.text(buried, {x + buriedW / 2, headerY + 5}, 11, {226, 210, 180}, .5F);
     }
+}
+void View::wallMiner(engine::Renderer &g, const game::Run &run, const State &state) {
+    const game::RunState &live = run.state();
+    const bool still = state.app.preferences.reducedMotion;
+    const float time = still ? 0.0F : state.play.visualTime;
+    const float tile = layout.mineTile;
+    const int columns = layout.mineColumns, rows = layout.mineRows;
+    const int count = static_cast<int>(live.mine.size());
+    const Rect view = layout.mineViewport;
+    const Rect first = layout.mineCellBounds(0);
+    const auto bare = [&](int column, int row) {
+        return column >= 0 && column < columns && row >= 0 && row < rows &&
+               live.mine[static_cast<std::size_t>(row * columns + column)].cover == 0;
+    };
+    const auto at = [&](game::Point cell) {
+        return ScreenPoint{first.x + (cell.x + .5F) * tile,
+                           cell.y < 0 ? first.y - tile * .3F : first.y + (cell.y + .5F) * tile};
+    };
+
+    // Props: timber posts rise and a cap beam settles in rock that was just opened, and a ladder links each
+    // opening to the one above or below it.
+    std::vector<float> fresh(static_cast<std::size_t>(count), 1.0F);
+    for (const MineCue &cue : state.play.feedback.mineCues)
+        if (cue.cell >= 0 && cue.cell < count && cue.stripped > 0)
+            fresh[static_cast<std::size_t>(cue.cell)] =
+                std::min(fresh[static_cast<std::size_t>(cue.cell)], cue.age / .6F);
+    const Color wood{132, 90, 52}, grain{96, 64, 38};
+    for (int index = 0; index < count; ++index) {
+        const int column = index % columns, row = index / columns;
+        if (!bare(column, row))
+            continue;
+        const game::MineCell &cell = live.mine[static_cast<std::size_t>(index)];
+        if (cell.deposit && !live.deposits[static_cast<std::size_t>(cell.deposit - 1)].collected)
+            continue;
+        const Rect box = layout.mineCellBounds(index);
+        if (box.y > view.y + view.h || box.y + tile < view.y)
+            continue;
+        const float grow = still ? 1.0F : std::clamp(fresh[static_cast<std::size_t>(index)], 0.0F, 1.0F);
+        const float eased = 1 - (1 - grow) * (1 - grow);
+        const float floor = box.y + tile - 1, height = tile * .84F * eased;
+        g.rect({box.x + tile * .05F, floor - height, tile * .07F, height}, wood, 1);
+        g.rect({box.x + tile * .88F, floor - height, tile * .07F, height}, wood, 1);
+        if (grow > .6F) {
+            const float settle = (grow - .6F) / .4F;
+            g.rect({box.x + tile * .03F, box.y + tile * (.16F - .06F * settle), tile * .94F, tile * .08F},
+                   alpha(grain, settle), 1);
+        }
+        const bool up = row == 0 || bare(column, row - 1), down = bare(column, row + 1);
+        if (!up && !down)
+            continue;
+        const float cx = box.x + tile / 2;
+        const float top = up ? box.y : box.y + tile * .4F;
+        const float bottom = top + ((down ? box.y + tile : box.y + tile * .96F) - top) * eased;
+        g.line({{cx - tile * .15F, top}, {cx - tile * .15F, bottom}}, std::max(1.0F, tile * .04F), wood);
+        g.line({{cx + tile * .15F, top}, {cx + tile * .15F, bottom}}, std::max(1.0F, tile * .04F), wood);
+        for (float rung = top + tile * .1F; rung < bottom; rung += tile * .2F)
+            g.line({{cx - tile * .15F, rung}, {cx + tile * .15F, rung}}, std::max(1.0F, tile * .035F), grain);
+    }
+
+    // Walk: the miner keeps to the ledge above the wall and the opened cells, climbing the ladders, and
+    // answers each strike from a spot beside the struck cell.
+    const float now = state.play.visualTime;
+    const float delta = wallClock_ < 0 ? 0.0F : std::clamp(now - wallClock_, 0.0F, .1F);
+    wallClock_ = now;
+    const auto standable = [&](int column, int row) {
+        return column >= 0 && column < columns && (row == -1 || bare(column, row));
+    };
+    if (state.play.strikes != wallStrikes_) {
+        wallStrikes_ = state.play.strikes;
+        wallGoal_ = state.play.strikeCell;
+        wallSwing_ = .8F;
+        wallPath_.clear();
+        if (wallGoal_ >= 0 && wallGoal_ < count) {
+            const int goalColumn = wallGoal_ % columns, goalRow = wallGoal_ / columns;
+            const int width = columns, height = rows + 1;
+            const auto node = [width](int column, int row) { return (row + 1) * width + column; };
+            int startColumn = std::clamp(static_cast<int>(std::lround(wallMiner_.x)), 0, columns - 1);
+            int startRow = std::clamp(static_cast<int>(std::lround(wallMiner_.y)), -1, rows - 1);
+            if (!standable(startColumn, startRow))
+                startRow = -1;
+            std::vector<int> previous(static_cast<std::size_t>(width * height), -2);
+            std::vector<int> queue{node(startColumn, startRow)};
+            previous[static_cast<std::size_t>(queue.front())] = -1;
+            int found = -1;
+            for (std::size_t head = 0; head < queue.size() && found < 0; ++head) {
+                const int current = queue[head];
+                const int column = current % width, row = current / width - 1;
+                const bool beside = std::abs(column - goalColumn) + std::abs(row - goalRow) == 1 ||
+                                    (column == goalColumn && row == goalRow);
+                if (beside) {
+                    found = current;
+                    break;
+                }
+                const int steps[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                for (const auto &step : steps) {
+                    const int nextColumn = column + step[0], nextRow = row + step[1];
+                    if (!standable(nextColumn, nextRow))
+                        continue;
+                    const int next = node(nextColumn, nextRow);
+                    if (previous[static_cast<std::size_t>(next)] != -2)
+                        continue;
+                    previous[static_cast<std::size_t>(next)] = current;
+                    queue.push_back(next);
+                }
+            }
+            if (found < 0)
+                wallMiner_ = {static_cast<float>(goalColumn), -1};
+            else
+                for (int current = found; current >= 0; current = previous[static_cast<std::size_t>(current)])
+                    wallPath_.insert(wallPath_.begin(), {static_cast<float>(current % width),
+                                                         static_cast<float>(current / width - 1)});
+            if (still && !wallPath_.empty()) {
+                wallMiner_ = wallPath_.back();
+                wallPath_.clear();
+            }
+        }
+    }
+    bool walking = false, climbing = false;
+    float budget = delta * 6.0F;
+    while (budget > 0 && !wallPath_.empty()) {
+        const game::Point target = wallPath_.front();
+        const float dx = target.x - wallMiner_.x, dy = target.y - wallMiner_.y;
+        const float gap = std::sqrt(dx * dx + dy * dy);
+        climbing = std::abs(dy) > std::abs(dx);
+        walking = !climbing;
+        if (gap <= budget) {
+            wallMiner_ = target;
+            wallPath_.erase(wallPath_.begin());
+            budget -= gap;
+        } else {
+            wallMiner_ = {wallMiner_.x + dx / gap * budget, wallMiner_.y + dy / gap * budget};
+            budget = 0;
+        }
+    }
+    const bool swinging = wallPath_.empty() && wallSwing_ > 0;
+    if (wallPath_.empty())
+        wallSwing_ = std::max(0.0F, wallSwing_ - delta);
+
+    // Figure: hard hat and lamp, a walking bob or a climbing reach, and a pickaxe swung toward the struck
+    // cell.
+    const ScreenPoint p = at(wallMiner_);
+    if (p.y < view.y - tile || p.y > view.y + view.h + tile)
+        return;
+    float facing = 1.0F;
+    bool downward = false, upward = false;
+    if (wallGoal_ >= 0 && wallGoal_ < count) {
+        const float goalColumn = static_cast<float>(wallGoal_ % columns);
+        const float goalRow = static_cast<float>(wallGoal_ / columns);
+        if (std::abs(goalColumn - wallMiner_.x) > .3F)
+            facing = goalColumn < wallMiner_.x ? -1.0F : 1.0F;
+        downward = std::abs(goalColumn - wallMiner_.x) < .3F && goalRow > wallMiner_.y;
+        upward = std::abs(goalColumn - wallMiner_.x) < .3F && goalRow < wallMiner_.y;
+    }
+    const float scale = tile * .85F;
+    const float bob = walking && !still ? std::abs(std::sin(time * 16.0F)) * scale * .06F : 0.0F;
+    const ScreenPoint body{p.x, p.y - bob + scale * .05F};
+    g.circle(p, scale * .9F, {255, 200, 120, 18});
+    const float step = walking && !still ? std::sin(time * 16.0F) * scale * .05F : 0.0F;
+    const float reach = climbing && !still ? std::sin(time * 14.0F) * scale * .06F : 0.0F;
+    g.rect({body.x - scale * .14F + step, body.y + scale * .15F + reach, scale * .1F, scale * .2F},
+           {40, 46, 52}, 2);
+    g.rect({body.x + scale * .04F - step, body.y + scale * .15F - reach, scale * .1F, scale * .2F},
+           {40, 46, 52}, 2);
+    g.rect({body.x - scale * .19F, body.y - scale * .1F, scale * .38F, scale * .3F}, {58, 132, 112},
+           scale * .07F);
+    g.circle({body.x, body.y - scale * .2F}, scale * .14F, {245, 205, 160});
+    g.circle({body.x + facing * scale * .06F, body.y - scale * .2F}, scale * .025F, {40, 30, 26});
+    g.rect({body.x - scale * .17F, body.y - scale * .36F, scale * .34F, scale * .14F}, {241, 188, 66},
+           scale * .07F);
+    g.circle({body.x + facing * scale * .1F, body.y - scale * .3F}, scale * .045F, {255, 250, 220});
+    if (climbing) {
+        g.line({{body.x - scale * .17F, body.y - scale * .02F},
+                {body.x - scale * .2F, body.y - scale * .3F - reach}},
+               std::max(1.5F, scale * .06F), {245, 205, 160});
+        g.line({{body.x + scale * .17F, body.y - scale * .02F},
+                {body.x + scale * .2F, body.y - scale * .3F + reach}},
+               std::max(1.5F, scale * .06F), {245, 205, 160});
+        return;
+    }
+    float swing = facing > 0 ? -.6F : .6F + 3.1416F;
+    if (swinging) {
+        const float beat = still ? 0.0F : std::sin(time * 15.0F);
+        swing = downward ? .9F + beat * .7F
+                : upward ? -1.6F + beat * .5F
+                         : (facing > 0 ? -.2F + beat * .9F : 3.34F - beat * .9F);
+    }
+    const ScreenPoint hand{body.x + facing * scale * .17F, body.y + scale * .02F};
+    const float length = scale * .36F;
+    const ScreenPoint tip{hand.x + std::cos(swing) * length, hand.y + std::sin(swing) * length};
+    g.line({hand, tip}, std::max(1.5F, scale * .05F), {150, 101, 58});
+    const float across = swing + 1.5708F;
+    g.line({{tip.x - std::cos(across) * scale * .14F, tip.y - std::sin(across) * scale * .14F},
+            {tip.x + std::cos(swing) * scale * .04F, tip.y + std::sin(swing) * scale * .04F},
+            {tip.x + std::cos(across) * scale * .14F, tip.y + std::sin(across) * scale * .14F}},
+           std::max(1.5F, scale * .06F), {206, 214, 220});
+    g.circle(hand, scale * .05F, {245, 205, 160});
 }
 } // namespace thorium::presentation

@@ -123,6 +123,12 @@ void AudioMixer::render(float *output, std::size_t frames) {
                                      return voice.cursor >= voice.clip->samples.size() / voice.clip->channels;
                                  }),
                   voices_.end());
+    if (music_) {
+        musicBlock_.resize(frames * Channels);
+        music_->read(musicBlock_.data(), frames, SampleRate);
+        for (std::size_t sample = 0; sample < frames * Channels; ++sample)
+            output[sample] += musicBlock_[sample] * musicGain_;
+    }
     const float volume = std::clamp(settings.volume, 0.0F, 1.0F);
     for (std::size_t sample = 0; sample < frames * Channels; ++sample)
         output[sample] = std::tanh(output[sample] * volume);
@@ -130,6 +136,16 @@ void AudioMixer::render(float *output, std::size_t frames) {
 void AudioMixer::stop() {
     voices_.clear();
     ++generation;
+}
+bool AudioMixer::setMusic(std::unique_ptr<MusicStream> music, float gain) {
+    if (!music || !music->loaded() || !std::isfinite(gain))
+        return false;
+    music_ = std::move(music);
+    musicGain_ = std::clamp(gain, 0.0F, 1.0F);
+    return true;
+}
+const MusicStream *AudioMixer::music() const {
+    return music_.get();
 }
 std::size_t AudioMixer::activeVoices() const {
     return voices_.size();

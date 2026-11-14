@@ -18,9 +18,11 @@ struct EnemyDefinition {
     EnemyAbility ability = EnemyAbility::None;
     /** Seconds between activations; the first activation follows one full interval after spawning. */
     float abilityInterval = 0;
-    /** Heal or stomp radius in tiles; for Sabotage, the reach from the sapper to a tower. */
+    /** Heal or stomp radius in tiles; for Sabotage and Siege, the reach from the enemy to a tower; for
+     *  Airdrop, the share of the route after which the cargo is dropped. */
     float abilityRadius = 0;
-    /** Healed hit points for Heal, summoned minions for Stomp, charges for Sabotage. */
+    /** Healed hit points for Heal, summoned minions for Stomp, charges for Sabotage, damage per strike for
+     *  Siege, enemies carried for Airdrop. */
     int abilityAmount = 0;
     /** Underground time for Burrow, tower stun time for Stomp, tower disabled time for Sabotage. */
     float abilityDuration = 0;
@@ -31,6 +33,12 @@ struct EnemyDefinition {
     /** Minions created on defeat, at the defeated enemy's route progress. */
     int splitCount = 0;
     EnemyKind minionKind = EnemyKind::Swarm;
+    /** Flies over the route: never blocked, never underground, untouched by ground-only attacks and terrain.
+     */
+    bool flying = false;
+    /** Distance in tiles inside which an attacker can pick this enemy as a target; zero means always visible.
+     *  A hit makes it visible at any range for RunBalance::revealTime. */
+    float stealth = 0;
 };
 /** Immutable balance of one elite modifier, applied on top of the carrier's role. */
 struct EliteDefinition {
@@ -84,7 +92,7 @@ struct EntranceRoute {
     int opensAtWave = 1;
 };
 /** Ground palette and decoration family used to draw a stage's battlefield and cutaways. */
-enum class StageBiome { Meadow, Obsidian, Tundra, Lava, Core };
+enum class StageBiome { Meadow, Obsidian, Tundra, Lava, Core, Crystal, Swamp };
 /** One row-major cutaway board; deeper layers are entered voluntarily without refilling the preparation
  * budget. */
 struct MineLayerDefinition {
@@ -121,8 +129,19 @@ struct TraitPad {
     Point position;
     PadTrait trait = PadTrait::None;
 };
-/** An underground span of one route, from `enter` up to `exit` tiles of progress along the authored route. */
-struct TunnelSpan {
+/** A fork on one route: from `split` enemies either keep to the authored route or take `detour` and rejoin
+ *  it at `merge`. Both points lie on the route, `merge` after `split`; the detour holds the corners strictly
+ *  between them. A barricade closes one branch and moves only during preparation. */
+struct ForkDefinition {
+    std::uint32_t route = 0;
+    Point split;
+    Point merge;
+    std::vector<Point> detour;
+    /** Enemies take the detour when the run starts. */
+    bool startDetour = false;
+};
+/** A span of one route, from `enter` up to `exit` tiles of progress along the authored route. */
+struct RouteSpan {
     std::uint32_t route = 0;
     float enter = 0;
     float exit = 0;
@@ -132,6 +151,17 @@ struct TunnelSpan {
 struct VentDefinition {
     Point position;
     float phase = 0;
+};
+/** A mine cart rail: a straight track crossing the routes and the lever that sends the cart from `from` to
+ *  `to`. */
+struct RailDefinition {
+    Point from;
+    Point to;
+    Point lever;
+};
+/** A gas tank beside a route; it is detonated by hand once per battle. */
+struct TankDefinition {
+    Point position;
 };
 /** Format an authored price consistently for rules and game UI. */
 std::string costLabel(const ResourceCost &cost, bool compact = false);
@@ -204,6 +234,27 @@ struct RunBalance {
     float ventWarning = 1.5F;
     float ventRadius = 1.5F;
     int ventDamage = 30;
+    /** Seconds a stealthy enemy stays visible at any range after it is hit. */
+    float revealTime = 2.5F;
+    /** Mine carts: tiles per second, damage to each ground enemy the cart passes within cartWidth tiles, and
+     *  seconds before the cart can leave again. The first departure of a battle waits cartFirst seconds. */
+    float cartSpeed = 9;
+    int cartDamage = 70;
+    float cartWidth = .7F;
+    float cartCooldown = 16;
+    float cartFirst = 4;
+    /** Gas tanks: blast radius in tiles and the damage dealt to every enemy and allied unit inside it. */
+    float tankRadius = 1.8F;
+    int tankDamage = 90;
+    /** Movement multiplier of ground enemies inside a bog. */
+    float bogSpeed = .7F;
+    /** Building durability at level 1, the share added per further level, and the share of maximum
+     *  durability restored when a wave is cleared. */
+    int towerHp = 300;
+    float towerLevelHp = .5F;
+    float towerRepair = .6F;
+    /** Share of maximum hit points an allied unit recovers per second while no enemy is held by it. */
+    float unitRegen = .01F;
 };
 /** Author every elite modifier in EliteAffix order. */
 std::array<EliteDefinition, EliteAffixCount> eliteRoster();
@@ -238,12 +289,22 @@ struct Catalog {
     MiningMode mining = MiningMode::Sweep;
     /** Seed of the generated excavation walls; unused by Sweep. */
     std::uint32_t mineSeed = 0;
+    /** Rock layers given to cells of the first excavation wall after it is generated: cell index, layers. */
+    std::vector<std::pair<int, int>> wallCover;
     /** Building pads that start blocked by a boulder; a cleared one becomes an ordinary pad. */
     std::vector<Point> boulders;
     /** Building pads that carry a terrain trait. */
     std::vector<TraitPad> padTraits;
     /** Underground route spans; enemies inside cannot be targeted, blocked or hit by area effects. */
-    std::vector<TunnelSpan> tunnels;
+    std::vector<RouteSpan> tunnels;
+    /** Route spans of bog that slow ground enemies. */
+    std::vector<RouteSpan> bogs;
+    /** Barricaded forks, at most one per route. */
+    std::vector<ForkDefinition> forks;
+    /** Mine cart rails sent by hand during a battle. */
+    std::vector<RailDefinition> rails;
+    /** Gas tanks detonated by hand during a battle. */
+    std::vector<TankDefinition> tanks;
     /** Lava vents that periodically damage enemies and allied units around them. */
     std::vector<VentDefinition> vents;
     /** Resolve one supported card; invalid enum values are rejected at the command boundary. */
@@ -260,6 +321,8 @@ struct Catalog {
     float waveVigor(int wave) const;
     /** Maximum health of a live enemy, including its wave and elite multipliers. */
     int health(const Enemy &enemy) const;
+    /** Maximum durability of a building at the given level. */
+    int towerHealth(int level) const;
     /** Maximum shield of a live enemy, including its wave multiplier. */
     int shield(const Enemy &enemy) const;
     /** Armor of a live enemy, including its elite modifier. */
@@ -286,7 +349,7 @@ struct StageMetadata {
 };
 
 /** Total number of playable campaign stages. */
-inline constexpr int TotalStages = 5;
+inline constexpr int TotalStages = 7;
 
 /** Resolve authored content for a specific 1-based stage index. */
 const Catalog &stageCatalog(int stageIndex);
